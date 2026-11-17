@@ -1,0 +1,30 @@
+{
+  "nombre": "Guía de tallas Baroflex",
+  "fuente": "Hoja 'De tallas a milímetros' (Baroflex), foto enviada el 2026-11-11",
+  "unidad": "mm",
+  "nota": "Largo de la plantilla por talla. La hoja no trae anchos.",
+  "tallas": [
+    { "talla": 27, "largo": 180 },
+    { "talla": 28, "largo": 186 },
+    { "talla": 29, "largo": 193 },
+    { "talla": 30, "largo": 200 },
+    { "talla": 31, "largo": 206 },
+    { "talla": 32, "largo": 213 },
+    { "talla": 33, "largo": 220 },
+    { "talla": 34, "largo": 226 },
+    { "talla": 35, "largo": 233 },
+    { "talla": 36, "largo": 240 },
+    { "talla": 37, "largo": 246 },
+    { "talla": 38, "largo": 253 },
+    { "talla": 39, "largo": 260 },
+    { "talla": 40, "largo": 266 },
+    { "talla": 41, "largo": 273 },
+    { "talla": 42, "largo": 280 },
+    { "talla": 43, "largo": 286 },
+    { "talla": 44, "largo": 293 },
+    { "talla": 45, "largo": 300 },
+    { "talla": 46, "largo": 306 },
+    { "talla": 47, "largo": 313 },
+    { "talla": 48, "largo": 320 }
+  ]
+}

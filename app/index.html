@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plantillas Lima Blue</title>
+<style>
+  :root {
+    --tinta: #1c2430; --suave: #5d6878; --linea: #d7dde5; --fondo: #eef1f5; --panel: #ffffff;
+    --acento: #1d5fbf; --acento-2: #174d9c; --aviso: #fff6dc; --aviso-borde: #e6c25a; --mal: #b3261e; --ok: #17753c;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { font: 14px/1.45 system-ui, "Segoe UI", sans-serif; color: var(--tinta); background: var(--fondo); }
+  header { height: 52px; display: flex; align-items: center; gap: 14px; padding: 0 18px; background: var(--panel); border-bottom: 1px solid var(--linea); }
+  header h1 { font-size: 16px; margin: 0; font-weight: 650; }
+  header .version { color: var(--suave); font-size: 13px; }
+  header .estado { margin-left: auto; color: var(--suave); font-size: 13px; }
+  main { display: grid; grid-template-columns: 340px 1fr; height: calc(100% - 52px); }
+  aside { background: var(--panel); border-right: 1px solid var(--linea); overflow-y: auto; padding: 14px 16px 24px; }
+  section { padding: 10px 0 14px; border-bottom: 1px solid var(--linea); }
+  section:last-child { border-bottom: 0; }
+  h2 { font-size: 12px; letter-spacing: .04em; text-transform: uppercase; color: var(--suave); margin: 4px 0 10px; font-weight: 650; }
+  .fila { display: grid; grid-template-columns: 1fr 128px; align-items: center; gap: 8px; margin: 7px 0; }
+  .fila label { color: var(--tinta); }
+  .campo { display: flex; align-items: center; gap: 6px; }
+  .campo input[type=number] { width: 100%; }
+  .unidad { color: var(--suave); font-size: 12px; width: 22px; }
+  /* candado por pie (como LutraCAD): cerrado = mismo valor en los dos pies; abierto = izq y der */
+  .fila.por-pie { grid-template-columns: 1fr 128px 28px; }
+  .fila.por-pie.separado { grid-template-columns: 1fr 156px 28px; }
+  .candado { width: 28px; height: 28px; padding: 0; font-size: 14px; line-height: 1; }
+  .fila.separado .candado { background: #fff3d6; border-color: #e6c25a; }
+  /* ---- pantalla de inicio ---- */
+  .inicio { position: fixed; inset: 0; z-index: 50; background: linear-gradient(160deg, #13284a 0%, #1b2f6b 55%, #0e5a6b 100%); color: #e8eef7; overflow: auto; }
+  .inicio[hidden] { display: none; }
+  .inicio-barra { display: flex; align-items: center; gap: 18px; height: 60px; padding: 0 28px; background: rgba(5, 12, 30, .55); border-bottom: 1px solid rgba(255,255,255,.08); }
+  .inicio-barra .marca { font-size: 16px; }
+  .inicio-nav { display: flex; gap: 4px; }
+  .inicio-nav button { background: transparent; border: 0; color: #c9d6ea; height: 34px; font-size: 15px; border-radius: 0; border-bottom: 2px solid transparent; }
+  .inicio-nav button.activo { color: #fff; border-bottom-color: #39e07a; }
+  .inicio-carpeta { margin-left: auto; color: #9fb2cf; font-size: 13px; }
+  .inicio-cuerpo { padding: 26px 34px 40px; max-width: 1500px; }
+  .inicio-titulo { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+  .inicio-titulo h2 { color: #39e07a; font-size: 26px; letter-spacing: .02em; text-transform: uppercase; margin: 0; }
+  .inicio-titulo input { margin-left: auto; width: 260px; background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.18); color: #fff; }
+  .inicio button.volver { background: transparent; color: #c9d6ea; border-color: rgba(255,255,255,.2); }
+  .tarjetas { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 18px; }
+  .tarjeta { background: rgba(10, 20, 45, .72); border: 1px solid rgba(255,255,255,.08); border-radius: 6px; padding: 0 0 18px; display: grid; gap: 10px; }
+  .tarjeta > * { margin: 0 20px; }
+  .tarjeta-cab { margin: 0; padding: 8px 20px; background: rgba(0,0,0,.25); color: #39e07a; font-weight: 600; font-size: 13px; }
+  .tarjeta-nombre { font-size: 18px; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,.1); }
+  .tarjeta-dato { color: #9fb2cf; font-size: 13px; }
+  .tarjeta.nueva { border-style: dashed; padding-top: 18px; }
+  .tarjeta input { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.2); color: #fff; }
+  .inicio button.abrir { background: transparent; color: #fff; border: 2px solid #2ad1a0; border-radius: 22px; height: 38px; font-weight: 600; box-shadow: 0 0 10px rgba(42,209,160,.35); }
+  .inicio button.abrir:hover { background: rgba(42,209,160,.15); }
+  .nuevo-proyecto { display: flex; gap: 8px; margin-bottom: 14px; max-width: 520px; }
+  .nuevo-proyecto input { flex: 1; background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.2); color: #fff; }
+  table.proyectos { width: 100%; border-collapse: collapse; background: rgba(10, 20, 45, .6); border-radius: 6px; overflow: hidden; }
+  table.proyectos th { text-align: left; font-size: 12px; color: #9fb2cf; font-weight: 600; padding: 10px 14px; background: rgba(0,0,0,.25); }
+  table.proyectos td { padding: 9px 14px; border-top: 1px solid rgba(255,255,255,.06); font-size: 14px; }
+  table.proyectos tr[hidden] { display: none; }
+  table.proyectos td button { height: 30px; background: transparent; color: #fff; border-color: rgba(255,255,255,.3); }
+  table.proyectos td.acciones-proyecto { white-space: nowrap; text-align: right; }
+  table.proyectos td.acciones-proyecto button + button { margin-left: 6px; }
+  table.proyectos td button.peligro { color: #ff9a8f; border-color: rgba(255,120,110,.45); }
+  table.proyectos .vacio { color: #9fb2cf; text-align: center; padding: 24px; }
+  .estado { display: inline-block; padding: 2px 10px; border-radius: 10px; background: #2b5fb8; color: #fff; font-size: 12px; font-weight: 600; }
+  .estado.ok { background: #1f8a4c; }
+  .inicio-aviso { max-width: 620px; background: rgba(10, 20, 45, .72); border: 1px solid rgba(255,255,255,.1); border-radius: 8px; padding: 22px 26px; line-height: 1.55; }
+  .inicio-aviso h3 { margin: 0 0 8px; color: #39e07a; }
+  .inicio-aviso button { margin: 8px 8px 0 0; }
+  /* biblioteca */
+  .bib-nota { color: #9fb2cf; font-size: 13px; margin: -6px 0 14px; }
+  .aviso-carpeta { display: block; margin-top: 8px; color: #ffcf7a; }
+  .bib-cat { color: #c9d6ea; font-size: 14px; text-transform: uppercase; letter-spacing: .05em; margin: 22px 0 10px; }
+  .bib-calzados { text-transform: none; letter-spacing: 0; color: #9fb2cf; font-weight: 400; }
+  .bib-seccion { color: #e8eef7; font-size: 18px; margin: 34px 0 10px; padding-top: 18px; border-top: 1px solid #2b3d5c; }
+  .tarjetas.bib { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+  .tarjeta.elem { position: relative; padding-top: 14px; }
+  .tarjeta.elem canvas { justify-self: center; background: #e9edf2; border-radius: 6px; margin: 0; }
+  .tarjeta.elem .tarjeta-nombre { font-size: 15px; }
+  .estrella { position: absolute; top: 8px; right: 8px; margin: 0 !important; width: 32px; height: 32px; padding: 0; border-radius: 50%; background: rgba(0,0,0,.35); border: 0; color: #6f7f99; font-size: 17px; }
+  .estrella.si { color: #ffd23f; }
+  .elem-botones { display: flex; gap: 6px; flex-wrap: wrap; }
+  .elem-botones button, .editor-elem button { height: 30px; background: transparent; color: #fff; border-color: rgba(255,255,255,.3); font-size: 13px; }
+  .inicio button.peligro { color: #ff9a8f; border-color: rgba(255,120,110,.45); }
+  /* el editor de un elemento va en una ventana aparte, sobre la biblioteca (Ernesto, 2026-11-14) */
+  #editorElemento { position: fixed; inset: 0; z-index: 60; background: rgba(4, 10, 24, .8); display: grid; place-items: center; padding: 20px; overflow: auto; }
+  #editorElemento:empty { display: none; }
+  .editor-elem { background: #0d1a36; border: 1px solid rgba(57,224,122,.35); border-radius: 10px; padding: 18px 22px; width: min(960px, 100%); max-height: calc(100vh - 40px); overflow: auto; box-shadow: 0 18px 50px rgba(0,0,0,.5); }
+  /* pantalla completa: campos | 3D | caja 2D */
+  #editorElemento:has(.completo) { padding: 0; }
+  .editor-elem.completo { width: 100vw; height: 100vh; max-height: none; border-radius: 0; border: 0; display: grid; grid-template-rows: auto 1fr; gap: 12px; padding: 14px 20px; overflow: hidden; }
+  .editor-cab { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+  .editor-cab h3 { margin: 0 0 4px; }
+  .editor-cab .bib-nota { margin: 0; }
+  .editor-cab .editor-botones { margin-top: 0; flex-shrink: 0; }
+  .editor-elem.completo .editor-grid { grid-template-columns: minmax(280px, 340px) 1fr 320px; min-height: 0; }
+  .editor-elem.completo .editor-campos { overflow: auto; padding-right: 6px; align-content: start; }
+  .editor-3d { position: relative; min-height: 0; border-radius: 8px; overflow: hidden; background: linear-gradient(160deg, #e9eef4, #cfd8e3); }
+  .editor-3d canvas { width: 100%; height: 100%; display: block; touch-action: none; }
+  .editor-3d canvas.ed-3d-capa { position: absolute; inset: 0; pointer-events: none; }
+  .editor-3d canvas.ed-cubo { position: absolute; top: 10px; right: 10px; width: 120px; height: 120px; cursor: grab; touch-action: none; }
+  .ed-vistas { position: absolute; top: 10px; left: 10px; display: flex; gap: 2px; background: rgba(13,26,54,.85); border-radius: 7px; padding: 3px; }
+  .editor-elem .ed-vistas button { border: 0; height: 28px; font-size: 12px; padding: 0 9px; }
+  .ed-ayuda-3d { position: absolute; bottom: 8px; left: 10px; font-size: 12px; color: #33415a; background: rgba(255,255,255,.75); padding: 3px 8px; border-radius: 5px; }
+  .editor-elem.completo .editor-vista { overflow: auto; }
+  .ed-caja-herr { display: flex; gap: 2px; background: rgba(255,255,255,.08); border-radius: 7px; padding: 2px; }
+  .ed-caja-herr[hidden] { display: none; }
+  .editor-elem .ed-caja-herr button { border: 0; height: 28px; font-size: 12px; padding: 0 8px; }
+  .editor-elem .ed-caja-herr button.activo { background: #12b33c; }
+  .editor-elem h3 { margin: 0 0 12px; color: #39e07a; }
+  .editor-grid { display: grid; grid-template-columns: 1fr 270px; gap: 22px; }
+  .editor-campos { display: grid; gap: 8px; }
+  .editor-campos label { display: grid; grid-template-columns: 1fr 140px; align-items: center; gap: 10px; font-size: 13px; color: #c9d6ea; }
+  .editor-campos input, .editor-campos select { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.2); color: #fff; }
+  .editor-campos select option { color: #1c2430; }
+  .editor-vista { display: grid; justify-items: center; gap: 6px; font-size: 12px; color: #9fb2cf; align-content: start; }
+  .editor-vista canvas { background: #e9edf2; border-radius: 6px; touch-action: none; max-width: 100%; }
+  .editor-vista > span { text-align: center; max-width: 260px; line-height: 1.35; }
+  .ed-caja-botones { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+  .ed-caja-botones button { height: 30px; background: transparent; color: #fff; border-color: rgba(255,255,255,.3); font-size: 12px; }
+  .ed-caja-botones button.activo { background: #12b33c; border-color: #12b33c; }
+  .ed-caja-botones button[hidden] { display: none; }
+  .editor-botones { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+  .inicio .editor-botones button.primario { background: var(--acento); border-color: var(--acento); }
+  .bases { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+  .editor-elem .bases button { height: auto; display: grid; justify-items: center; gap: 6px; padding: 8px; }
+  .bases canvas { background: #e9edf2; border-radius: 5px; }
+  .ir-inicio { height: 32px; padding: 0 12px; font-weight: 600; }
+  .proyecto-actual { font-size: 13px; color: var(--acento-2); background: #eaf2ff; border-radius: 6px; padding: 3px 10px; }
+  .proyecto-actual.sin-proyecto { color: #8a5a00; background: #fff6dc; }
+  .fila.ancha { grid-template-columns: 110px 1fr; }
+  .fila.ancha select { width: 100%; }
+  .nota-largo { margin: 0; font-size: 12px; }
+  .nota-largo[hidden] { display: none; }
+  /* secciones desplegables: clic en el título */
+  .plegar { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 6px; width: 100%; cursor: pointer; padding: 2px 0; }
+  .plegar:focus-visible { outline: 2px solid #9cbdf0; border-radius: 4px; }
+  .plegar:hover .texto { color: var(--tinta); }
+  .plegar .flecha { display: inline-block; width: 10px; transition: transform .15s; }
+  section:not(.cerrada) > h2 .flecha { transform: rotate(90deg); }
+  .plegar .resumen { margin-left: auto; text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 12px; max-width: 62%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  section:not(.cerrada) > h2 .resumen { display: none; }
+  section.cerrada { padding-bottom: 8px; }
+  section.cerrada > h2 { margin-bottom: 4px; }
+  section.cerrada > :not(h2) { display: none !important; }
+  .izqder { display: none; color: var(--suave); font-size: 11px; }
+  .fila.separado .izqder { display: inline; }
+  input[type=text], input[type=number], select {
+    height: 32px; border: 1px solid var(--linea); border-radius: 6px; padding: 0 8px; font: inherit; color: var(--tinta); background: #fff; min-width: 0;
+  }
+  input:disabled { background: #f3f5f8; color: var(--suave); }
+  input:focus, select:focus { outline: 2px solid #9cbdf0; outline-offset: 0; border-color: var(--acento); }
+  .ancho-total { grid-column: 1 / -1; width: 100%; }
+  .auto { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; color: var(--suave); font-size: 13px; margin-top: -3px; }
+  .elemento { border: 1px solid var(--linea); border-left: 3px solid #339aad; border-radius: 6px; padding: 8px 10px; margin-top: 8px; }
+  .elemento .cab { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+  .elemento .cab span { flex: 1; }
+  .elemento .quitar { height: 26px; width: 26px; padding: 0; border: 0; color: var(--suave); font-size: 18px; line-height: 1; }
+  .elemento .quitar:hover { color: var(--mal); background: #fbecea; }
+  .elemento .alturas { display: grid; grid-template-columns: auto 1fr auto 1fr auto; align-items: center; gap: 6px; margin-top: 6px; font-size: 13px; color: var(--suave); }
+  .elemento .alturas input { width: 100%; height: 30px; }
+  #listaElementos:empty::after { content: 'Sin elementos.'; display: block; color: var(--suave); font-size: 13px; margin-top: 8px; }
+  table.medidas { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  table.medidas td { padding: 3px 0; border-bottom: 1px dashed #e7ebf0; }
+  table.medidas td:last-child { text-align: right; }
+  .avisos { margin: 0; padding: 0; list-style: none; }
+  .avisos li { background: var(--aviso); border: 1px solid var(--aviso-borde); border-radius: 6px; padding: 6px 9px; margin: 6px 0; font-size: 13px; }
+  .sinavisos { color: var(--ok); font-size: 13px; }
+  .botones { display: grid; gap: 8px; }
+  button { height: 36px; border-radius: 6px; border: 1px solid var(--linea); background: #fff; color: var(--tinta); font: inherit; cursor: pointer; padding: 0 12px; }
+  button:hover { border-color: #b8c2cf; }
+  button.primario { background: var(--acento); border-color: var(--acento); color: #fff; font-weight: 600; }
+  button.primario:hover { background: var(--acento-2); }
+  .mensaje { font-size: 13px; margin-top: 8px; min-height: 18px; word-break: break-word; }
+  .mensaje.ok { color: var(--ok); } .mensaje.mal { color: var(--mal); }
+  .visor { position: relative; background: radial-gradient(ellipse at 50% 35%, #fbfcfd 0%, #e6eaef 70%, #dde2e8 100%); min-height: 300px; }
+  .visor canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+  .visor canvas:active { cursor: grabbing; }
+  .barra { position: absolute; top: 12px; right: 12px; display: flex; gap: 4px; background: rgba(255,255,255,.92); border: 1px solid var(--linea); border-radius: 8px; padding: 4px; }
+  .barra button { height: 30px; border: 0; background: transparent; padding: 0 10px; border-radius: 5px; }
+  .barra button:hover, .barra button.activo { background: #e9eff8; color: var(--acento-2); }
+  .barra .sep { width: 1px; background: var(--linea); margin: 4px 2px; }
+  .barra button[data-ver-pie]:not(.activo), .barra #verMuestraBarra:not(.activo) { color: #9aa3af; text-decoration: line-through; }
+  .visor canvas.cubo-vistas { position: absolute; inset: auto; top: 56px; right: 12px; left: auto; bottom: auto; width: 120px; height: 120px; cursor: grab; touch-action: none; z-index: 3; }
+  #capa { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  /* la muestra se mezcla multiplicando: el papel blanco no tapa la plantilla, solo se ve el trazo */
+  #lienzoMuestra { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; mix-blend-mode: multiply; }
+  #filaContacto[hidden], #datosMuestra[hidden], #estadoContorno[hidden], #filaListaMuestras[hidden], #avisoMuestra[hidden] { display: none; }
+  .aviso-muestra { margin: 8px 0 0; padding: 6px 8px; background: #fff6dc; border: 1px solid #e6c25a; border-radius: 6px; font-size: 12.5px; }
+  .nota-contorno { margin-top: 10px; padding: 8px 10px; border-left: 3px solid var(--acento); background: #eef3fb; border-radius: 6px; font-size: 13px; }
+  .visor.midiendo canvas#lienzo { cursor: crosshair; }
+  .herramientas { position: absolute; top: 12px; left: 12px; display: flex; gap: 4px; background: rgba(255,255,255,.92); border: 1px solid var(--linea); border-radius: 8px; padding: 4px; }
+  .herramientas button { height: 30px; border: 0; background: transparent; padding: 0 10px; border-radius: 5px; }
+  .herramientas button:hover, .herramientas button.activo { background: #e9eff8; color: var(--acento-2); }
+  .leyenda { position: absolute; left: 12px; top: 56px; background: rgba(255,255,255,.92); border: 1px solid var(--linea); border-radius: 8px; padding: 8px 10px; font-size: 12px; display: grid; grid-template-columns: 14px auto; gap: 0 8px; }
+  .leyenda[hidden] { display: none; }
+  .leyenda .escala { grid-row: 1 / span 6; width: 14px; border-radius: 3px; }
+  .leyenda span { line-height: 22px; font-variant-numeric: tabular-nums; }
+  .ayuda { position: absolute; left: 14px; bottom: 12px; color: var(--suave); font-size: 12px; background: rgba(255,255,255,.75); padding: 3px 8px; border-radius: 5px; }
+  .error { position: absolute; inset: 40px; color: var(--mal); }
+  .historial { display: flex; gap: 4px; }
+  .historial button { height: 30px; font-size: 13px; padding: 0 10px; }
+  button:disabled { opacity: .45; cursor: default; }
+  .recuperar { background: #eaf2ff; border: 1px solid #b7cff3; border-radius: 8px; padding: 8px 10px; margin: 6px 0; font-size: 13px; }
+  .recuperar[hidden], .orden[hidden] { display: none; }
+  .orden { background: #fff8f0; border: 1px solid #f0c99a; border-left: 3px solid #e08a2e; border-radius: 8px; padding: 8px 10px; margin: 6px 0; font-size: 13px; }
+  header a { color: var(--acento-2); font-size: 13px; text-decoration: none; } header a:hover { text-decoration: underline; }
+  .recuperar div { margin-top: 6px; display: flex; gap: 6px; }
+  .recuperar button { height: 30px; }
+  .modulos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; background: #e9edf2; border-radius: 8px; padding: 3px; margin-bottom: 6px; }
+  .modulos button { height: 32px; border: 0; background: transparent; border-radius: 6px; font-weight: 600; color: var(--suave); padding: 0 6px; }
+  .modulos button.activo { background: #fff; color: var(--acento-2); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+  .nota-modulo { margin: 4px 0 2px; color: var(--suave); font-size: 12.5px; }
+  [data-en][hidden] { display: none; }
+  .elemento.activo { border-color: #299e57; border-left-color: #299e57; background: #effaf2; }
+  .elemento .posicion { display: grid; grid-template-columns: 1fr 64px 64px; gap: 4px 6px; align-items: center; margin-top: 6px; font-size: 12.5px; color: var(--suave); }
+  .elemento .posicion input { height: 28px; width: 100%; }
+  .elemento .posicion .cab-pie { text-align: center; font-size: 11.5px; }
+  .elemento .centrar { height: 24px; font-size: 12px; padding: 0 8px; margin-top: 6px; color: var(--suave); }
+  .juntos { margin-top: 8px; }
+  .combos { display: grid; grid-template-columns: 1fr auto auto 32px; gap: 4px; margin-top: 8px; }
+  .combos button { height: 32px; padding: 0 8px; font-size: 13px; }
+  .visor.moviendo canvas#lienzo { cursor: move; }
+  .visor.soltando::after { content: 'Suelte aquí la carpeta del paciente, el escaneo (STL), la muestra (PDF o PNG) o la receta (JSON)'; position: absolute; inset: 10px; border: 2px dashed var(--acento); border-radius: 12px; background: rgba(29,95,191,.08); display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 600; color: var(--acento-2); pointer-events: none; }
+  .panel-corte { position: absolute; left: 12px; right: 12px; bottom: 40px; height: 230px; background: rgba(255,255,255,.96); border: 1px solid var(--linea); border-radius: 10px; box-shadow: 0 4px 14px rgba(20,30,50,.08); }
+  .panel-corte[hidden] { display: none; }
+  .panel-corte canvas { width: 100%; height: 100%; display: block; }
+  .panel-corte button { position: absolute; top: 6px; right: 6px; height: 26px; width: 26px; padding: 0; border: 0; background: transparent; font-size: 18px; color: var(--suave); }
+  .visor.cortando canvas#lienzo, .visor.editando-corte canvas#lienzo { cursor: crosshair; }
+  /* panel de "Editar línea de corte" (como el panel Acción de LutraCAD) */
+  .accion-corte { position: absolute; right: 12px; top: 186px; width: 270px; background: rgba(255,255,255,.97); border: 1px solid var(--linea); border-radius: 10px; padding: 10px 12px; box-shadow: 0 4px 14px rgba(20,30,50,.1); font-size: 13px; z-index: 4; }
+  .accion-corte[hidden] { display: none; }
+  .accion-corte p { margin: 6px 0; color: var(--suave); line-height: 1.4; }
+  .modos-corte { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 2px; background: #e9edf2; border-radius: 7px; padding: 2px; margin-top: 8px; }
+  .modos-corte button { height: 28px; border: 0; background: transparent; font-size: 12px; white-space: nowrap; padding: 0 2px; }
+  .modos-corte button.activo { background: #fff; color: var(--acento-2); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+  .modos-corte.herramientas-caja { grid-template-columns: repeat(5, auto); }
+  .modos-corte.herramientas-caja button { font-size: 12px; padding: 0 4px; }
+  .modos-corte[hidden] { display: none; }
+  .accion-corte label { display: flex; align-items: center; gap: 6px; color: var(--tinta); }
+  .accion-corte label input { width: 64px; height: 28px; }
+  .accion-corte label[hidden] { display: none; }
+  .pe-pie { color: var(--suave); font-size: 12px; }
+  #panelElemento > label { margin-top: 8px; }
+  .pe-modos { grid-template-columns: repeat(4, 1fr); }
+  .pe-modos button { font-size: 12px; padding: 0 4px; }
+  .pe-numeros { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px; }
+  .pe-numeros label { display: grid; gap: 2px; font-size: 12px; color: var(--suave); }
+  .pe-numeros input { width: 100% !important; }
+  .pe-botones { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; }
+  .pe-botones button { height: 30px; font-size: 12.5px; padding: 0 6px; }
+  .pe-botones #peBiblioteca { grid-column: 1 / -1; }
+  #panelPlantilla .pp-cab { display: flex; align-items: center; justify-content: space-between; }
+  #panelPlantilla .pp-cab button { border: 0; background: none; font-size: 18px; line-height: 1; cursor: pointer; color: #5d6878; padding: 0 2px; }
+  #panelPlantilla .pp-nota { color: #5d6878; font-size: 12px; margin: 4px 0 0; }
+  #panelPlantilla .pe-botones button.ancho { grid-column: 1 / -1; }
+  .mas-ajustes { margin: 6px 0 2px; }
+  .mas-ajustes > summary { cursor: pointer; color: #1d5fbf; font-size: 12.5px; padding: 4px 0; }
+  .botones-corte { display: grid; grid-template-columns: auto 1fr 1fr; gap: 6px; margin-top: 10px; }
+  .botones-corte button { height: 32px; padding: 0 8px; }
+  .elemento details.ajustes { margin-top: 6px; }
+  .elemento details.ajustes summary { cursor: pointer; font-size: 12.5px; color: var(--acento-2); }
+  .elemento .posicion label { font-size: 12px; }
+  /* si el visor es angosto, las herramientas bajan una fila para no pisar las vistas */
+  @media (max-width: 1240px) { .herramientas { top: 54px; } .leyenda { top: 98px; } }
+  @media (max-width: 820px) { main { grid-template-columns: 1fr; height: auto; } .visor { height: 60vh; } }
+</style>
+<!-- estética (2026-11-16): quitar esta línea vuelve al aspecto anterior -->
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+<!-- Pantalla de inicio (como la de LutraCAD): diseñadores, sus proyectos y la biblioteca -->
+<div id="inicio" class="inicio" hidden>
+  <div class="inicio-barra">
+    <b class="marca">Plantillas Lima Blue</b>
+    <nav class="inicio-nav">
+      <button data-inicio-vista="disenadores" class="activo">Diseñadores</button>
+      <button data-inicio-vista="biblioteca">Biblioteca</button>
+    </nav>
+    <span id="inicioCarpeta" class="inicio-carpeta"></span>
+    <button id="inicioVolver" class="primario" hidden>Volver al diseño</button>
+  </div>
+  <div id="inicioCuerpo" class="inicio-cuerpo"></div>
+</div>
+<header>
+  <button id="irInicio" class="ir-inicio" title="Diseñadores y proyectos">⌂ Inicio</button>
+  <h1>Plantillas Lima Blue</h1>
+  <span id="proyectoActual" class="proyecto-actual sin-proyecto">Sin proyecto (no se guarda)</span>
+  <a href="orden.html" target="_blank" rel="noopener">Orden del doctor (borrador)</a>
+  <span class="estado" id="estado">Cargando…</span>
+  <span class="historial">
+    <button id="deshacer" title="Deshacer (Ctrl+Z)" disabled>↶ Deshacer</button>
+    <button id="rehacer" title="Rehacer (Ctrl+Y)" disabled>↷ Rehacer</button>
+  </span>
+</header>
+<main>
+  <aside>
+    <nav class="modulos" role="tablist" aria-label="Módulos">
+      <button role="tab" data-modulo="base" class="activo">1. Base</button>
+      <button role="tab" data-modulo="diseno">2. Diseño</button>
+      <button role="tab" data-modulo="exportar">3. Exportar</button>
+    </nav>
+    <p class="nota-modulo" id="notaModulo"></p>
+    <div class="orden" id="orden" hidden></div>
+    <div class="recuperar" id="recuperar" hidden>
+      <span id="recuperarTexto"></span>
+      <div><button class="primario" id="recuperarSi">Recuperar</button> <button id="recuperarNo">Descartar</button></div>
+    </div>
+    <section data-en="base">
+      <h2>Paciente</h2>
+      <button id="abrirCarpeta" class="ancho-total primario" title="La carpeta del paciente en Baro: carga el escaneo y las muestras (también se puede arrastrar la carpeta sobre el 3D)">Abrir carpeta del paciente…</button>
+      <input type="file" id="archivoCarpeta" webkitdirectory multiple hidden>
+      <input type="text" id="paciente" class="ancho-total" placeholder="Nombre del paciente" style="margin-top:8px">
+    </section>
+    <section data-en="base">
+      <h2>Escaneo del pie</h2>
+      <div class="botones">
+        <button id="abrirEscaneo">Abrir escaneo (STL)…</button>
+        <input type="file" id="archivoEscaneo" accept=".stl" multiple hidden>
+      </div>
+      <label class="auto" style="margin-top:8px"><input type="checkbox" id="verEscaneo" checked> Mostrar sobre la plantilla</label>
+      <table class="medidas"><tbody id="medidasEscaneo"></tbody></table>
+      <button id="aplicarEscaneo" class="ancho-total" style="margin-top:8px" hidden>Usar las medidas del escaneo</button>
+    </section>
+    <section data-en="base">
+      <h2>Muestra 2D</h2>
+      <div class="botones">
+        <button id="abrirMuestra">Abrir muestra (PDF o PNG)…</button>
+        <input type="file" id="archivoMuestra" accept=".png,image/png,.pdf,application/pdf" hidden>
+      </div>
+      <div id="datosMuestra" hidden>
+        <div id="filaListaMuestras" class="posicion" style="grid-template-columns: 70px 1fr; margin-top:8px" hidden>
+          <label for="listaMuestras">Muestra</label><select id="listaMuestras"></select>
+        </div>
+        <p id="avisoMuestra" class="aviso-muestra" hidden>Trazo muy cortado o a lápiz: revise en la vista Arriba que la línea roja siga la muestra antes de usar su forma.</p>
+        <label class="auto" style="margin-top:8px"><input type="checkbox" id="verMuestra" checked> Mostrar debajo (vista Arriba)</label>
+        <label class="auto"><input type="checkbox" id="muestraEspejo" checked> También en el otro pie (espejo)</label>
+        <table class="medidas"><tbody id="medidasMuestra"></tbody></table>
+        <div class="posicion" style="grid-template-columns: 1fr 110px">
+          <label for="muestraLado">Pie de la muestra</label>
+          <select id="muestraLado"><option value="izq">Izquierdo</option><option value="der">Derecho</option></select>
+          <label for="muestraBorde">Borde</label>
+          <select id="muestraBorde" title="Prolijo quita los defectos del trazo (doble línea, bultos, entradas) sin cambiar la forma">
+            <option value="fiel">Fiel al trazo</option><option value="prolijo" selected>Prolijo</option><option value="muy">Muy prolijo</option>
+          </select>
+        </div>
+        <button id="contornoMuestra" class="ancho-total primario" style="margin-top:8px">Plantilla con la forma de la muestra</button>
+        <div class="posicion" style="grid-template-columns: 1fr 72px">
+          <label for="muestraX">Correr hacia interno (mm)</label><input type="number" id="muestraX" step="1" value="0">
+          <label for="muestraY">Correr hacia los dedos (mm)</label><input type="number" id="muestraY" step="1" value="0">
+          <label for="muestraGiro">Girar (°, + punta a interno)</label><input type="number" id="muestraGiro" step="1" value="0">
+        </div>
+        <button id="aplicarMuestra" class="ancho-total" style="margin-top:8px">Usar solo largo y ancho de la muestra</button>
+      </div>
+      <div id="estadoContorno" class="nota-contorno" hidden>
+        Forma de la plantilla: contorno de <b id="nombreContorno"></b>.
+        <button id="quitarContorno" class="ancho-total" style="margin-top:6px">Volver a la forma de la horma</button>
+      </div>
+    </section>
+    <section data-en="base">
+      <h2>Plantilla</h2>
+      <div class="fila ancha"><label for="medidaDesde">Medida desde</label><select id="medidaDesde" title="Guía de tallas: el largo sale del cuadro según la talla. Muestra o escaneo: el largo sale del pie o de la muestra.">
+        <option value="guia">Guía de tallas</option><option value="muestra">Muestra o escaneo</option></select></div>
+      <div class="fila ancha"><label for="producto">Producto</label><select id="producto" title="En EVA el largo de la guía de tallas lleva 5 mm más para pulir"></select></div>
+      <!-- tipo de diseño con botones, como LutraCAD: un clic elige (Ernesto, 2026-11-16); el desplegable queda oculto -->
+      <div class="fila tipo-diseno"><span class="etiqueta" id="etTipoDiseno">Tipo de diseño</span>
+        <div class="botones-tipo" role="radiogroup" aria-labelledby="etTipoDiseno" id="botonesTipo"></div>
+        <select id="tipoDiseno" hidden aria-hidden="true" tabindex="-1"></select></div>
+      <div class="fila ancha"><label for="horma">Horma</label><select id="horma" title="Forma de la plantilla según el calzado. Una horma delgada o estándar pone ese tipo de diseño."></select></div>
+      <div class="fila ancha"><label for="cuadro">Cuadro de tallas</label><select id="cuadro"></select></div>
+      <div class="fila ancha"><span class="etiqueta" id="etTalla">Talla</span>
+        <select id="talla" hidden aria-hidden="true" tabindex="-1"></select>
+        <div class="sel-talla" id="selTalla">
+          <button type="button" class="st-boton" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="etTalla"><span class="st-actual"></span><span class="st-flecha" aria-hidden="true">▾</span></button>
+          <ul class="st-lista" role="listbox" aria-labelledby="etTalla" hidden></ul>
+        </div></div>
+    </section>
+    <section data-en="base diseno exportar" class="medidas-alturas">
+      <h2 id="tituloMedidas">Medidas y alturas</h2>
+      <div class="fila"><label for="largo">Largo</label><span class="campo"><input type="number" id="largo" min="150" max="360" step="0.5"><span class="unidad">mm</span></span>
+        <p class="auto nota-largo" id="notaLargo" hidden></p></div>
+      <div class="fila"><label for="anchoAntepie">Ancho antepié</label><span class="campo"><input type="number" id="anchoAntepie" min="40" max="140" step="0.5"><span class="unidad">mm</span></span>
+        <label class="auto"><input type="checkbox" id="anchoAuto" checked> Proporcional al largo</label><input type="hidden" id="ancho"></div>
+      <div class="fila"><label for="anchoTalon">Ancho talón</label><span class="campo"><input type="number" id="anchoTalon" min="30" max="110" step="0.5"><span class="unidad">mm</span></span>
+        <label class="auto"><input type="checkbox" id="anchoTalonAuto" checked> Como la horma</label></div>
+      <div class="fila"><label for="copa">Copa</label><span class="campo"><input type="number" id="copa" min="4" max="25" step="0.5"><span class="unidad">mm</span></span></div>
+      <!-- tipo de arco con botones (Ernesto, 2026-11-16); clic en el alto de arco lo desbloquea para escribirlo a mano -->
+      <div class="fila tipo-diseno"><span class="etiqueta" id="etTipoArco">Tipo de arco</span>
+        <div class="botones-tipo tres" role="radiogroup" aria-labelledby="etTipoArco" id="botonesArco"></div>
+        <select id="tipoArco" hidden aria-hidden="true" tabindex="-1"></select></div>
+      <div class="fila"><label for="arco">Alto de arco</label><span class="campo"><input type="number" id="arco" min="4" max="35" step="0.5"><span class="unidad">mm</span></span></div>
+      <div class="fila"><label for="antepie">Antepié (espesor)</label><span class="campo"><input type="number" id="antepie" min="0.8" max="6" step="0.1"><span class="unidad">mm</span></span></div>
+      <details class="mas-ajustes" id="masAjustes"><summary>Más ajustes</summary>
+        <div class="fila"><label for="arcoPos">Ubicación del arco</label><span class="campo"><input type="number" id="arcoPos" min="28" max="52" step="1"><span class="unidad">%</span></span>
+          <label class="auto"><input type="checkbox" id="arcoPosAuto" checked> Como la horma (guía de tallas: 35 % del largo desde el talón, como LutraCAD)</label></div>
+        <div class="fila"><label for="canto">Canto del borde</label><span class="campo"><input type="number" id="canto" min="0.8" max="4" step="0.1"><span class="unidad">mm</span></span></div>
+      </details>
+      <div class="fila" id="filaContacto" hidden><label for="contactoPct">Contacto con el pie</label><span class="campo"><input type="number" id="contactoPct" min="0" max="100" step="5" value="100"><span class="unidad">%</span></span>
+        <label class="auto"><input type="checkbox" id="contactoActivo" checked> Arco igual al escaneo (contacto total; 100 % = copia la planta del pie)</label>
+        <label class="auto">Forma del arco <select id="contactoForma"><option value="natural" selected>Natural (alisada)</option><option value="fiel">Fiel al escaneo</option></select></label></div>
+    </section>
+    <section data-en="diseno">
+      <h2>Elementos</h2>
+      <select id="agregarElemento" class="ancho-total" aria-label="Agregar elemento"><option value="">+ Agregar elemento…</option></select>
+      <div class="combos">
+        <select id="combinacion" aria-label="Combinaciones guardadas"><option value="">Combinaciones guardadas…</option></select>
+        <button id="aplicarCombo" title="Poner los elementos de la combinación elegida">Aplicar</button>
+        <button id="guardarCombo" title="Guardar los elementos actuales con un nombre">Guardar…</button>
+        <button id="borrarCombo" title="Borrar la combinación elegida" aria-label="Borrar la combinación elegida">×</button>
+      </div>
+      <label class="auto juntos"><input type="checkbox" id="moverJuntos" checked> Mover igual en los dos pies</label>
+      <div id="listaElementos"></div>
+    </section>
+    <section data-en="base diseno exportar">
+      <h2>Revisión</h2>
+      <ul class="avisos" id="avisos"></ul>
+    </section>
+    <section data-en="exportar">
+      <h2>Archivos</h2>
+      <div class="botones">
+        <button class="primario" id="exportar">Exportar STL (izquierdo y derecho)</button>
+        <button id="hojaDiseno">Hoja del diseño (imprimir / PDF)</button>
+        <button id="guardarReceta">Guardar receta</button>
+        <button id="abrirReceta">Abrir receta…</button>
+        <input type="file" id="archivoReceta" accept=".json,application/json" hidden>
+      </div>
+      <div class="mensaje" id="mensaje"></div>
+    </section>
+  </aside>
+  <div class="visor">
+    <canvas id="lienzo" aria-label="Vista 3D de la plantilla"></canvas>
+    <canvas id="lienzoMuestra" aria-hidden="true"></canvas>
+    <canvas id="capa" aria-hidden="true"></canvas>
+    <div class="leyenda" id="leyenda" hidden></div>
+    <div class="herramientas" role="toolbar" aria-label="Herramientas">
+      <button data-herr="medir" title="Clic en la plantilla para ver la altura en ese punto">Medir</button>
+      <button data-herr="regla" title="Regla: clic en un punto y clic en otro para ver la distancia en mm (tecla R). Con Mayús la línea queda recta en la vista; Esc cancela.">Regla</button>
+      <button id="lineaCorte" hidden title="Editar la línea de corte (el contorno de la plantilla), como en LutraCAD">Línea de corte</button>
+      <button data-herr="corte" title="Clic en la plantilla para ver su perfil a lo ancho y a lo largo por ese punto">Corte</button>
+      <button data-herr="mapa" title="Pintar la plantilla según su altura">Mapa de alturas</button>
+      <button data-herr="ajuste" title="Pintar dónde la plantilla toca, deja hueco o presiona el pie del escaneo" hidden>Ajuste al pie</button>
+      <button id="borrarMedidas" hidden>Borrar medidas</button>
+    </div>
+    <div class="barra" role="toolbar" aria-label="Vistas">
+      <button data-vista="3d" title="Vista 3D inicial (tecla 1)">3D</button>
+      <button id="perspectiva" title="Con perspectiva lo cercano se ve más grande; sin ella (como Bambu en los lados) la pieza se ve con su forma real">Perspectiva</button>
+      <span class="sep"></span>
+      <button data-ver-pie="izq" class="activo" title="Mostrar u ocultar el pie izquierdo">👁 Izquierdo</button>
+      <button data-ver-pie="der" class="activo" title="Mostrar u ocultar el pie derecho">👁 Derecho</button>
+      <button id="verMuestraBarra" class="activo" aria-pressed="true" title="Mostrar u ocultar la muestra debajo de la plantilla (se ve en la vista Arriba)" hidden>👁 Muestra</button>
+    </div>
+    <!-- plantilla elegida (clic en la plantilla, fuera de los elementos): línea de corte y reflejar (Ernesto, 2026-11-16) -->
+    <div class="accion-corte" id="panelPlantilla" hidden>
+      <div class="pp-cab"><b id="ppNombre">Plantilla</b><button id="ppCerrar" title="Dejar de elegir la plantilla (Esc)" aria-label="Cerrar">×</button></div>
+      <div class="pe-botones">
+        <button id="ppCorte" class="ancho" title="Editar el contorno de esta plantilla (y su altura del borde desde el costado), como en LutraCAD">Línea de corte</button>
+        <button id="ppReflejar" class="ancho primario"></button>
+      </div>
+      <p class="pp-nota" id="ppNota"></p>
+    </div>
+    <!-- panel del elemento elegido (como "Configuración de recursos" de LutraCAD) -->
+    <div class="accion-corte" id="panelElemento" hidden>
+      <b id="peNombre"></b> <span id="pePie" class="pe-pie"></span>
+      <label>Altura <input type="number" id="peAltura" min="0" max="15" step="0.5"> mm</label>
+      <div class="modos-corte pe-modos" role="group" aria-label="Qué hace arrastrar el elemento">
+        <button data-modo-elem="mover" class="activo" title="Arrastrar corre el elemento">Mover</button>
+        <button data-modo-elem="girar" title="Arrastrar gira el elemento alrededor de su centro">Girar</button>
+        <button data-modo-elem="escala1" title="Arrastrar lo agranda o achica en una dirección (a lo largo o a lo ancho, según desde dónde se agarre)">Escala 1D</button>
+        <button data-modo-elem="escala2" title="Arrastrar lo agranda o achica parejo">Escala 2D</button>
+      </div>
+      <div class="pe-numeros">
+        <label>Giro <input type="number" id="peGiro" min="-90" max="90" step="5"> °</label>
+        <label>Largo <input type="number" id="peLargo" min="40" max="250" step="5"> %</label>
+        <label>Ancho <input type="number" id="peAncho" min="40" max="250" step="5"> %</label>
+      </div>
+      <div class="pe-botones">
+        <button id="peReflejar" title="Copia altura, posición, giro y tamaño de este pie al otro">Reflejar al otro pie</button>
+        <button id="peBorrar" title="Quitar el elemento (Supr)">Borrar</button>
+        <button id="peBiblioteca" class="primario" title="Guardar este elemento, con su tamaño, giro y posición, como elemento propio">Añadir a la biblioteca</button>
+      </div>
+    </div>
+    <div class="accion-corte" id="accionCorte" hidden>
+      <b>Editar línea de corte</b>
+      <div class="modos-corte" role="group" aria-label="Modo">
+        <button data-modo-corte="region" class="activo">Mover región</button><button data-modo-corte="libre">Edición libre</button><button data-modo-corte="caja">Caja</button>
+      </div>
+      <div class="modos-corte herramientas-caja" id="herramientasCaja" role="group" aria-label="Herramienta de la caja" hidden>
+        <button data-caja="mover" class="activo">Mover</button><button data-caja="girar">Girar</button><button data-caja="escala1">Escala 1D</button><button data-caja="escala2">Escala 2D</button><button data-caja="lazo">Lazo</button>
+      </div>
+      <p id="ayudaCorte"></p>
+      <button id="corteReflejar" class="ancho-total" style="margin-bottom:8px" title="Copia la línea del último pie editado al otro pie, en espejo">Reflejar izquierdo → derecho</button>
+      <label id="filaRadioCorte">Tamaño de la región <input type="number" id="radioCorte" value="60" min="10" max="150" step="5"> mm</label>
+      <div class="botones-corte">
+        <button id="cortePaso" title="Deshacer el último cambio de la línea (Ctrl+Z)" disabled>↶ Paso</button>
+        <button id="corteCancelar">Cancelar</button>
+        <button id="corteConfirmar" class="primario">Confirmar</button>
+      </div>
+    </div>
+    <canvas id="cuboVistas" class="cubo-vistas" title="Clic en una cara o esquina para mirar desde ahí; arrastrar para girar" aria-label="Cubo de vistas"></canvas>
+    <div class="panel-corte" id="panelCorte" hidden>
+      <canvas id="graficoCorte" aria-label="Perfil de la plantilla en el corte"></canvas>
+      <button id="cerrarCorte" title="Cerrar el corte" aria-label="Cerrar el corte">×</button>
+    </div>
+    <div class="ayuda">Arrastrar: mover · Clic derecho + arrastrar: girar · Rueda: acercar · Ctrl+arrastrar elemento: girarlo · Teclas: 1–5 vistas, M medir, R regla, A alturas, Ctrl+Z deshacer</div>
+  </div>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>

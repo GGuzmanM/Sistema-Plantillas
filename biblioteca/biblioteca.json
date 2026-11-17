@@ -1,0 +1,86 @@
+{
+  "tiposHorma": {
+    "nota": "Clasificación del área (Ernesto, 2026-11-16): diseños delgados y estándar. Cada tipo trae la copa y el antepié por defecto; una horma puede cambiar los suyos en 'valores'.",
+    "delgado": { "nombre": "Delgadas", "copa": 10, "antepie": 1.5,
+                 "calzados": ["Crocs", "Resinas 3D", "Botines", "Mocasines", "Zapatos de vestir", "Sandalias", "Chimpunes"] },
+    "estandar": { "nombre": "Estándar", "copa": 14, "antepie": 2,
+                  "calzados": ["Urbanas", "Deportivas", "Botas de seguridad"] }
+  },
+  "tiposArco": {
+    "nota": "Altura del arco por tipo de pie (Ernesto, 2026-11-16), igual en delgado y estándar. También se puede escribir a mano.",
+    "neutro": { "nombre": "Neutro", "altura": 20 },
+    "plano": { "nombre": "Plano", "altura": 21 },
+    "cavo": { "nombre": "Cavo", "altura": 23 }
+  },
+  "hormas": [
+    {
+      "id": "base_easycad",
+      "nombre": "Base EasyCAD (interna)",
+      "oculta": true,
+      "archivo": "hormas/guia_tallas.json",
+      "pie": "izq",
+      "tallaBase": 43,
+      "origen": "EasyCAD, talla 43 izquierda, suavizada (final4). Es la base de relieve de las demás hormas; no se elige en el diseño.",
+      "ref": { "antepie": 2, "copa": 14 }
+    },
+    {
+      "id": "guia_tallas",
+      "nombre": "Guía de tallas",
+      "tipo": "estandar",
+      "base": "base_easycad",
+      "contorno": "hormas/guia_contorno.json",
+      "origen": "Capturas de LutraCAD que mandó Ernesto (2026-11-16): referencias/guia_arriba.png, guia_costado_interno.png y guia_costado_externo.png. Ajustada el 2026-11-17: contorno de la captura; lado interno a < 0,8 mm y borde externo a < 0,4 mm de la captura (copa 14, espesor 2, arco 20).",
+      "nota": "Diseño estándar por defecto (copa 14, espesor 2; Ernesto). Copa pareja hasta el 25 %, cima del arco al 40 % como en la captura.",
+      "relieve": {
+        "interno": [[0,1],[0.05,0.963],[0.1,0.972],[0.15,1.007],[0.2,1.013],[0.225,0.988],[0.25,1.011],[0.275,0.994],[0.3,1.032],[0.325,0.999],[0.35,1.03],[0.375,1.009],[0.4,1],[0.425,0.991],[0.45,0.949],[0.475,0.975],[0.5,0.888],[0.525,0.926],[0.55,0.808],[0.575,0.768],[0.6,0.854],[0.65,0.924],[0.72,1]],
+        "externo": [[0,1],[0.05,0.893],[0.1,0.904],[0.15,0.908],[0.2,0.91],[0.25,0.97],[0.3,0.983],[0.35,0.956],[0.375,0.946],[0.4,0.889],[0.425,0.931],[0.45,0.875],[0.475,0.966],[0.5,0.909],[0.55,1.27],[0.62,1]]
+      },
+      "valores": { "arcoPos": 0.40 }
+    },
+    {
+      "id": "chimpunes",
+      "nombre": "Chimpunes",
+      "tipo": "delgado",
+      "base": "base_easycad",
+      "contorno": "hormas/chimpunes.json",
+      "origen": "Capturas de LutraCAD que mandó Ernesto (2026-11-16): referencias/chimpunes_arriba.png, chimpunes_costado_interno.png, chimpunes_costado_externo.png y chimpunes_frente.png. Ajustada el 2026-11-17: contorno de la captura; lado interno a < 0,7 mm y borde externo a < 0,6 mm de la captura (copa 10, espesor 1,5, arco 20).",
+      "nota": "Diseño delgado (espesor 1,5; Ernesto). Copa recta y baja por el borde externo hasta el 45 %; el lado interno sube de a poco desde el talón hasta la cima al 34 %.",
+      "copaLado": "externo",
+      "relieve": {
+        "interno": [[0,0.693],[0.03,0.693],[0.075,0.796],[0.1,0.836],[0.125,0.877],[0.15,1.003],[0.175,1.081],[0.2,1.253],[0.225,1.317],[0.25,1.422],[0.275,1.355],[0.3,1.264],[0.325,1.134],[0.35,1.047],[0.375,0.994],[0.4,0.939],[0.425,0.916],[0.45,0.874],[0.475,0.871],[0.5,0.827],[0.525,0.87],[0.55,0.869],[0.575,0.735],[0.6,0.78],[0.65,1.756],[0.72,1]],
+        "externo": [[0,0.693],[0.05,0.693],[0.1,0.765],[0.15,0.797],[0.2,0.799],[0.25,0.824],[0.3,0.814],[0.35,0.855],[0.4,1.043],[0.425,1.27],[0.45,1.583],[0.475,1.999],[0.5,2.604],[0.525,4.249],[0.55,7.76],[0.575,12.085],[0.64,1]]
+      },
+      "valores": { "arcoPos": 0.339 }
+    },
+    {
+      "id": "crocs",
+      "nombre": "Crocs",
+      "tipo": "delgado",
+      "base": "base_easycad",
+      "contorno": "hormas/crocs.json",
+      "origen": "Capturas de LutraCAD que mandó Ernesto (2026-11-16): referencias/crocs_arriba.png, crocs_costado.png, crocs_costado2.png, crocs_copa.png y crocs_perspectiva.png",
+      "nota": "Punta ancha y cuadrada, antepié ancho. Copa recta: el borde externo queda a la altura de la copa desde el talón hasta el arco (Ernesto). El lado interno sube de a poco desde el talón hasta el arco (cima al 39 %, 20,8 mm con copa 10, aprobado por Ernesto) y baja más rápido que la guía; antepié plano desde el 65 %.",
+      "copaLado": "externo",
+      "relieve": {
+        "interno": [[0, 1], [0.05, 1.065], [0.1, 1.159], [0.15, 1.305], [0.2, 1.5], [0.25, 1.688], [0.3, 1.429], [0.35, 1.163], [0.39, 1.014], [0.45, 0.899], [0.5, 0.861], [0.55, 0.951], [0.6, 1.002], [0.65, 2.019], [0.72, 1]]
+      },
+      "valores": { "arcoPos": 0.39 }
+    }
+  ],
+  "acabados": [
+    {
+      "id": "base_curva",
+      "nombre": "Base curva con canto fino",
+      "archivo": "acabados/base_curva.json",
+      "origen": "Proporción de la cara de abajo de una resina de LutraCAD (diseño delgado); sin medidas absolutas"
+    }
+  ],
+  "productos": [
+    { "id": "resina", "nombre": "Resina 3D (Class, Glam, 3D)", "horma": "guia_tallas", "tipo": "delgado", "antepie": 1.5, "copa": 10, "acabado": "base_curva", "canto": 1.2,
+      "densidad": 1.2, "notaDensidad": "g/cm³ del material macizo, para el peso aproximado del par. A confirmar con el material real: con espuma o relleno pesa menos." },
+    { "id": "eva_urbana", "nombre": "EVA urbanas, deportivas y botas", "horma": "guia_tallas", "tipo": "estandar", "antepie": 2, "copa": 14,
+      "margenPulido": 5, "notaMargen": "mm que se suman al largo de la guía de tallas para pulir (Ernesto, 2026-11-13)" }
+  ],
+  "tallas": "tallas_guia.json",
+  "cuadroTallas": "tallas_usa.json"
+}

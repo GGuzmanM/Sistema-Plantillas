@@ -1,0 +1,9 @@
+# Datos de pacientes: NUNCA subir a GitHub
+escaneos/
+salida/
+
+# Archivos temporales
+*.tmp
+*.log
+Thumbs.db
+desktop.ini

@@ -1,0 +1,64 @@
+{
+  "nota": "Elementos que se suman a la cara de arriba. Posiciones como fracción: a lo largo, 0 = punta del talón y 1 = punta de los dedos; a lo ancho, 0 = borde externo y 1 = borde interno. 'altura' = valor por defecto en mm, el diseñador lo cambia por pie. 'suavizado' = mm con que se difumina el elemento sobre la plantilla (más = más orgánico). 'pieza' (oliva) = forma con contorno propio: 'frente' y 'largo' en fracción del largo, 'ancho' en fracción del ancho, 'centro' a lo ancho, 'anchoMax' y 'pico' = dónde es más ancha y más alta (0 atrás, 1 adelante), 'cola' y 'caida' = curvatura de la subida desde atrás y de la caída al frente, 'boveda' = qué tan llena es a lo ancho (más = más plana arriba), 'giro' en grados. Formas tomadas de las capturas de la biblioteca de EasyCAD (2026-11-11) y suavizadas a pedido del área.",
+  "elementos": [
+    {
+      "id": "cuna_ext_antepie", "categoria": "Cuñas", "nombre": "Cuña externa de antepié", "altura": 3, "suavizado": 6, "relleno": true,
+      "largo": { "tipo": "frente", "desde": 0.57, "rampa": 0.06, "diagonal": 0.14 },
+      "ancho": { "tipo": "cuna", "lado": "externo", "hasta": 1, "perfil": "degradado", "finSuave": 0.08 },
+      "puente": { "desde": 0.3, "rampa": 0.12, "hasta": 0.74, "ancho": 0.3 }
+    },
+    {
+      "id": "cuna_int_antepie", "categoria": "Cuñas", "nombre": "Cuña interna de antepié", "altura": 3, "suavizado": 6, "relleno": true,
+      "largo": { "tipo": "frente", "desde": 0.57, "rampa": 0.06, "diagonal": 0.14 },
+      "ancho": { "tipo": "cuna", "lado": "interno", "hasta": 1, "perfil": "degradado", "finSuave": 0.08 }
+    },
+    {
+      "id": "cuna_ext_retropie", "categoria": "Cuñas", "nombre": "Cuña externa de retropié", "altura": 4, "suavizado": 6,
+      "largo": { "tipo": "talon", "hasta": 0.37, "rampa": 0.17, "diagonal": 0.1 },
+      "ancho": { "tipo": "cuna", "lado": "externo", "hasta": 0.95 }
+    },
+    {
+      "id": "cuna_int_retropie", "categoria": "Cuñas", "nombre": "Cuña interna de retropié", "altura": 4, "suavizado": 6,
+      "largo": { "tipo": "talon", "hasta": 0.37, "rampa": 0.17, "diagonal": 0.1 },
+      "ancho": { "tipo": "cuna", "lado": "interno", "hasta": 0.95 }
+    },
+    {
+      "id": "cuna_antisupinacion", "categoria": "Cuñas", "nombre": "Cuña antisupinación", "altura": 3, "suavizado": 6,
+      "largo": { "tipo": "lente", "desde": 0.02, "hasta": 0.76, "meseta": 0.4 },
+      "ancho": { "tipo": "cuna", "lado": "externo", "hasta": 0.55 }
+    },
+    {
+      "id": "barra_metatarsal", "categoria": "Barras y olivas", "nombre": "Barra metatarsal", "altura": 3, "suavizado": 3,
+      "pieza": { "planta": "campana", "frente": 0.72, "largo": 0.22, "ancho": 0.66, "centro": 0.5, "pico": 0.6,
+                 "cola": 1.6, "caida": 2.2, "boveda": 3, "hombro": 0.79, "cupula": 0.26, "concavo": 0.1, "angosta": 0.07, "giro": 0 }
+    },
+    {
+      "id": "arco_lateral", "categoria": "Arcos", "nombre": "Arco lateral", "altura": 3, "suavizado": 5,
+      "largo": { "tipo": "arco", "desde": 0.24, "hasta": 0.62, "pico": 0.5, "punta": 0.7, "subida": 2 },
+      "ancho": { "tipo": "cuna", "lado": "externo", "hasta": 0.37, "perfil": "degradado", "finSuave": 0.3 }
+    },
+    {
+      "id": "oliva", "categoria": "Barras y olivas", "nombre": "Oliva (pad metatarsal)", "altura": 4, "suavizado": 2.5,
+      "pieza": { "frente": 0.72, "largo": 0.25, "ancho": 0.5, "centro": 0.52, "anchoMax": 0.72, "pico": 0.73,
+                 "cola": 1.6, "caida": 2.2, "boveda": 3.5, "giro": 0 }
+    },
+    {
+      "id": "descarga_1mtt", "categoria": "Descargas", "descarga": true, "nombre": "Descarga 1.er metatarsiano", "altura": 1.5, "suavizado": 2.5,
+      "nota": "Forma de partida (2026-11-16): hundimiento ovalado bajo la cabeza del 1.er metatarsiano. Falta compararla con LutraCAD.",
+      "pieza": { "frente": 0.76, "largo": 0.11, "ancho": 0.28, "centro": 0.78, "anchoMax": 0.5, "pico": 0.5,
+                 "cola": 1.6, "caida": 1.6, "boveda": 3.5, "giro": 0 }
+    },
+    {
+      "id": "descarga_5mtt", "categoria": "Descargas", "descarga": true, "nombre": "Descarga 5.º metatarsiano", "altura": 1.5, "suavizado": 2.5,
+      "nota": "Forma de partida (2026-11-16): hundimiento ovalado bajo la cabeza del 5.º metatarsiano. Falta compararla con LutraCAD.",
+      "pieza": { "frente": 0.71, "largo": 0.1, "ancho": 0.26, "centro": 0.18, "anchoMax": 0.5, "pico": 0.5,
+                 "cola": 1.6, "caida": 1.6, "boveda": 3.5, "giro": 0 }
+    },
+    {
+      "id": "descarga_talon", "categoria": "Descargas", "descarga": true, "nombre": "Descarga de talón (espolón)", "altura": 2, "suavizado": 3,
+      "nota": "Forma de partida (2026-11-16): hundimiento ovalado al centro del talón. Falta compararla con LutraCAD.",
+      "pieza": { "frente": 0.22, "largo": 0.12, "ancho": 0.42, "centro": 0.5, "anchoMax": 0.5, "pico": 0.5,
+                 "cola": 1.6, "caida": 1.6, "boveda": 3, "giro": 0 }
+    }
+  ]
+}
