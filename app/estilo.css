@@ -41,8 +41,8 @@ main { grid-template-columns: 352px 1fr; }
 aside { padding: 14px 16px 28px; scrollbar-width: thin; scrollbar-color: var(--linea-2) transparent; }
 
 /* pasos 1 · 2 · 3: se lee qué paso está activo */
-.modulos { background: #e8ecf1; border-radius: var(--radio); padding: 3px; gap: 3px; }
-.modulos button { height: 34px; border-radius: var(--radio-chico); color: var(--suave); font-weight: 600; }
+.modulos { background: #e8ecf1; border-radius: var(--radio); padding: 3px; gap: 3px; grid-template-columns: repeat(4, auto); }
+.modulos button { height: 34px; border-radius: var(--radio-chico); color: var(--suave); font-weight: 600; font-size: 13px; padding: 0 4px; white-space: nowrap; }
 .modulos button:hover:not(.activo) { background: rgba(255, 255, 255, .55); color: var(--tinta); }
 .modulos button.activo { background: #fff; color: var(--acento-2); box-shadow: 0 1px 2px rgba(23, 32, 43, .1), inset 0 -2px 0 var(--acento); }
 .nota-modulo { font-size: 12.5px; margin: 8px 2px 4px; }
@@ -232,6 +232,17 @@ table.proyectos tbody tr:hover td { background: rgba(255, 255, 255, .03); }
 .editor-elem { background: #0f2140; border: 1px solid rgba(255, 255, 255, .12); }
 .editor-elem h3 { color: #fff; font-weight: 600; }
 .editor-elem .ed-caja-herr button.activo, .ed-caja-botones button.activo { background: #1f5fbf; border-color: #1f5fbf; }
+/* correcciones como LutraCAD: valor izquierdo y derecho */
+.corr-fila { display: grid; grid-template-columns: 1fr 64px 64px; gap: 6px; align-items: center; margin: 4px 0; font-size: 13px; }
+.corr-fila input { width: 100%; }
+.corr-cab span { font-size: 11px; color: var(--suave); text-align: center; }
+/* editor de hormas: todo sobre la plantilla 3D (Ernesto, 2026-11-17) */
+.editor-elem.completo .editor-grid.eh-grid { grid-template-columns: minmax(280px, 340px) 1fr; }
+.eh-barra { position: absolute; top: 10px; left: 10px; max-width: calc(100% - 160px); display: flex; gap: 8px; align-items: center; background: rgba(13, 26, 54, .88);
+  color: #fff; padding: 6px 8px 6px 12px; border-radius: 8px; font-size: 13px; box-shadow: 0 4px 14px rgba(0, 0, 0, .25); }
+.eh-barra[hidden] { display: none; }
+.editor-elem .eh-barra button { height: 30px; }
+.editor-elem .eh-barra button.primario { background: #1f5fbf; border-color: #1f5fbf; }
 
 /* ---------- Movimiento: se respeta "reducir movimiento" del sistema ---------- */
 @media (prefers-reduced-motion: reduce) {

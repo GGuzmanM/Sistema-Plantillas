@@ -24,47 +24,63 @@
       "ref": { "antepie": 2, "copa": 14 }
     },
     {
+      "id": "base_guia_stl",
+      "nombre": "Base Guía de tallas STL (interna)",
+      "oculta": true,
+      "archivo": "hormas/guia_stl.json",
+      "pie": "izq",
+      "origen": "STL de referencia de Ernesto (2026-11-17): referencias/guia_de_talla_L_optimizada_v2.stl, pie izquierdo de 268 mm (copa 13, espesor 2, arco 20,1 al 40 %). Se tomó la cara de arriba cada 0,5 mm; poco suavizado porque el STL ya viene limpio.",
+      "ref": { "antepie": 2, "copa": 13 },
+      "op": { "recorteBorde": 0.01, "suaveAncho": 0.03, "suaveLargo": 0.002, "suaveContorno": 1 }
+    },
+    {
       "id": "guia_tallas",
       "nombre": "Guía de tallas",
       "tipo": "estandar",
-      "base": "base_easycad",
-      "contorno": "hormas/guia_contorno.json",
-      "origen": "Capturas de LutraCAD que mandó Ernesto (2026-11-16): referencias/guia_arriba.png, guia_costado_interno.png y guia_costado_externo.png. Ajustada el 2026-11-17: contorno de la captura; lado interno a < 0,8 mm y borde externo a < 0,4 mm de la captura (copa 14, espesor 2, arco 20).",
-      "nota": "Diseño estándar por defecto (copa 14, espesor 2; Ernesto). Copa pareja hasta el 25 %, cima del arco al 40 % como en la captura.",
-      "relieve": {
-        "interno": [[0,1],[0.05,0.963],[0.1,0.972],[0.15,1.007],[0.2,1.013],[0.225,0.988],[0.25,1.011],[0.275,0.994],[0.3,1.032],[0.325,0.999],[0.35,1.03],[0.375,1.009],[0.4,1],[0.425,0.991],[0.45,0.949],[0.475,0.975],[0.5,0.888],[0.525,0.926],[0.55,0.808],[0.575,0.768],[0.6,0.854],[0.65,0.924],[0.72,1]],
-        "externo": [[0,1],[0.05,0.893],[0.1,0.904],[0.15,0.908],[0.2,0.91],[0.25,0.97],[0.3,0.983],[0.35,0.956],[0.375,0.946],[0.4,0.889],[0.425,0.931],[0.45,0.875],[0.475,0.966],[0.5,0.909],[0.55,1.27],[0.62,1]]
-      },
+      "base": "base_guia_stl",
+      "origen": "Copia de la referencia guia_de_talla_L_optimizada_v2.stl (Ernesto, 2026-11-17: 'idéntico a la referencia'). Con copa 13, espesor 2 y arco 20,1 a 268 mm queda a 0,02 mm del STL en promedio (95 % de los puntos a < 0,13 mm; pliegue máximo 8,7°). Las paredes de la copa se compensaron el mismo día (Ernesto: 'corrígela'). Antes: capturas de LutraCAD y luego el arco 'C1' (respaldo Programa_Plantillas_2026-11-17_arco_c1.zip).",
+      "nota": "Diseño estándar por defecto (copa 14, espesor 2; Ernesto). Forma de la referencia STL de Ernesto: talón y copa rectos hasta el 22 %, cima del arco al 40 %.",
       "valores": { "arcoPos": 0.40 }
+    },
+    {
+      "id": "base_chimpunes",
+      "nombre": "Base Chimpunes (interna)",
+      "oculta": true,
+      "archivo": "hormas/chimpunes_datos.json",
+      "pie": "izq",
+      "origen": "Armada el 2026-11-17 desde las capturas de LutraCAD (referencias/chimpunes_*.png) con herramientas/horma_de_capturas.js: contorno de arriba, lado interno y borde externo de los costados, cortes de la Guía (STL) como molde.",
+      "ref": { "antepie": 1.5, "copa": 10 },
+      "op": { "recorteBorde": 0.01, "suaveAncho": 0.03, "suaveLargo": 0.002, "suaveContorno": 2, "copaLado": "externo" }
     },
     {
       "id": "chimpunes",
       "nombre": "Chimpunes",
       "tipo": "delgado",
-      "base": "base_easycad",
-      "contorno": "hormas/chimpunes.json",
-      "origen": "Capturas de LutraCAD que mandó Ernesto (2026-11-16): referencias/chimpunes_arriba.png, chimpunes_costado_interno.png, chimpunes_costado_externo.png y chimpunes_frente.png. Ajustada el 2026-11-17: contorno de la captura; lado interno a < 0,7 mm y borde externo a < 0,6 mm de la captura (copa 10, espesor 1,5, arco 20).",
-      "nota": "Diseño delgado (espesor 1,5; Ernesto). Copa recta y baja por el borde externo hasta el 45 %; el lado interno sube de a poco desde el talón hasta la cima al 34 %.",
+      "base": "base_chimpunes",
+      "origen": "Capturas de LutraCAD que mandó Ernesto (2026-11-16). Rehecha el 2026-11-17 (Ernesto: 'se ven tan mal', con arrugas): ahora sale lisa y sigue los costados de la captura a 0,09 mm (interno) y 0,03 mm (borde externo); pliegue máximo 3,4°. La versión con factores de relieve está en el respaldo Programa_Plantillas_2026-11-17_editor3d_chimpunes_datos.zip.",
+      "nota": "Diseño delgado (espesor 1,5; Ernesto). Copa recta por el borde externo hasta el 42 %; el lado interno sube de a poco desde el talón hasta la cima al 34 %.",
       "copaLado": "externo",
-      "relieve": {
-        "interno": [[0,0.693],[0.03,0.693],[0.075,0.796],[0.1,0.836],[0.125,0.877],[0.15,1.003],[0.175,1.081],[0.2,1.253],[0.225,1.317],[0.25,1.422],[0.275,1.355],[0.3,1.264],[0.325,1.134],[0.35,1.047],[0.375,0.994],[0.4,0.939],[0.425,0.916],[0.45,0.874],[0.475,0.871],[0.5,0.827],[0.525,0.87],[0.55,0.869],[0.575,0.735],[0.6,0.78],[0.65,1.756],[0.72,1]],
-        "externo": [[0,0.693],[0.05,0.693],[0.1,0.765],[0.15,0.797],[0.2,0.799],[0.25,0.824],[0.3,0.814],[0.35,0.855],[0.4,1.043],[0.425,1.27],[0.45,1.583],[0.475,1.999],[0.5,2.604],[0.525,4.249],[0.55,7.76],[0.575,12.085],[0.64,1]]
-      },
       "valores": { "arcoPos": 0.339 }
+    },
+    {
+      "id": "base_crocs",
+      "nombre": "Base Crocs (interna)",
+      "oculta": true,
+      "archivo": "hormas/crocs_datos.json",
+      "pie": "izq",
+      "origen": "Armada el 2026-11-17 desde las capturas de LutraCAD (referencias/crocs_*.png) con herramientas/horma_de_capturas.js.",
+      "ref": { "antepie": 1.5, "copa": 10 },
+      "op": { "recorteBorde": 0.01, "suaveAncho": 0.03, "suaveLargo": 0.002, "suaveContorno": 2, "copaLado": "externo" }
     },
     {
       "id": "crocs",
       "nombre": "Crocs",
       "tipo": "delgado",
-      "base": "base_easycad",
-      "contorno": "hormas/crocs.json",
-      "origen": "Capturas de LutraCAD que mandó Ernesto (2026-11-16): referencias/crocs_arriba.png, crocs_costado.png, crocs_costado2.png, crocs_copa.png y crocs_perspectiva.png",
+      "base": "base_crocs",
+      "origen": "Capturas de LutraCAD que mandó Ernesto (2026-11-16): referencias/crocs_arriba.png, crocs_costado.png, crocs_costado2.png, crocs_copa.png y crocs_perspectiva.png. Rehecha el 2026-11-17 (Ernesto: 'se ven tan mal'): lisa, sigue los costados de la captura a 0,17 mm (interno) y 0,15 mm (borde externo); pliegue máximo 4°. La versión con factores de relieve está en el respaldo Programa_Plantillas_2026-11-17_editor3d_chimpunes_datos.zip.",
       "nota": "Punta ancha y cuadrada, antepié ancho. Copa recta: el borde externo queda a la altura de la copa desde el talón hasta el arco (Ernesto). El lado interno sube de a poco desde el talón hasta el arco (cima al 39 %, 20,8 mm con copa 10, aprobado por Ernesto) y baja más rápido que la guía; antepié plano desde el 65 %.",
       "copaLado": "externo",
-      "relieve": {
-        "interno": [[0, 1], [0.05, 1.065], [0.1, 1.159], [0.15, 1.305], [0.2, 1.5], [0.25, 1.688], [0.3, 1.429], [0.35, 1.163], [0.39, 1.014], [0.45, 0.899], [0.5, 0.861], [0.55, 0.951], [0.6, 1.002], [0.65, 2.019], [0.72, 1]]
-      },
-      "valores": { "arcoPos": 0.39 }
+      "valores": { "arcoPos": 0.38 }
     }
   ],
   "acabados": [

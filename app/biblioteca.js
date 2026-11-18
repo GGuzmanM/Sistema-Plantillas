@@ -215,140 +215,177 @@ export function pintarBiblioteca(cuerpo, ctx) {
     caja.innerHTML = `<div class="editor-elem completo" role="dialog" aria-modal="true" aria-label="Editar horma">
       <div class="editor-cab">
         <div><h3>${origen ? 'Editar horma: ' + esc(origen.nombre) : 'Nueva horma'}</h3>
-          <p class="bib-nota">La copa y el alto de arco quedan en los valores del diseño; aquí se cambia la forma: el contorno (arriba) y cómo sube y baja (costado).${origen ? ` Al terminar: <b>Guardar como nueva</b> (con otro nombre) o <b>Sobrescribir</b> ${esc(origen.nombre)}.` : ''}</p></div>
+          <p class="bib-nota">La copa y el alto de arco quedan en los valores del diseño; aquí se cambia la forma con puntos sobre la misma plantilla 3D: el contorno y cómo sube y baja.${origen ? ` Al terminar: <b>Guardar como nueva</b> (con otro nombre) o <b>Sobrescribir</b> ${esc(origen.nombre)}.` : ''}</p></div>
         <div class="editor-botones"><button id="eh-cancelar">Cancelar</button>${origen
           ? `<button id="eh-sobrescribir" title="Reemplaza a ${esc(origen.nombre)}${origen.programa ? ' (se puede volver al original)' : ''}">Sobrescribir ${esc(origen.nombre)}</button><button class="primario" id="eh-nuevo">Guardar como nueva</button>`
           : '<button class="primario" id="eh-nuevo">Guardar en la biblioteca</button>'}</div>
       </div>
-      <div class="editor-grid">
+      <div class="editor-grid eh-grid">
         <div class="editor-campos">
           <label>Nombre <input type="text" id="eh-nombre" value="${esc(def.nombre)}"></label>
           <label>Tipo <select id="eh-tipo">${Object.entries(tipos).map(([id, t]) => `<option value="${id}" ${def.tipo === id ? 'selected' : ''}>${id === 'estandar' ? 'Estándar' : 'Delgada'} · copa ${t.copa} · espesor ${String(t.antepie).replace('.', ',')}</option>`).join('')}</select></label>
           <label>Cima del arco (% desde el talón) <input type="number" id="eh-arcopos" min="28" max="52" step="1" value="${Math.round((def.valores.arcoPos ?? 0.35) * 100)}"></label>
           <label>Radio al mover el contorno (mm) <input type="number" id="eh-radio" min="10" max="120" step="5" value="45"></label>
           <button id="eh-deshacer" disabled>↶ Deshacer el último cambio</button>
-          <p class="bib-nota">Arriba: arrastre un punto azul y el borde se mueve suave alrededor (más radio = tramo más largo).<br>
-            Costado: arrastre un punto hacia arriba o abajo para subir o bajar la plantilla en ese tramo. Rojo = lado interno (arco); amarillo = borde externo (copa).</p>
+          <p class="bib-nota">Haga clic en la plantilla y elija qué editar; los puntos aparecen sobre la misma plantilla 3D (solo los del lado que se ve):<br>
+            <b>✂ Editar línea de corte</b>: puntos azules en el borde; arrástrelos para mover el contorno, que se mueve suave alrededor (más radio = tramo más largo).<br>
+            <b>✎ Editar alturas</b>: rojos (lado interno, arco) y amarillos (borde externo, copa); arrástrelos hacia arriba o abajo para subir o bajar la plantilla en ese tramo.</p>
           <p class="bib-nota" id="eh-medidas"></p>
         </div>
-        <div class="editor-3d"><canvas id="eh-3d"></canvas><canvas class="ed-cubo" id="eh-cubo" width="120" height="120"></canvas>
-          <div class="ed-ayuda-3d">Plantilla izquierda de 260 mm · Arrastrar: mover · Clic derecho + arrastrar: girar · Rueda: acercar</div></div>
-        <div class="editor-vista">
-          <span>Vista de arriba (dedos arriba, interno a la derecha)</span>
-          <canvas id="eh-arriba" width="300" height="350"></canvas>
-          <span>Costado (talón a la izquierda)</span>
-          <canvas id="eh-costado" width="300" height="180"></canvas>
-        </div>
+        <div class="editor-3d"><canvas id="eh-3d"></canvas><canvas class="ed-3d-capa" id="eh-capa"></canvas><canvas class="ed-cubo" id="eh-cubo" width="120" height="120"></canvas>
+          <div class="eh-barra" id="eh-barra" hidden></div>
+          <div class="ed-ayuda-3d" id="eh-ayuda">Plantilla izquierda de 260 mm · Clic en la plantilla: editar con puntos · Arrastrar: mover · Clic derecho + arrastrar: girar · Rueda: acercar</div></div>
       </div>
     </div>`;
-    const $c = s => caja.querySelector(s), arriba = $c('#eh-arriba'), costado = $c('#eh-costado');
-    const v3 = E.vista3D($c('#eh-3d'), $c('#eh-cubo'));
+    const $c = s => caja.querySelector(s), capa = $c('#eh-capa'), barra = $c('#eh-barra');
+    const v3 = E.vista3D($c('#eh-3d'), $c('#eh-cubo')), V = v3.visor;
     vista3dCerrar = () => v3.cerrar(); editando = null;
-    let g = null, per = null, tPend = null;
+    let g = null, tPend = null;
     const reconstruir = () => {
-      try { const h = E.construir(def); g = E.generar(h, def); per = E.perfil(g); v3.poner(g); }
+      try { const h = E.construir(def); g = E.generar(h, def); v3.poner(g); }
       catch (e) { $c('#eh-medidas').textContent = 'No se pudo armar la horma: ' + e.message; return; }
       const v = E.valores(def);
       $c('#eh-medidas').textContent = `Con ${def.tipo === 'estandar' ? 'estándar' : 'delgada'}: copa ${String(v.copa).replace('.', ',')} mm, espesor ${String(v.antepie).replace('.', ',')} mm y arco ${v.arco} mm (neutro).`;
-      dibujarArriba(); dibujarCostado();
+      armarPuntos(); V.pedir();
       $c('#eh-deshacer').disabled = !hist.length;
     };
     const pronto = () => { clearTimeout(tPend); tPend = setTimeout(reconstruir, 60); };
 
-    // --- vista de arriba: contorno y 24 puntos para arrastrar ---
+    // ---- Edición con puntos sobre la misma plantilla 3D (Ernesto, 2026-11-17: "editar en la misma plantilla 3d, no
+    // en las vistas 2d"). Clic en la plantilla → "Editar con puntos". Azules en el borde: se arrastran sobre el plano
+    // del borde y el contorno se mueve suave alrededor (radio en mm). Rojos (lado interno, lo más alto de cada tramo) y
+    // amarillos (borde externo): se arrastran hacia arriba o abajo y la plantilla sube o baja en ese tramo.
     const NP = 24;
-    let mapaA = null, manijas = [], arrastre = null;
-    const largoAcum = P => { const a = [0]; for (let i = 1; i <= P.length; i++) a.push(a[i - 1] + Math.hypot(P[i % P.length][0] - P[i - 1][0], P[i % P.length][1] - P[i - 1][1])); return a; };
-    function dibujarArriba() {
-      const P = def.puntos, c = arriba.getContext('2d'), W = arriba.width, H = arriba.height;
-      c.clearRect(0, 0, W, H);
-      if (!P?.length) { c.fillStyle = '#5d6878'; c.font = '13px system-ui'; c.fillText('Esta horma no tiene contorno propio.', 10, 24); return; }
-      let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
-      for (const [x, y] of P) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
-      if (!mapaA || arrastre == null) {
-        const k = Math.min((W - 40) / (x1 - x0), (H - 40) / (y1 - y0));
-        mapaA = { k, ox: (W - k * (x1 - x0)) / 2 - x0 * k, oy: (H + k * (y1 - y0)) / 2 + y0 * k };
-      }
-      const { k, ox, oy } = mapaA, aPx = ([x, y]) => [ox + x * k, oy - y * k];
-      c.fillStyle = '#f4f6f9'; c.strokeStyle = '#1d5fbf'; c.lineWidth = 1.6; c.beginPath();
-      P.forEach((p, i) => { const [X, Y] = aPx(p); i ? c.lineTo(X, Y) : c.moveTo(X, Y); }); c.closePath(); c.fill(); c.stroke();
-      // manijas repartidas a lo largo del contorno
-      const ac = largoAcum(P), tot = ac[P.length]; manijas = [];
-      for (let m = 0; m < NP; m++) { const s = (m / NP) * tot; let i = 0; while (i < P.length - 1 && ac[i + 1] < s) i++; manijas.push(i); }
-      for (const i of manijas) { const [X, Y] = aPx(P[i]); c.fillStyle = arrastre?.i === i ? '#e0661b' : '#1d5fbf'; c.beginPath(); c.arc(X, Y, 5, 0, 7); c.fill(); }
-    }
-    const posA = ev => { const r = arriba.getBoundingClientRect(); return [(ev.clientX - r.left) * arriba.width / r.width, (ev.clientY - r.top) * arriba.height / r.height]; };
-    arriba.addEventListener('pointerdown', ev => {
-      if (!def.puntos?.length || !mapaA) return;
-      const [X, Y] = posA(ev), { k, ox, oy } = mapaA;
-      let mejor = -1, dmin = 12;
-      for (const i of manijas) { const p = def.puntos[i], d = Math.hypot(ox + p[0] * k - X, oy - p[1] * k - Y); if (d < dmin) { dmin = d; mejor = i; } }
-      if (mejor < 0) return;
-      guardarPaso();
-      arrastre = { i: mejor, P0: def.puntos.map(p => [...p]), ac: largoAcum(def.puntos), X0: X, Y0: Y, R: Math.max(parseFloat($c('#eh-radio').value) || 45, 5) };
-      try { arriba.setPointerCapture(ev.pointerId); } catch { /* sin captura */ }
-      dibujarArriba();
-    });
-    arriba.addEventListener('pointermove', ev => {
-      if (!arrastre) return;
-      const [X, Y] = posA(ev), { k } = mapaA, dx = (X - arrastre.X0) / k, dy = -(Y - arrastre.Y0) / k;
-      const { P0, ac, i, R } = arrastre, n = P0.length, tot = ac[n];
-      def.puntos = P0.map((p, j) => {
-        let d = Math.abs(ac[j] - ac[i]); d = Math.min(d, tot - d);
-        const w = d < R ? 0.5 * (1 + Math.cos(Math.PI * d / R)) : 0;
-        return [p[0] + w * dx, p[1] + w * dy];
-      });
-      dibujarArriba();
-    });
-    const soltarA = () => { if (!arrastre) return; arrastre = null; mapaA = null; pronto(); };
-    arriba.addEventListener('pointerup', soltarA); arriba.addEventListener('pointercancel', soltarA);
-
-    // --- costado: rojo (interno) y amarillo (borde externo) con puntos para subir o bajar ---
     const NODOS = { interno: [0.1, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6], externo: [0.1, 0.2, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55] };
     const FIN = { interno: 0.72, externo: 0.62 };
-    const cX = t => 18 + t * (costado.width - 30), cY = z => costado.height - 18 - z * (costado.height - 34) / 24;
-    let arrC = null;
-    function dibujarCostado() {
-      const c = costado.getContext('2d'), W = costado.width, H = costado.height; c.clearRect(0, 0, W, H);
-      c.strokeStyle = '#dfe4ea'; c.lineWidth = 1; c.fillStyle = '#7a8594'; c.font = '10px system-ui';
-      for (let z = 0; z <= 24; z += 6) { c.beginPath(); c.moveTo(cX(0), cY(z)); c.lineTo(cX(1), cY(z)); c.stroke(); c.fillText(String(z), 2, cY(z) + 3); }
-      if (!per) return;
-      for (const [arr, color] of [[per.sil, '#d9301c'], [per.ext, '#d4a600']]) {
-        c.strokeStyle = color; c.lineWidth = 2; c.beginPath();
-        arr.forEach((z, k) => { const X = cX(k / per.N), Y = cY(z); k ? c.lineTo(X, Y) : c.moveTo(X, Y); }); c.stroke();
-      }
-      for (const lado of ['interno', 'externo']) for (const t of NODOS[lado]) {
-        const z = (lado === 'interno' ? per.sil : per.ext)[Math.round(t * per.N)], X = cX(t), Y = arrC?.lado === lado && arrC.t === t ? arrC.Y : cY(z);
-        c.fillStyle = lado === 'interno' ? '#d9301c' : '#d4a600'; c.strokeStyle = '#fff'; c.lineWidth = 1.5;
-        c.beginPath(); c.arc(X, Y, 5, 0, 7); c.fill(); c.stroke();
-      }
-      if (arrC) { c.fillStyle = '#1c2430'; c.font = '600 11px system-ui'; c.fillText(`${(cYinv(arrC.Y)).toFixed(1)} mm`, Math.min(cX(arrC.t) + 8, W - 48), arrC.Y - 8); }
+    const COLOR = { contorno: '#1d5fbf', interno: '#d9301c', externo: '#d4a600' };
+    let seleccionada = false, conPuntos = false, puntos3 = [], arr = null, cajaP = null, cajaG = null;
+    const largoAcum = P => { const a = [0]; for (let i = 1; i <= P.length; i++) a.push(a[i - 1] + Math.hypot(P[i % P.length][0] - P[i - 1][0], P[i % P.length][1] - P[i - 1][1])); return a; };
+    // del contorno de la horma (mm propios) a la plantilla de muestra de 260 mm y de vuelta, por la caja de cada uno
+    function cajas() {
+      cajaP = [Infinity, -Infinity, Infinity, -Infinity]; cajaG = [Infinity, -Infinity, Infinity, -Infinity];
+      for (const [x, y] of def.puntos) { cajaP[0] = Math.min(cajaP[0], x); cajaP[1] = Math.max(cajaP[1], x); cajaP[2] = Math.min(cajaP[2], y); cajaP[3] = Math.max(cajaP[3], y); }
+      for (let i = 0; i < g.ns; i++) { const q = i * g.nr; cajaG[0] = Math.min(cajaG[0], g.x[q]); cajaG[1] = Math.max(cajaG[1], g.x[q]); cajaG[2] = Math.min(cajaG[2], g.y[q]); cajaG[3] = Math.max(cajaG[3], g.y[q]); }
     }
-    const cYinv = Y => (costado.height - 18 - Y) * 24 / (costado.height - 34);
-    const posC = ev => { const r = costado.getBoundingClientRect(); return [(ev.clientX - r.left) * costado.width / r.width, (ev.clientY - r.top) * costado.height / r.height]; };
-    costado.addEventListener('pointerdown', ev => {
-      if (!per) return;
-      const [X, Y] = posC(ev); let mejor = null, dmin = 12;
+    const aG = ([x, y]) => [cajaG[0] + (x - cajaP[0]) * (cajaG[1] - cajaG[0]) / (cajaP[1] - cajaP[0]), cajaG[2] + (y - cajaP[2]) * (cajaG[3] - cajaG[2]) / (cajaP[3] - cajaP[2])];
+    const zBorde = (x, y) => { let mejor = 0, dm = Infinity; for (let i = 0; i < g.ns; i++) { const q = i * g.nr, d = (g.x[q] - x) ** 2 + (g.y[q] - y) ** 2; if (d < dm) { dm = d; mejor = g.z[q]; } } return mejor; };
+    // dos modos, como LutraCAD (Ernesto, 2026-11-17): 'corte' = solo los puntos azules del contorno (línea de corte);
+    // 'alturas' = solo los rojos (interno) y amarillos (borde externo). Cada punto lleva hacia dónde mira (n), para
+    // no mostrar los del lado de atrás.
+    function armarPuntos() {
+      puntos3 = []; if (!g) return;
+      if (def.puntos?.length) cajas();
+      if (conPuntos === 'corte' && def.puntos?.length) {
+        const P = def.puntos, ac = largoAcum(P), tot = ac[P.length], xm = (cajaG[0] + cajaG[1]) / 2, ym = (cajaG[2] + cajaG[3]) / 2;
+        for (let m = 0; m < NP; m++) {
+          const s = (m / NP) * tot; let i = 0; while (i < P.length - 1 && ac[i + 1] < s) i++;
+          const [X, Y] = aG(P[i]), nx = X - xm, ny = (Y - ym) * 0.25, l = Math.hypot(nx, ny) || 1;
+          puntos3.push({ tipo: 'contorno', i, p: [X, Y, zBorde(X, Y) + 0.3], n: [nx / l, ny / l, 0] });
+        }
+      }
+      if (conPuntos !== 'alturas') return;
+      const L = Math.max(...g.y), per = E.perfil(g);
       for (const lado of ['interno', 'externo']) for (const t of NODOS[lado]) {
-        const z = (lado === 'interno' ? per.sil : per.ext)[Math.round(t * per.N)], d = Math.hypot(cX(t) - X, cY(z) - Y);
-        if (d < dmin) { dmin = d; mejor = { lado, t, Y: cY(z), z0: z }; }
+        const yy = t * L; let q0 = -1;
+        if (lado === 'interno') { for (let q = 0; q < g.x.length; q++) if (Math.abs(g.y[q] - yy) < 1.6 && g.x[q] > 0 && (q0 < 0 || g.z[q] > g.z[q0])) q0 = q; }
+        else { let dm = Infinity; for (let i = 0; i < g.ns; i++) { const q = i * g.nr; if (g.x[q] < 0 && Math.abs(g.y[q] - yy) < dm) { dm = Math.abs(g.y[q] - yy); q0 = q; } } }
+        if (q0 >= 0) puntos3.push({ tipo: lado, t, p: [g.x[q0], g.y[q0], g.z[q0] + 0.3], z0: per[lado === 'interno' ? 'sil' : 'ext'][Math.round(t * per.N)], n: [lado === 'interno' ? 1 : -1, 0, 0] });
       }
-      if (!mejor) return;
-      arrC = mejor; try { costado.setPointerCapture(ev.pointerId); } catch { /* sin captura */ } dibujarCostado();
+    }
+    // se ve si mira hacia la cámara (desde arriba se ven todos)
+    const seVe = hd => { const d = V.ejes().dir; return d[2] > 0.8 || hd.n[0] * d[0] + hd.n[1] * d[1] + hd.n[2] * d[2] > -0.15; };
+    // capa 2D sobre el 3D: los puntos (y el contorno nuevo mientras se arrastra)
+    V.alDibujar(() => {
+      if (!capa.isConnected) return;
+      const dpr = window.devicePixelRatio || 1, w = capa.clientWidth, h = capa.clientHeight;
+      if (capa.width !== Math.round(w * dpr) || capa.height !== Math.round(h * dpr)) { capa.width = Math.round(w * dpr); capa.height = Math.round(h * dpr); }
+      const c = capa.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, h);
+      if (!conPuntos || !g) return;
+      if (arr?.tipo === 'contorno') {
+        c.strokeStyle = '#e0661b'; c.lineWidth = 2; c.beginPath();
+        def.puntos.forEach((pp, k) => { const [X, Y] = aG(pp), s = V.proyectar([X, Y, zBorde(X, Y)]); if (s) k ? c.lineTo(s.x, s.y) : c.moveTo(s.x, s.y); }); c.closePath(); c.stroke();
+      }
+      for (const hd of puntos3) {
+        if (arr?.h !== hd && !seVe(hd)) continue;
+        const s = V.proyectar(arr?.h === hd && arr.pAhora ? arr.pAhora : hd.p); if (!s?.visible) continue;
+        c.fillStyle = arr?.h === hd ? '#e0661b' : COLOR[hd.tipo]; c.strokeStyle = '#fff'; c.lineWidth = 2;
+        c.beginPath(); c.arc(s.x, s.y, 6, 0, 7); c.fill(); c.stroke();
+      }
+      if (arr?.etiqueta) {
+        const s = V.proyectar(arr.pAhora); c.font = '600 13px system-ui'; const tw = c.measureText(arr.etiqueta).width;
+        c.fillStyle = 'rgba(13,26,54,.88)'; c.fillRect(s.x + 10, s.y - 26, tw + 12, 20); c.fillStyle = '#fff'; c.fillText(arr.etiqueta, s.x + 16, s.y - 11);
+      }
     });
-    costado.addEventListener('pointermove', ev => { if (!arrC) return; arrC.Y = Math.min(Math.max(posC(ev)[1], 8), costado.height - 10); dibujarCostado(); });
-    const soltarC = () => {
-      if (!arrC) return;
-      const { lado, t, Y, z0 } = arrC; arrC = null;
-      const objetivo = cYinv(Y); if (Math.abs(objetivo - z0) < 0.15) { dibujarCostado(); return; }
-      // la cima del arco siempre queda en el alto de arco del diseño: moverla no cambiaría nada
-      if (lado === 'interno' && z0 >= E.valores(def).arco - 0.3) {
-        $c('#eh-medidas').textContent = 'La cima del arco queda siempre en el alto de arco del diseño (Neutro, Plano, Cavo o a mano). Aquí se cambia cómo sube y baja: mueva los puntos de los costados de la cima.';
-        dibujarCostado(); return;
+    // clic en la plantilla: queda elegida y aparece "Editar con puntos" (clic afuera la suelta)
+    const dentro = (px, py) => {
+      if (!g) return false; let adentro = false;
+      for (let i = 0, j = g.ns - 1; i < g.ns; j = i++) {
+        const a = V.proyectar([g.x[i * g.nr], g.y[i * g.nr], g.z[i * g.nr]]), b = V.proyectar([g.x[j * g.nr], g.y[j * g.nr], g.z[j * g.nr]]);
+        if (a && b && (a.y > py) !== (b.y > py) && px < (b.x - a.x) * (py - a.y) / (b.y - a.y) + a.x) adentro = !adentro;
       }
-      guardarPaso(); llevarAltura(lado, t, objetivo); reconstruir();
+      return adentro;
     };
-    costado.addEventListener('pointerup', soltarC); costado.addEventListener('pointercancel', soltarC);
+    function pintarBarra() {
+      barra.hidden = !(seleccionada || conPuntos);
+      barra.innerHTML = conPuntos === 'corte'
+        ? '<span>Editando la línea de corte: arrastre los puntos azules</span><button class="primario" id="eh-fin">Terminar</button>'
+        : conPuntos === 'alturas'
+        ? '<span>Editando alturas: rojos = lado interno (arco) · amarillos = borde externo (copa)</span><button class="primario" id="eh-fin">Terminar</button>'
+        : '<span>Plantilla seleccionada</span><button class="primario" id="eh-corte">✂ Editar línea de corte</button><button class="primario" id="eh-puntos">✎ Editar alturas</button>';
+      const b1 = $c('#eh-puntos'), b2 = $c('#eh-fin'), b3 = $c('#eh-corte');
+      if (b1) b1.onclick = () => { conPuntos = 'alturas'; armarPuntos(); pintarBarra(); V.pedir(); };
+      if (b3) b3.onclick = () => { conPuntos = 'corte'; armarPuntos(); pintarBarra(); V.pedir(); };
+      if (b2) b2.onclick = () => { conPuntos = false; seleccionada = false; pintarBarra(); V.pedir(); };
+      $c('#eh-ayuda').textContent = conPuntos ? 'Arrastrar un punto: editar · Arrastrar en otro lado: mover la vista · Clic derecho + arrastrar: girar · Rueda: acercar'
+        : 'Plantilla izquierda de 260 mm · Clic en la plantilla: editar con puntos · Arrastrar: mover · Clic derecho + arrastrar: girar · Rueda: acercar';
+    }
+    V.alClic((px, py) => { if (conPuntos) return; const s = dentro(px, py); if (s !== seleccionada) { seleccionada = s; pintarBarra(); } });
+    // agarrar un punto (solo editando): lo demás sigue moviendo la vista
+    V.alAgarrar((px, py) => {
+      if (!conPuntos || !g) return null;
+      let mejor = null, dmin = 12;
+      for (const hd of puntos3) { if (!seVe(hd)) continue; const s = V.proyectar(hd.p); if (!s?.visible) continue; const d = Math.hypot(s.x - px, s.y - py); if (d < dmin) { dmin = d; mejor = hd; } }
+      if (!mejor) return null;
+      if (mejor.tipo === 'contorno') {
+        const zc = mejor.p[2], suelo = (x, y) => { const r = V.rayo(x, y); if (Math.abs(r.d[2]) < 1e-4) return null; const t = (zc - r.o[2]) / r.d[2]; return [r.o[0] + t * r.d[0], r.o[1] + t * r.d[1]]; };
+        const a0 = suelo(px, py); if (!a0) return null;
+        guardarPaso();
+        const P0 = def.puntos.map(p => [...p]), ac = largoAcum(P0), tot = ac[P0.length], R = Math.max(parseFloat($c('#eh-radio').value) || 45, 5);
+        const kx = (cajaP[1] - cajaP[0]) / (cajaG[1] - cajaG[0]), ky = (cajaP[3] - cajaP[2]) / (cajaG[3] - cajaG[2]);
+        arr = { tipo: 'contorno', h: mejor, zc };
+        return {
+          mover(x, y) {
+            const b = suelo(x, y); if (!b) return;
+            const dx = (b[0] - a0[0]) * kx, dy = (b[1] - a0[1]) * ky;
+            def.puntos = P0.map((p, j) => { let d = Math.abs(ac[j] - ac[mejor.i]); d = Math.min(d, tot - d); const w = d < R ? 0.5 * (1 + Math.cos(Math.PI * d / R)) : 0; return [p[0] + w * dx, p[1] + w * dy]; });
+            arr.pAhora = [mejor.p[0] + (b[0] - a0[0]), mejor.p[1] + (b[1] - a0[1]), zc];
+            arr.etiqueta = `${Math.hypot(b[0] - a0[0], b[1] - a0[1]).toFixed(1)} mm`; V.pedir();
+          },
+          soltar(movio) { arr = null; if (!movio) { hist.pop(); def.puntos = P0; V.pedir(); return; } pronto(); },
+        };
+      }
+      // alturas: el ratón hacia arriba sube y hacia abajo baja, con la misma escala que el largo de la plantilla en la
+      // pantalla (igual desde cualquier vista; antes, mirando casi de arriba, unos píxeles eran muchos milímetros).
+      // Hasta ±10 mm por arrastre y nunca por debajo del espesor.
+      const p = mejor.p, s0 = V.proyectar(p), sx = V.proyectar([p[0] + 10, p[1], p[2]]), sy = V.proyectar([p[0], p[1] + 10, p[2]]);
+      const pxmm = Math.max((Math.hypot(sx.x - s0.x, sx.y - s0.y) + Math.hypot(sy.x - s0.x, sy.y - s0.y)) / 20, 0.2), y0 = py;
+      const piso = E.valores(def).antepie;
+      arr = { tipo: mejor.tipo, h: mejor, z: mejor.z0 };
+      return {
+        mover(x, y) { const dz = Math.max(-10, Math.min(10, (y0 - y) / pxmm)), z = Math.max(piso, mejor.z0 + dz); arr.z = z; arr.pAhora = [p[0], p[1], p[2] + (z - mejor.z0)]; arr.etiqueta = `${z.toFixed(1)} mm`; V.pedir(); },
+        soltar(movio) {
+          const z = arr?.z ?? mejor.z0; arr = null;
+          if (!movio || Math.abs(z - mejor.z0) < 0.15) { V.pedir(); return; }
+          // la cima del arco siempre queda en el alto de arco del diseño: moverla no cambiaría nada
+          if (mejor.tipo === 'interno' && mejor.z0 >= E.valores(def).arco - 0.3) {
+            $c('#eh-medidas').textContent = 'La cima del arco queda siempre en el alto de arco del diseño (Neutro, Plano, Cavo o a mano). Aquí se cambia cómo sube y baja: mueva los puntos rojos de los costados de la cima.';
+            V.pedir(); return;
+          }
+          guardarPaso(); llevarAltura(mejor.tipo, mejor.t, z); reconstruir();
+        },
+      };
+    });
+
     // sube o baja el tramo alrededor de t hasta que la altura (en la plantilla de muestra) quede en `objetivo`:
     // se multiplica el factor de relieve de ese lado por una campana suave de ±10 % del largo, con puntos cada 2 %
     // para que la curva siga la campana sin quiebres (nunca en la punta del talón)
@@ -376,7 +413,7 @@ export function pintarBiblioteca(cuerpo, ctx) {
     // --- campos y botones ---
     $c('#eh-tipo').onchange = () => { guardarPaso(); def.tipo = $c('#eh-tipo').value; pronto(); };
     $c('#eh-arcopos').oninput = () => { const v = parseFloat($c('#eh-arcopos').value); if (v >= 28 && v <= 52) { def.valores.arcoPos = v / 100; pronto(); } };
-    $c('#eh-deshacer').onclick = () => { const s = hist.pop(); if (!s) return; Object.assign(def, JSON.parse(s)); $c('#eh-tipo').value = def.tipo; $c('#eh-arcopos').value = Math.round((def.valores.arcoPos ?? 0.35) * 100); mapaA = null; reconstruir(); };
+    $c('#eh-deshacer').onclick = () => { const s = hist.pop(); if (!s) return; Object.assign(def, JSON.parse(s)); $c('#eh-tipo').value = def.tipo; $c('#eh-arcopos').value = Math.round((def.valores.arcoPos ?? 0.35) * 100); reconstruir(); };
     $c('#eh-cancelar').onclick = cerrarVentana;
     const guardarH = id => {
       const nombre = $c('#eh-nombre').value.trim() || origen?.nombre || 'Horma sin nombre';
@@ -522,7 +559,8 @@ export function pintarBiblioteca(cuerpo, ctx) {
     // durante el arrastre la forma se rehace como mucho cada 90 ms
     const vistaPronto = () => { if (!tVista) tVista = setTimeout(() => { tVista = null; vista(); }, 90); };
     const pintarBotonesCaja = () => {
-      const b = caja.querySelector('#ed-caja'); b.setAttribute('aria-pressed', conCaja); b.classList.toggle('activo', conCaja);
+      const b = caja.querySelector('#ed-caja'); if (!b) return;   // la ventana ya se cerró
+      b.setAttribute('aria-pressed', conCaja); b.classList.toggle('activo', conCaja);
       b.textContent = conCaja ? 'Terminar la caja' : 'Editar forma con la caja';
       caja.querySelector('#ed-caja-reset').hidden = !def.caja && !def.perfil;
       caja.querySelector('#ed-caja-herr').hidden = !conCaja;

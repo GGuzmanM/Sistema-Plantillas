@@ -511,8 +511,10 @@ export function generar(h, p) {
   // (copa del talón y antepié) no cambia. Curva de Hermite monótona: sin quiebres ni pliegues.
   const correrArco = (() => {
     const N = h.ref.arcoPos ?? 0.4;
-    if (p.arcoPos == null || Math.abs(p.arcoPos - N) < 1e-4) return y => y;
-    const a = 0.15, b = 0.65, T = Math.min(Math.max(p.arcoPos, 0.28), 0.52);
+    // "Mover ápice" como LutraCAD (2026-11-17): p.moverApice mm hacia los dedos, sobre la ubicación pedida o la de la horma
+    const pos = p.arcoPos == null && !p.moverApice ? null : (p.arcoPos ?? N) + (p.moverApice ?? 0) / (p.largo || L);
+    if (pos == null || Math.abs(pos - N) < 1e-4) return y => y;
+    const a = 0.15, b = 0.65, T = Math.min(Math.max(pos, 0.28), 0.52);
     const s1 = (N - a) / (T - a), s2 = (b - N) / (b - T), mT = 2 / (1 / s1 + 1 / s2);
     const herm = (t, y0, y1, v0, v1, m0, m1) => {
       const d = y1 - y0, u = (t - y0) / d, u2 = u * u, u3 = u2 * u;
@@ -579,6 +581,19 @@ export function generar(h, p) {
       const v = xd > xi ? Math.min(Math.max((px - xi) / (xd - xi), 0), 1) : 0.5;
       // en la horma el lado interno es el de x alta (en el pie derecho se espeja después)
       const dz = perf(ab.interno, u) * suave((v - 0.4) / 0.6) + perf(ab.externo, u) * suave((0.6 - v) / 0.6);
+      if (dz) z[q] = Math.max(z[q] + dz, Math.min(z[q], p.antepie));
+    }
+  }
+  // 2c) "Corrección del arco medial" como LutraCAD (medida en sus vistas de costado, 2026-11-17): suma p.arcoMedial mm
+  // en la cima del arco con una campana pareja a lo largo (sigma 12 % del largo: va del ~10 % al ~59 %) y solo hacia el
+  // lado interno. No reescala nada: talón, copa y antepié quedan igual. Negativo baja (nunca del espesor del antepié).
+  if (p.arcoMedial) {
+    const ap = Math.min(Math.max((p.arcoPos ?? h.ref.arcoPos ?? 0.4) + (p.moverApice ?? 0) / (p.largo || L), 0.2), 0.6), sg = 0.12;
+    for (let i = 0; i < ns; i++) for (let k = 0; k < nr; k++) {
+      const px = cx[i] + rk[k] * (ex[i] - cx[i]), py = cy[i] + rk[k] * (ey[i] - cy[i]), q = i * nr + k, u = py / L;
+      const [xi, xd] = h.borde(Math.min(Math.max(py, 0.06 * L), 0.94 * L));
+      const v = xd > xi ? Math.min(Math.max((px - xi) / (xd - xi), 0), 1) : 0.5;
+      const dz = p.arcoMedial * Math.exp(-((u - ap) ** 2) / (2 * sg * sg)) * suave((v - 0.3) / 0.6);
       if (dz) z[q] = Math.max(z[q] + dz, Math.min(z[q], p.antepie));
     }
   }

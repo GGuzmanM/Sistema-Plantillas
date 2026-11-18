@@ -265,27 +265,31 @@ for (const lado of ['izq', 'der']) {
 // pedido de Ernesto), lado interno como la captura de LutraCAD (sube del talón a 20,8 mm al 39 % y baja hasta el
 // 65 %; error < 1,2 mm), ancho de la captura de arriba y sólido cerrado.
 {
-  const { hormaConContorno, curvaPuntos } = await import('../motor/plantilla.js');
+  // desde el 2026-11-17 la Crocs se arma desde las capturas (base_crocs); el lado interno contra la captura está en la 19
   const m = bib.hormas.find(x => x.id === 'crocs'), b = bib.hormas.find(x => x.id === m.base);
-  const hb = prepararHorma(await leer('../biblioteca/' + b.archivo), b.ref, { relieve: m.relieve, copaLado: m.copaLado });
-  const h = hormaConContorno(hb, (await leer('../biblioteca/' + m.contorno)).puntos);
+  const h = prepararHorma(await leer('../biblioteca/' + b.archivo), b.ref, { ...b.op, copaLado: m.copaLado });
   const g = generar(h, { largo: 288, antepie: 1.5, copa: 10, arco: 20.8, canto: 1.2, acabado, lado: 'izq', arcoPos: m.valores.arcoPos }), md = medidas(g);
   // tramos de ~2,9 mm; el borde externo = puntos del contorno con x < 0 (pie izquierdo centrado)
   const N = 100, sil = new Array(N + 1).fill(0), ext = new Array(N + 1).fill(null), xmin = new Array(N + 1).fill(Infinity);
   for (let q = 0; q < g.x.length; q++) { const k = Math.round(g.y[q] / 288 * N); if (k >= 0 && k <= N) sil[k] = Math.max(sil[k], g.z[q]); }
   for (let i = 0; i < g.ns; i++) { const q = i * g.nr, k = Math.round(g.y[q] / 288 * N); if (k >= 0 && k <= N && g.x[q] < 0 && g.x[q] < xmin[k]) { xmin[k] = g.x[q]; ext[k] = g.z[q]; } }
-  // lado interno según crocs_costado2.png (subida desde el talón) y crocs_costado.png (bajada)
-  const T = curvaPuntos([[0,10],[0.05,11],[0.1,12.1],[0.15,13.7],[0.2,15.7],[0.25,18.1],[0.3,19.8],[0.35,20.6],[0.39,20.8],
-                         [0.45,19.1],[0.5,15.7],[0.55,10.5],[0.6,5],[0.65,2.5]]);
-  let dif = 0, recta = 0;
-  for (let k = 0; k <= 0.65 * N; k++) dif = Math.max(dif, Math.abs(sil[k] - T(k / N)));
+  let dif = Math.abs(md.arco - 20.8), recta = 0;
   for (let k = Math.round(0.03 * N); k <= 0.38 * N; k++) if (ext[k] != null) recta = Math.max(recta, Math.abs(ext[k] - 10));
   // sin escalón en la punta del talón (borde de los primeros 6 mm parejo) y sin pliegues más fuertes que la guía
+  // pliegue de arriba fuera del primer 2 % del talón (como la prueba 19: en la punta del talón los anillos del canto
+  // están a décimas de mm y una diferencia de centésimas da ángulos que no se ven); el de abajo, como siempre
   const { lisura: lis } = await import('../motor/plantilla.js'), L = lis(g);
+  { const { ns, nr, x, y } = g, fuera = z => { const nor = (a, b, c) => { const ux = x[b]-x[a], uy = y[b]-y[a], uz = z[b]-z[a], vx = x[c]-x[a], vy = y[c]-y[a], vz = z[c]-z[a]; const n = [uy*vz-uz*vy, uz*vx-ux*vz, ux*vy-uy*vx], l = Math.hypot(...n) || 1; return n.map(v => v / l); };
+      let mx = 0; for (let i = 0; i < ns; i++) for (let k = 0; k < nr - 3; k++) { const j = (i + 1) % ns, a = i*nr+k; if (y[a] < 0.02 * 288 || Math.hypot(x[a+1]-x[a], y[a+1]-y[a]) < 0.15) continue;
+        const n1 = nor(a, j*nr+k, j*nr+k+1), n2 = nor(a+1, j*nr+k+1, j*nr+k+2); mx = Math.max(mx, Math.acos(Math.min(1, Math.abs(n1[0]*n2[0]+n1[1]*n2[1]+n1[2]*n2[2]))) * 180 / Math.PI); }
+      return mx; };
+    L.pliegueArriba = fuera(g.z); L.pliegueAbajo = fuera(g.zb); }
   let t0 = Infinity, t1 = -Infinity;
   for (let i = 0; i < g.ns; i++) { const q = i * g.nr; if (g.y[q] < 6) { t0 = Math.min(t0, g.z[q]); t1 = Math.max(t1, g.z[q]); } }
-  const rev = revisarSolido(solido(g)), ok = dif < 1.2 && recta < 0.6 && t1 - t0 < 1 && L.pliegueArriba < 9 && L.pliegueAbajo < 30 && Math.abs(md.copa - 10) < 0.15 && Math.abs(md.anchoAntepie / 288 - 0.366) < 0.01 && Math.abs(md.antepie - 1.5) < 0.05 && rev.cerrado;
-  prueba('Horma Crocs', ok, `copa recta: borde externo a 10 mm ± ${n1(recta)} hasta el 38 %; lado interno: diferencia con la captura ${n1(dif)} mm; arco ${n1(md.arco)} mm al ${Math.round(md.arcoDesdeTalon * 100)} %; ancho antepié ${n1(md.anchoAntepie)} mm (${n2(md.anchoAntepie / 288)} del largo); talón parejo ± ${n1(t1 - t0)} mm; pliegues ${n1(L.pliegueArriba)}° arriba, ${n1(L.pliegueAbajo)}° abajo; sólido ${rev.cerrado ? 'cerrado' : 'con fallas'}`);
+  // abajo: el máximo está en el canto del acabado de resina (anillo 1, lado interno, mitad del largo): 25° con la base
+  // EasyCAD, 28° con la Guía, 30,7° con la Crocs (antepié más ancho); no es arruga de la horma
+  const rev = revisarSolido(solido(g)), ok = dif < 0.2 && recta < 0.6 && t1 - t0 < 1 && L.pliegueArriba < 9 && L.pliegueAbajo < 33 && Math.abs(md.copa - 10) < 0.15 && Math.abs(md.anchoAntepie / 288 - 0.366) < 0.01 && Math.abs(md.antepie - 1.5) < 0.05 && rev.cerrado;
+  prueba('Horma Crocs', ok, `copa recta: borde externo a 10 mm ± ${n1(recta)} hasta el 38 %; arco ${n1(md.arco)} mm al ${Math.round(md.arcoDesdeTalon * 100)} %; ancho antepié ${n1(md.anchoAntepie)} mm (${n2(md.anchoAntepie / 288)} del largo); talón parejo ± ${n1(t1 - t0)} mm; pliegues ${n1(L.pliegueArriba)}° arriba, ${n1(L.pliegueAbajo)}° abajo; sólido ${rev.cerrado ? 'cerrado' : 'con fallas'}`);
 }
 
 // 17. Ancho del talón propio (2026-11-16): con escalaTalon 0,9 el talón queda 10 % más angosto, el antepié y el largo
@@ -323,11 +327,12 @@ for (const lado of ['izq', 'der']) {
 // Lado interno (silueta) y borde externo comparados con lo medido en las capturas, cada 5 % del largo (error < 1 mm);
 // talón parejo, sin pliegues fuera de la punta del talón y sólido cerrado.
 {
-  const { hormaConContorno } = await import('../motor/plantilla.js');
-  const ts = [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6];
+  // Hormas armadas desde capturas (2026-11-17, herramientas/horma_de_capturas.js): con sus alturas propias, el lado
+  // interno y el borde externo se comparan con lo medido en los costados de la captura, del 5 % al 90 % del largo
+  const HC = await import('../herramientas/horma_de_capturas.js');
   const casos = {
-    guia_tallas: { p: { copa: 14, antepie: 2, arco: 20 }, TM: [14.3, 14.3, 14.49, 14.49, 14.94, 17, 19.39, 20, 19.24, 17.07, 12.77, 6.22], TE: [13.48, 13.48, 13.48, 13.48, 14.1, 14.1, 13.48, 11.18, 7.9, 4.62, 2.66] },
-    chimpunes: { p: { copa: 10, antepie: 1.5, arco: 20 }, TM: [10.44, 10.75, 12.61, 15.25, 17.99, 19.74, 20, 19.07, 17.11, 14.16, 10.55, 4.7], TE: [9.18, 9.82, 10.18, 10.18, 10.44, 10.18, 10.18, 10.18, 9.82, 7.26, 4.7] },
+    chimpunes: { interno: ['chimpunes_costado_interno.png', false], externo: ['chimpunes_costado_externo.png', true], copaHasta: 0.42 },
+    crocs: { interno: ['crocs_costado.png', false], externo: ['crocs_costado2.png', true], copaHasta: 0.4 },
   };
   const pliegueFuera = g => {   // mayor ángulo entre caras vecinas de arriba, fuera del primer 2 % (punta del talón)
     const { ns, nr, x, y, z } = g, L = Math.max(...y); let mx = 0;
@@ -339,21 +344,84 @@ for (const lado of ['izq', 'der']) {
   const texto = []; let bien = true;
   for (const [id, c] of Object.entries(casos)) {
     const m = bib.hormas.find(x => x.id === id), b = bib.hormas.find(x => x.id === m.base);
-    const hb = prepararHorma(await leer('../biblioteca/' + b.archivo), b.ref, { relieve: m.relieve, copaLado: m.copaLado });
-    const h = hormaConContorno(hb, (await leer('../biblioteca/' + m.contorno)).puntos);
-    const g = generar(h, { largo: 288, canto: 1.2, lado: 'izq', ...c.p, arcoPos: m.valores.arcoPos });
-    const N = 100, sil = new Array(N + 1).fill(0), ext = new Array(N + 1).fill(null), xmin = new Array(N + 1).fill(Infinity);
-    for (let q = 0; q < g.x.length; q++) { const k = Math.round(g.y[q] / 288 * N); if (k >= 0 && k <= N) sil[k] = Math.max(sil[k], g.z[q]); }
-    for (let i = 0; i < g.ns; i++) { const q = i * g.nr, k = Math.round(g.y[q] / 288 * N); if (k >= 0 && k <= N && g.x[q] < 0 && g.x[q] < xmin[k]) { xmin[k] = g.x[q]; ext[k] = g.z[q]; } }
-    const eM = Math.max(...ts.map((t, i) => Math.abs(sil[Math.round(t * N)] - c.TM[i])));
-    const eE = Math.max(...c.TE.map((v, i) => Math.abs(ext[Math.round(ts[i] * N)] - v)));
-    let t0 = Infinity, t1 = -Infinity; for (let i = 0; i < g.ns; i++) { const q = i * g.nr; if (g.y[q] < 6) { t0 = Math.min(t0, g.z[q]); t1 = Math.max(t1, g.z[q]); } }
+    const ev = HC.evaluar(await leer('../biblioteca/' + b.archivo), { ...b.op, copaLado: m.copaLado }, 288), { g, sil, ext } = ev;
+    const pI = await HC.perfilCostado('../biblioteca/hormas/referencias/' + c.interno[0], 288, c.interno[1]);
+    const pE = await HC.perfilCostado('../biblioteca/hormas/referencias/' + c.externo[0], 288, c.externo[1]);
+    // borde externo de la captura: recto a la altura de la copa hasta `copaHasta` (la línea blanca se pierde bajo la loma)
+    // y desde ahí solo baja (en el antepié la línea blanca se confunde con la plantilla y la lectura cruda salta)
+    const copaCap = pE.bordeExt(0.25), Eb = HC.gauss(HC.muestrear(pE.bordeExt, 100), 0.008);
+    for (let k = 0; k <= 100; k++) Eb[k] = k / 100 < c.copaHasta ? copaCap : Math.min(Eb[k], Eb[k - 1], copaCap);
+    let eM = 0, eE = 0;
+    for (let k = 5; k <= 90; k++) { const t = k / 100; eM = Math.max(eM, Math.abs(sil[k] - pI.silueta(t)));
+      if (t > 0.08) eE = Math.max(eE, Math.abs(ext[k] - Eb[k])); }
+    // talón sin escalón: mayor salto de altura entre puntos vecinos del borde en los primeros 6 mm (el borde puede
+    // subir parejo del lado externo al interno, como en la Guía con el arco C1: 13,4 → 14,6 mm)
+    let t0 = 0, t1 = 0; for (let i = 0; i < g.ns; i++) { const q = i * g.nr, r = ((i + 1) % g.ns) * g.nr; if (g.y[q] < 6 && g.y[r] < 6) t1 = Math.max(t1, Math.abs(g.z[r] - g.z[q])); }
     const pf = pliegueFuera(g), md = medidas(g), cerrado = revisarSolido(solido(g)).cerrado;
-    const ok = eM < 1 && eE < 1 && t1 - t0 < 1 && pf < 9 && Math.abs(md.copa - c.p.copa) < 0.2 && cerrado;
+    const ok = eM < 0.6 && eE < 0.6 && t1 - t0 < 0.3 && pf < 9 && Math.abs(md.copa - ev.ref.copa) < 0.2 && cerrado;
     bien = bien && ok;
     texto.push(`${m.nombre}: interno ±${n2(eM)} mm, borde externo ±${n2(eE)} mm, talón ±${n1(t1 - t0)}, pliegue ${n1(pf)}°, copa ${n1(md.copa)}, arco al ${Math.round(md.arcoDesdeTalon * 100)} %${cerrado ? '' : ', sólido abierto'}`);
   }
+  // Guía de tallas (2026-11-17): copia del STL de referencia de Ernesto. Toda la cara de arriba comparada con el STL
+  // (a 268 mm con copa 13, espesor 2 y arco 20,1, como el STL), sin los 3 anillos del canto.
+  {
+    const m = bib.hormas.find(x => x.id === 'guia_tallas'), b = bib.hormas.find(x => x.id === m.base);
+    const h = prepararHorma(await leer('../biblioteca/' + b.archivo), b.ref, b.op);
+    const g = generar(h, { largo: 268, canto: 1.2, lado: 'izq', copa: 13, antepie: 2, arco: 20.1, arcoPos: m.valores.arcoPos });
+    const buf = await (await fetch('../biblioteca/hormas/referencias/guia_de_talla_L_optimizada_v2.stl')).arrayBuffer(), dv = new DataView(buf), nt = dv.getUint32(80, true);
+    const R = 0.5, X0 = -146, Y0 = -1, NX = 186, NY = 542, Hm = new Float32Array(NX * NY).fill(-1);
+    for (let t = 0; t < nt; t++) {
+      const o = 84 + t * 50 + 12, v = []; for (let k = 0; k < 9; k++) v.push(dv.getFloat32(o + k * 4, true));
+      const [ax, ay, az, bx, by, bz, cx, cy, cz] = v, ux = bx - ax, uy = by - ay, uz = bz - az, vx = cx - ax, vy = cy - ay, vz = cz - az;
+      const nz = ux * vy - uy * vx; if (nz / (Math.hypot(uy * vz - uz * vy, uz * vx - ux * vz, nz) || 1) < 0.15) continue;
+      for (let j = Math.max(0, Math.floor((Math.min(ay, by, cy) - Y0) / R)); j <= Math.min(NY - 1, Math.ceil((Math.max(ay, by, cy) - Y0) / R)); j++)
+        for (let i = Math.max(0, Math.floor((Math.min(ax, bx, cx) - X0) / R)); i <= Math.min(NX - 1, Math.ceil((Math.max(ax, bx, cx) - X0) / R)); i++) {
+          const wx = X0 + i * R - ax, wy = Y0 + j * R - ay, s = (wx * vy - wy * vx) / nz, r = (ux * wy - uy * wx) / nz;
+          if (s < -1e-6 || r < -1e-6 || s + r > 1 + 1e-6) continue; const z = az + s * uz + r * vz; if (z > Hm[j * NX + i]) Hm[j * NX + i] = z;
+        }
+    }
+    // corrimiento en X: centro de la fila a 80 mm del talón en el STL y en la plantilla
+    let ox = 0; { const a = [], c = []; for (let q = 0; q < g.x.length; q++) if (Math.abs(g.y[q] - 80) < 1) a.push(g.x[q]);
+      for (let t = 0; t < nt; t++) { const o = 84 + t * 50 + 12; if (Math.abs(dv.getFloat32(o + 4, true) - 79.7) < 1) c.push(dv.getFloat32(o, true)); }
+      ox = (Math.min(...c) + Math.max(...c)) / 2 - (Math.min(...a) + Math.max(...a)) / 2; }
+    const errs = [];
+    for (let i = 0; i < g.ns; i++) for (let k = 3; k < g.nr; k++) {
+      const q = i * g.nr + k, ii = Math.round((g.x[q] + ox - X0) / R), jj = Math.round((g.y[q] - 0.335 - Y0) / R);
+      if (ii < 0 || jj < 0 || ii >= NX || jj >= NY || Hm[jj * NX + ii] < 0) continue; errs.push(Math.abs(g.z[q] - Hm[jj * NX + ii]));
+    }
+    errs.sort((a, b) => a - b);
+    const media = errs.reduce((s, e) => s + e, 0) / errs.length, p95 = errs[Math.floor(errs.length * 0.95)];
+    const pf = pliegueFuera(g), md = medidas(g), cerrado = revisarSolido(solido(g)).cerrado;
+    const ok = media < 0.12 && p95 < 0.35 && pf < 9 && Math.abs(md.copa - 13) < 0.2 && cerrado;
+    bien = bien && ok;
+    texto.unshift(`Guía de tallas (STL de Ernesto): diferencia media ${n2(media)} mm, 95 % < ${n2(p95)} mm, pliegue ${n1(pf)}°, copa ${n1(md.copa)}, arco al ${Math.round(md.arcoDesdeTalon * 100)} %${cerrado ? '' : ', sólido abierto'}`);
+  }
   prueba('Hormas de las capturas', bien, texto.join(' · '));
+}
+
+// 20. G-code de la fresadora de EVA (Sensor Medica VX1R / EdingCNC, 2026-11-17): mismo formato que los trabajos de la
+// máquina (encabezado, G28 M5 % al final), izquierda en Y positivo y derecha en Y negativo con el arco hacia el centro,
+// entra en el bloque de 350 × 260, la bola de 10 mm nunca baja de la superficie y avisa si el bloque no alcanza.
+{
+  const { gcodeEVA } = await import('../motor/fresado.js');
+  const m = bib.hormas.find(x => x.id === 'guia_tallas'), b = bib.hormas.find(x => x.id === m.base);
+  const h = prepararHorma(await leer('../biblioteca/' + b.archivo), b.ref, b.op), p = { largo: 290, antepie: 2, copa: 14, arco: 20, canto: 1.2, arcoPos: 0.4 };
+  const gi = generar(h, { ...p, lado: 'izq' }), gd = generar(h, { ...p, lado: 'der' }), r = gcodeEVA(gi, gd, { nombre: 'prueba', bloque: { alto: 26 } });
+  const L = r.texto.trim().split('\n'), cab = L.slice(1, 9).join(' ') === '% G90 G28 S24000 M03 G64 F14400 G01 Z55.00', pie = L.slice(-4).join(' ') === 'G01 Z55.00 G28 M5 %';
+  let x = 0, y = 0, z = 0, X0 = Infinity, X1 = -Infinity, Y0 = Infinity, Y1 = -Infinity, zMin = Infinity, arcoI = [-1], arcoD = [-1], pts = [];
+  for (const l of L) { const a = l.match(/X(-?[\d.]+)/), c = l.match(/Y(-?[\d.]+)/), d = l.match(/Z(-?[\d.]+)/); if (a) x = +a[1]; if (c) y = +c[1]; if (d) z = +d[1];
+    if (!l.startsWith('G01') || z >= 50) continue; X0 = Math.min(X0, x); X1 = Math.max(X1, x); Y0 = Math.min(Y0, y); Y1 = Math.max(Y1, y); zMin = Math.min(zMin, z);
+    if (z > 1.5) { pts.push([x, y, z]); if (x > -110) { if (y > 0 && z > arcoI[0]) arcoI = [z, y]; if (y < 0 && z > arcoD[0]) arcoD = [z, y]; } } }
+  // la bola (centro en z + 5) no entra en la plantilla: se miran 400 puntos contra la superficie del pie izquierdo
+  const Lg = Math.max(...gi.y); let xmax = -Infinity; for (const v of gi.x) xmax = Math.max(xmax, v);
+  let pen = 0; const izqPts = pts.filter(q => q[1] > 0);
+  for (let s = 0; s < 400; s++) { const [px, py, pz] = izqPts[Math.floor(s * izqPts.length / 400)];
+    for (let q = 0; q < gi.x.length; q += 3) { const sx = gi.y[q] - Lg / 2, sy = 7 + xmax - gi.x[q], dd = Math.hypot(sx - px, sy - py); if (dd > 5) continue;
+      pen = Math.max(pen, gi.z[q] - (pz + 5 - Math.sqrt(25 - dd * dd))); } }
+  const bajo = gcodeEVA(gi, gd, { bloque: { alto: 15 } }).avisos.length > 0;
+  const ok = cab && pie && !r.avisos.length && X0 >= -175 && X1 <= 175 && Y0 >= -130 && Y1 <= 130 && zMin >= 0.99 && Math.abs(arcoI[0] - 20) < 0.5 &&
+    arcoI[1] > 0 && arcoI[1] < 35 && arcoD[1] < 0 && arcoD[1] > -35 && pen < 0.15 && bajo;
+  prueba('G-code fresadora EVA', ok, `${r.lineas} líneas; X ${n1(X0)} a ${n1(X1)}, Y ${n1(Y0)} a ${n1(Y1)} (bloque ±175 × ±130); Z mín ${n2(zMin)}; arco izq ${n1(arcoI[0])} mm en Y ${n1(arcoI[1])}, der en Y ${n1(arcoD[1])}; la bola entra ${n2(Math.max(pen, 0))} mm; avisa bloque bajo: ${bajo ? 'sí' : 'no'}`);
 }
 
 // 6. Guardar los STL del pedido en la carpeta salida.

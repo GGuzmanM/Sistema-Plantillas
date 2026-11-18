@@ -5,8 +5,11 @@ import { leerSTL, ladoPorNombre, orientar, medirEscaneo, mallaEscaneo } from '..
 import { escalaPNG, analizarMuestra, contornoParaReceta, contornoProlijo } from '../motor/muestra.js';
 import { imagenDePDF } from '../motor/pdf.js';
 import { crearInicio } from './inicio.js';
+import { gcodeEVA } from '../motor/fresado.js';
 
 const $ = id => document.getElementById(id);
+// texto seguro dentro de HTML (auditoría 2026-11-18: nombres de archivos, de elementos y recetas que vienen de otras PC)
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const estado = $('estado');
 const leer = async ruta => { const r = await fetch(ruta); if (!r.ok) throw new Error('No se pudo leer ' + ruta); return r.json(); };
 
@@ -32,14 +35,14 @@ let tallas = CUADROS.hombre.tallas;   // las del cuadro elegido
 const hormas = {}, acabados = {}, hormaInfo = {}, puntosHorma = {}, datosDe = {};
 for (const m of bib.hormas.filter(m => !m.base)) {
   datosDe[m.archivo] = await leer('../biblioteca/' + m.archivo);
-  hormas[m.id] = prepararHorma(datosDe[m.archivo], m.ref); hormaInfo[m.id] = m;
+  hormas[m.id] = prepararHorma(datosDe[m.archivo], m.ref, m.op); hormaInfo[m.id] = m;   // op: suavizado propio (STL limpio)
 }
 for (const m of bib.hormas.filter(m => m.contorno)) puntosHorma[m.id] = (await leer('../biblioteca/' + m.contorno)).puntos;
 // arma una horma desde su definición: relieve de su base con sus factores y, si tiene, su contorno
 function construirHorma(m, puntos) {
   const b = hormaInfo[m.base];
   if (!b || !datosDe[b.archivo]) throw new Error('base de horma desconocida: ' + m.base);
-  let h = m.relieve || m.copaLado ? prepararHorma(datosDe[b.archivo], b.ref, { relieve: m.relieve, copaLado: m.copaLado }) : hormas[m.base];
+  let h = m.relieve || m.copaLado ? prepararHorma(datosDe[b.archivo], b.ref, { ...b.op, relieve: m.relieve, copaLado: m.copaLado }) : hormas[m.base];
   if (puntos?.length > 20) h = { ...hormaConContorno(h, puntos), deMuestra: false };
   return h;
 }
@@ -54,10 +57,18 @@ const ORIGINALES = Object.fromEntries(catalogo.map(e => [e.id, JSON.parse(JSON.s
 
 let visor;
 try { visor = crearVisor($('lienzo')); }
-catch (e) { $('lienzo').insertAdjacentHTML('afterend', `<div class="error">${e.message}</div>`); }
+catch (e) { $('lienzo').insertAdjacentHTML('afterend', `<div class="error">${esc(e.message)}</div>`); }
 
 // ---- Formulario ----
-for (const p of bib.productos) $('producto').add(new Option(p.nombre, p.id));
+// "Método de producción" como LutraCAD (2026-11-17): con acabado de resina = impresión 3D; sin acabado = fresado EVA
+for (const p of bib.productos) $('producto').add(new Option((p.acabado ? 'Impresión 3D: ' : 'Fresado: ') + p.nombre, p.id));
+const esEVA = () => !bib.productos.find(p => p.id === $('producto').value)?.acabado;
+// módulo 3: "EVA" o "Imprimir" según el método, y su sección
+function pintarModuloProduccion() {
+  const eva = esEVA();
+  $('tabProduccion').textContent = eva ? '3. EVA' : '3. Imprimir';
+  if (typeof modulo !== 'undefined' && modulo === 'produccion') { $('seccionEVA').hidden = !eva; $('seccionImprimir').hidden = eva; }
+}
 for (const [id, c] of Object.entries(CUADROS)) $('cuadro').add(new Option(c.nombre, id));
 // hormas agrupadas: delgadas, estándar y las que sirven para las dos (se rehace al cargar o guardar hormas propias)
 function pintarOpcionesHorma() {
@@ -93,6 +104,8 @@ function ponerHormasPropias({ hormas: lista = [] } = {}) {
 function defHorma(id) {
   const m = JSON.parse(JSON.stringify(hormaInfo[id])); delete m.propia; delete m.modificado; delete m.contorno; delete m.origen;
   m.puntos = JSON.parse(JSON.stringify(puntosHorma[id] ?? null));
+  // sin archivo de contorno (Guía de tallas desde el STL, 2026-11-17): el contorno de la propia horma, cada 16 puntos
+  if (!m.puntos && hormas[id]?.cont) { const c = hormas[id].cont; m.puntos = []; for (let i = 0; i < c.x.length; i += 16) m.puntos.push([+c.x[i].toFixed(1), +c.y[i].toFixed(1)]); }
   if (!m.relieve) m.relieve = {};
   return m;
 }
@@ -355,7 +368,7 @@ $('talla').addEventListener('change', () => {
 });
 $('medidaDesde').addEventListener('change', () => { ponerMedidaDesde($('medidaDesde').value); pedir(); });
 $('largo').addEventListener('input', () => { $('talla').value = tallaDeLargo(num('largo')); pintarNotaLargo(); pedir(); });
-for (const id of ['copa', 'antepie', 'arco', 'arcoPos', 'canto', 'paciente', 'contactoPct']) $(id).addEventListener('input', pedir);
+for (const id of ['copa', 'antepie', 'arco', 'arcoPos', 'canto', 'paciente', 'contactoPct', 'corrArcoIzq', 'corrArcoDer', 'corrApiceIzq', 'corrApiceDer']) $(id).addEventListener('input', pedir);
 for (const id of ['arcoPosAuto', 'contactoActivo', 'contactoForma']) $(id).addEventListener('change', pedir);
 // Anchos (Ernesto, 2026-11-16): se escriben como se miden en la plantilla. El ancho del antepié se pasa al ancho de
 // la horma ("ancho", oculto) con la proporción de la última plantilla; el del talón, a un factor solo del talón.
@@ -366,12 +379,17 @@ let escalaTalon = null;   // null = el talón de la horma
 let talonPedido = null;   // ancho del talón escrito: se afina en la plantilla siguiente (la escala no es lineal)
 const enRango = (id, v) => Number.isFinite(v) && v >= parseFloat($(id).min) && v <= parseFloat($(id).max);
 $('anchoAntepie').addEventListener('input', () => {
-  const v = num('anchoAntepie'); if (!enRango('anchoAntepie', v) || !ultimoAncho) return;
+  const v = num('anchoAntepie');
+  // fuera de rango (QA-02, 2026-11-18): queda escrito a mano y valoresFuera() lo marca y bloquea exportar
+  if (!enRango('anchoAntepie', v)) { $('anchoAuto').checked = false; pedir(); return; }
+  if (!ultimoAncho) return;
   $('ancho').value = (v * ultimoAncho.ancho / ultimoAncho.antepie).toFixed(2); $('anchoAuto').checked = false; pedir();
 });
 $('anchoAuto').addEventListener('change', pedir);
 $('anchoTalon').addEventListener('input', () => {
-  const v = num('anchoTalon'); if (!enRango('anchoTalon', v) || !ultimoAncho) return;
+  const v = num('anchoTalon');
+  if (!enRango('anchoTalon', v)) { $('anchoTalonAuto').checked = false; pedir(); return; }
+  if (!ultimoAncho) return;
   talonPedido = v;
   escalaTalon = Math.min(Math.max(v / (ultimoAncho.talon / ultimoAncho.escala), 0.6), 1.5); $('anchoTalonAuto').checked = false; pedir();
 });
@@ -543,6 +561,7 @@ const editorHorma = {
         if (primera) { let x0 = Infinity, x1 = -Infinity; for (const xx of g.x) { x0 = Math.min(x0, xx); x1 = Math.max(x1, xx); } v.encuadrar([x0, 0, 0, x1, 260, 22]); primera = false; }
       },
       vista: n => v.vista(n),
+      visor: v,   // para los puntos de edición sobre el 3D (proyectar, rayo, alDibujar, alClic, alAgarrar)
       cerrar() { try { cv.getContext('webgl2')?.getExtension('WEBGL_lose_context')?.loseContext(); } catch { /* ya cerrado */ } },
     };
   },
@@ -669,10 +688,10 @@ const abiertos = new Set();   // tarjetas con los ajustes desplegados
 function pintarElementos() {
   $('listaElementos').innerHTML = elegidos.map((e, i) => `
     <div class="elemento${i === activo ? ' activo' : ''}${esDescargaId(e.id) ? ' descarga' : ''}" data-tarjeta="${i}">
-      <div class="cab"><span>${nombreElemento(e.id)}</span><button class="quitar" data-quitar="${i}" title="Quitar (Supr)" aria-label="Quitar ${nombreElemento(e.id)}">×</button></div>
+      <div class="cab"><span>${esc(nombreElemento(e.id))}</span><button class="quitar" data-quitar="${i}" title="Quitar (Supr)" aria-label="Quitar ${esc(nombreElemento(e.id))}">×</button></div>
       <div class="alturas">
-        <label for="el-izq-${i}">Izq</label><input type="number" id="el-izq-${i}" data-i="${i}" data-pie="izq" min="0" max="15" step="0.5" value="${e.izq}">
-        <label for="el-der-${i}">Der</label><input type="number" id="el-der-${i}" data-i="${i}" data-pie="der" min="0" max="15" step="0.5" value="${e.der}">
+        <label for="el-izq-${i}">Izq</label><input type="number" id="el-izq-${i}" data-i="${i}" data-pie="izq" min="0" max="15" step="0.5" value="${+e.izq || 0}">
+        <label for="el-der-${i}">Der</label><input type="number" id="el-der-${i}" data-i="${i}" data-pie="der" min="0" max="15" step="0.5" value="${+e.der || 0}">
         <span>${esDescargaId(e.id) ? 'mm hondo' : 'mm'}</span>
       </div>
       <details class="ajustes" data-det="${i}"${abiertos.has(i) ? ' open' : ''}>
@@ -759,6 +778,8 @@ function diseno() {
     arco: $('tipoArco').value === 'horma' ? null : num('arco'),
     arcoPos: $('arcoPosAuto').checked || !(num('arcoPos') > 0) ? null : num('arcoPos') / 100,
     canto: num('canto'),
+    // correcciones como LutraCAD (2026-11-17): [izquierdo, derecho] en mm
+    correcciones: { arcoMedial: [num('corrArcoIzq') || 0, num('corrArcoDer') || 0], moverApice: [num('corrApiceIzq') || 0, num('corrApiceDer') || 0] },
     elementos: JSON.parse(JSON.stringify(elegidos)),
     // archivos del escaneo con que se hizo (solo el nombre: el escaneo se abre de la carpeta del paciente)
     escaneo: escaneos.izq || escaneos.der ? { izq: escaneos.izq?.nombre ?? null, der: escaneos.der?.nombre ?? null } : null,
@@ -788,6 +809,7 @@ function valoresDer() {
 
 let pies = 'ambos', actual = null;
 const ARCO_POS = 0.35;   // cima del arco por defecto, fracción del largo desde el talón (como LutraCAD)
+const DIF_ARCO_COPA = 6; // mm mínimos del arco sobre la copa (estándar 14/20 y delgado 10/20 no cambian)
 
 // Forma de la plantilla: la horma del producto o, si se eligió, el contorno de la muestra con el relieve de esa
 // horma. Se guarda una por contorno para no rehacerla (ni los elementos) en cada cambio.
@@ -828,6 +850,11 @@ function generarPies(d) {
       if (base.ancho) b.ancho = base.ancho * hDer.ancho / h.ancho;
     }
     const hp = lado === 'der' ? hDer : h;
+    // el arco sube solo si la copa le queda cerca (Ernesto, 2026-11-17): siempre al menos DIF_ARCO_COPA mm sobre la
+    // copa, para que el arco no se aplane (con copa 16 y arco neutro 20 quedaría una meseta)
+    if (b.arco != null && b.copa != null && b.arco < b.copa + DIF_ARCO_COPA) b = { ...b, arco: +(b.copa + DIF_ARCO_COPA).toFixed(1) };
+    // correcciones de este pie (se suman a la horma, sin reescalarla)
+    { const k = lado === 'izq' ? 0 : 1, c = d.correcciones; if (c) b = { ...b, arcoMedial: c.arcoMedial?.[k] || 0, moverApice: c.moverApice?.[k] || 0 }; }
     const p = { ...b, lado, elementos: de(lado), alturaBorde: d.alturaBorde?.[lado] ?? undefined }, es = escaneos[lado];
     if (!(d.contacto > 0 && es)) return generar(hp, p);
     const al = alinearEscaneo(es, generar(hp, { ...b, lado, lados: 120, anillos: 20 }), b.antepie);
@@ -866,6 +893,14 @@ function colorAjuste(dz) {
 }
 let modoMapa = null;   // null, 'alturas' o 'ajuste'
 
+// Lámina para ver el diseño (Base y Diseño, como LutraCAD, 2026-11-17): la misma cara de arriba y la de abajo
+// paralela, al espesor del antepié; abajo en verde. Solo para ver: lo que se exporta es el sólido.
+const COLOR_LAMINA = [0.36, 0.66, 0.1];
+function lamina(g) {
+  const esp = g.p?.antepie ?? 1.5, zb = new Float32Array(g.z.length);
+  for (let q = 0; q < zb.length; q++) zb[q] = Math.max(0, g.z[q] - esp);
+  return { ...g, zb, lamina: true };
+}
 // Malla para el visor: cara de arriba, cara de abajo y pared, con normales suaves en cada cara y canto marcado.
 // `al` = escaneo alineado con este pie (para el mapa de ajuste).
 function malla(g, ox, al) {
@@ -916,6 +951,7 @@ function malla(g, ox, al) {
     }
     col.set(COLOR_PLANTILLA, 3 * q);
   }
+  if (g.lamina) for (let q = n; q < nv; q++) col.set(COLOR_LAMINA, 3 * q);
   if (!modoMapa && g.p.elementos?.length) {
     // en cada punto, el elemento que más sube
     const quien = new Int16Array(n).fill(-1);
@@ -975,7 +1011,7 @@ let primeraVez = true;
 // en Exportar el diseño queda fijo: Medidas y alturas se ve pero no se edita
 function bloquearMedidas() {
   pintarBotonesTipo();   // los botones siguen al tipo elegido (también al abrir una receta, deshacer o cambiar de horma)
-  let fijo = false; try { fijo = modulo === 'exportar'; } catch { /* al cargar, antes de que exista "modulo" */ }
+  let fijo = false; try { fijo = fijoModulo(); } catch { /* al cargar, antes de que exista "modulo" */ }
   for (const id of ['largo', 'anchoAntepie', 'anchoTalon', 'copa', 'copaDer', 'antepie', 'antepieDer', 'tipoArco', 'anchoAuto', 'anchoTalonAuto',
                     'arcoPosAuto', 'canto', 'cantoDer'])
     $(id).disabled = fijo;
@@ -988,6 +1024,9 @@ function bloquearMedidas() {
 // 500 mm (antepié en −13 mm) se generaban igual. Ahora cada casillero tiene que estar entre su mínimo y su máximo.
 function valoresFuera() {
   const ids = ['largo', 'copa', 'antepie', 'canto'];
+  // anchos (QA-02, 2026-11-18): solo los escritos a mano; en automático el número lo pone la plantilla
+  if (!$('anchoAuto').checked) ids.push('anchoAntepie');
+  if (!$('anchoTalonAuto').checked) ids.push('anchoTalon');
   if ($('tipoArco').value !== 'horma') ids.push('arco');
   if (!$('arcoPosAuto').checked) ids.push('arcoPos');
   const fuera = [];
@@ -998,6 +1037,12 @@ function valoresFuera() {
       const nombre = el.closest('.fila')?.querySelector('label')?.firstChild?.textContent.trim() ?? id;
       fuera.push(`${nombre}${s ? ' der' : ''} (${String(lo).replace('.', ',')} a ${String(hi).replace('.', ',')})`);
     }
+  }
+  // correcciones (auditoría 2026-11-18: antes aceptaban 999 mm de arco medial sin avisar)
+  for (const [id, nombre] of [['corrArcoIzq', 'Arco medial izq'], ['corrArcoDer', 'Arco medial der'], ['corrApiceIzq', 'Mover ápice izq'], ['corrApiceDer', 'Mover ápice der']]) {
+    const el = $(id); if (!el) continue;
+    const v = el.value === '' ? 0 : parseFloat(el.value), lo = parseFloat(el.min), hi = parseFloat(el.max);
+    if (!Number.isFinite(v) || v < lo || v > hi) fuera.push(`${nombre} (${String(lo).replace('.', ',')} a ${String(hi).replace('.', ',')})`);
   }
   return fuera;
 }
@@ -1010,9 +1055,16 @@ function actualizar() {
   const t0 = performance.now();
   let r, m, mDer;
   // una receta o línea de corte rota no deja trabado el programa: se avisa y queda la plantilla anterior
-  try { r = generarPies(d); m = medidas(r.izq); mDer = d.der ? medidas(r.der) : m; }
+  try { r = generarPies(d); m = medidas(r.izq);
+    // el derecho se mide aparte también con su propia línea de corte (QA-02c, 2026-11-18: antes tomaba las del izquierdo)
+    mDer = d.der || d.contorno?.puntosDer ? medidas(r.der) : m; }
   catch (err) { estado.textContent = 'No se pudo generar'; estado.title = err.message; mensaje('No se pudo generar la plantilla: ' + err.message, false); return; }
   if ($('anchoAuto').checked) $('ancho').value = (r.h.ancho * d.largo / r.h.largo).toFixed(1);
+  // G-code de la fresadora solo para EVA (sin acabado de resina: base plana)
+  { const eva = !producto().acabado; $('exportarGcode').hidden = !eva; pintarModuloProduccion(); }
+  // arco subido solo por la copa (ver generarPies): se avisa al lado del alto de arco
+  { const sube = d.arco != null && d.copa != null && d.arco < d.copa + DIF_ARCO_COPA, av = $('avisoArcoSube');
+    av.hidden = !sube; if (sube) av.textContent = `Con copa ${String(d.copa).replace('.', ',')} el arco sube solo a ${String(+(d.copa + DIF_ARCO_COPA).toFixed(1)).replace('.', ',')} mm (siempre ${DIF_ARCO_COPA} mm sobre la copa, para que no se aplane).`; }
   ultimoAncho = { ancho: num('ancho'), antepie: m.anchoAntepie, escala: d.escalaTalon ?? 1, talon: m.anchoTalon };
   // el talón no escala parejo (pasa suave al antepié): con un ancho escrito se afina una vez más hasta ±0,2 mm
   if (talonPedido && escalaTalon && Math.abs(m.anchoTalon - talonPedido) > 0.2) {
@@ -1074,7 +1126,7 @@ function actualizar() {
   }
   if (!d.paciente) avisos.push('Falta el nombre del paciente (se usa en el nombre de los archivos).');
   resumenSeccion('Revisión', avisos.length ? `${avisos.length} aviso${avisos.length > 1 ? 's' : ''}` : 'sin observaciones');
-  $('avisos').innerHTML = avisos.length ? avisos.map(a => `<li>${a}</li>`).join('') : '<li class="sinavisos" style="background:none;border:0;padding:0">Sin observaciones.</li>';
+  $('avisos').innerHTML = avisos.length ? avisos.map(a => `<li>${esc(a)}</li>`).join('') : '<li class="sinavisos" style="background:none;border:0;padding:0">Sin observaciones.</li>';
 
   if (visor) {
     const sep = m.anchoAntepie / 2 + 14, lista = [];
@@ -1083,7 +1135,9 @@ function actualizar() {
     if (pies !== 'izq') enVista.push({ pie: 'der', g: r.der, ox: pies === 'ambos' ? sep : 0 });
     for (const v of enVista) {
       v.al = v.g.al ?? (escaneos[v.pie] ? alinearEscaneo(escaneos[v.pie], v.g, v.g.p.antepie) : null);
-      lista.push(malla(v.g, v.ox, v.al), contornoPlantilla(v.g, v.ox));
+      // en Base y Diseño, lámina de espesor parejo (como LutraCAD); en EVA/Imprimir y Exportar, el sólido real
+      let lam = false; try { lam = enLamina(); } catch { /* al cargar, antes de que existan los módulos */ }
+      lista.push(malla(lam ? lamina(v.g) : v.g, v.ox, v.al), contornoPlantilla(v.g, v.ox));
       // con el mapa de ajuste el escaneo no se dibuja: taparía los colores
       if (v.al && $('verEscaneo').checked && modoMapa !== 'ajuste') lista.push(escaneoSobre(v.al, v.ox));
     }
@@ -1173,7 +1227,7 @@ function pintarEscaneo() {
   }
   const s = sugerenciaEscaneo();
   if (s) filas.push(['Sugerido', `${f1(s.largo)} × ${f1(s.ancho)} mm, arco al ${s.arcoPos} % (cerca de ${s.talla.corta})`]);
-  $('medidasEscaneo').innerHTML = filas.map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join('');
+  $('medidasEscaneo').innerHTML = filas.map(([a, b]) => `<tr><td>${esc(a)}</td><td>${esc(b)}</td></tr>`).join('');
   $('aplicarEscaneo').hidden = !s;
 }
 // Largo y ancho que salen del escaneo: la plantilla mide igual que el pie (Ernesto, 2026-11-11), con el pie más
@@ -1261,7 +1315,7 @@ function ponerMuestra(m) {
   $('datosMuestra').hidden = false;
   $('medidasMuestra').innerHTML = [['Archivo', m.nombre], ['Largo', f1(a.largo) + ' mm'], ['Ancho antepié', f1(a.ancho) + ' mm'],
     ['Ancho talón', f1(a.anchoTalon) + ' mm'], ['Escala', `${Math.round(m.ppmm * 25.4)} dpi`]]
-    .map(([x, y]) => `<tr><td>${x}</td><td>${esc(y)}</td></tr>`).join('');
+    .map(([x, y]) => `<tr><td>${esc(x)}</td><td>${esc(y)}</td></tr>`).join('');
   $('avisoMuestra').hidden = !m.dudosa && !a.ladoDudoso;
   $('avisoMuestra').textContent = [m.dudosa ? 'Trazo muy cortado o a lápiz: revise en la vista Arriba que la línea roja siga la muestra antes de usar su forma.' : '',
     a.ladoDudoso ? 'No está claro de qué pie es la muestra: revise "Pie de la muestra".' : ''].filter(Boolean).join(' ');
@@ -1722,7 +1776,7 @@ if (visor) {
       $('borrarMedidas').hidden = false; visor.pedir();
       return;
     }
-    if (!midiendo) { if (modulo !== 'exportar') elegirPlantilla(px, py); return; }
+    if (!midiendo) { if (!fijoModulo()) elegirPlantilla(px, py); return; }
     const p = puntoDelClic(px, py); if (!p) return;
     medidasTomadas.push({ pie: p.pie, x: p.x, y: p.y }); if (medidasTomadas.length > 8) medidasTomadas.shift();
     $('borrarMedidas').hidden = false; visor.pedir();
@@ -2234,7 +2288,7 @@ $('lienzo').addEventListener('pointermove', e => {
 // Se agarra el elemento que más sube en el punto tocado y se corre sobre un plano horizontal a la altura de ese
 // punto. En el pie derecho "hacia interno" es hacia -X, porque es el espejo del izquierdo.
 function agarrarElemento(px, py, ev) {
-  if (modulo === 'exportar' || !elegidos.length) return null;
+  if (fijoModulo() || !elegidos.length) return null;
   const toque = puntoDelClic(px, py); if (!toque) return null;
   const v = enVista.find(e => e.pie === toque.pie), g = v.g;
   let q0 = 0, dmin = Infinity;
@@ -2295,7 +2349,7 @@ function agarrarElemento(px, py, ev) {
 function pintarPanelElemento() {
   // al cargar la página puede llamarse antes de que existan modulo / lc (están más abajo): entonces no hace nada
   let si;
-  try { si = !!elegidos[activo] && modulo !== 'exportar' && !lc; } catch (err) { if (err instanceof ReferenceError) return; throw err; }
+  try { si = !!elegidos[activo] && !fijoModulo() && !lc; } catch (err) { if (err instanceof ReferenceError) return; throw err; }
   const e = elegidos[activo];
   $('panelElemento').hidden = !si; pintarPanelPlantilla(); if (!si) return;
   const p = activoPie, def = catalogo.find(x => x.id === e.id);
@@ -2348,7 +2402,7 @@ let plantillaElegida = null;
 const nombrePie = p => (p === 'izq' ? 'izquierda' : 'derecha');
 function pintarPanelPlantilla() {
   let si;
-  try { si = !!plantillaElegida && !elegidos[activo] && modulo !== 'exportar' && !lc; } catch (err) { if (err instanceof ReferenceError) return; throw err; }
+  try { si = !!plantillaElegida && !elegidos[activo] && !fijoModulo() && !lc; } catch (err) { if (err instanceof ReferenceError) return; throw err; }
   $('panelPlantilla').hidden = !si; if (!si) return;
   const de = plantillaElegida, a = de === 'izq' ? 'der' : 'izq';
   $('ppNombre').textContent = `Plantilla ${nombrePie(de)}`;
@@ -2392,22 +2446,29 @@ $('ppCorte').addEventListener('click', () => { if (!lc) empezarCorte(); });
 $('ppCerrar').addEventListener('click', () => { plantillaElegida = null; pintarPanelPlantilla(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && plantillaElegida && !lc) { plantillaElegida = null; pintarPanelPlantilla(); } });
 
-// ---- Módulos: Base y Diseño se pueden editar; en Exportar el diseño queda fijo ----
+// ---- Módulos (como LutraCAD, 2026-11-17): 1. Base y 2. Diseño se editan y la plantilla se ve como lámina;
+// 3. EVA o Imprimir (según el método de producción) y 4. Exportar dejan el diseño fijo y la muestran sólida ----
 let modulo = 'base';
+const fijoModulo = () => modulo === 'exportar' || modulo === 'produccion';
+const enLamina = () => modulo === 'base' || modulo === 'diseno';
 const NOTAS = {
-  base: 'Paciente, talla y alturas. Los elementos se pueden arrastrar en el 3D.',
+  base: 'Paciente, talla y alturas. Los elementos se pueden arrastrar en el 3D. La plantilla se ve como lámina.',
   diseno: 'Agregue elementos y arrástrelos en el 3D para ubicarlos (Ctrl + arrastrar para girarlos).',
+  produccion: 'Diseño fijo: la plantilla se ve sólida, como sale de la máquina. Ajustes de la producción.',
   exportar: 'Diseño fijo: los elementos ya no se mueven. Revise las medidas y exporte.',
 };
 function ponerModulo(m) {
-  modulo = m;
+  const antes = modulo; modulo = m;
   document.querySelectorAll('[data-modulo]').forEach(b => { b.classList.toggle('activo', b.dataset.modulo === m); b.setAttribute('aria-selected', b.dataset.modulo === m); });
   document.querySelectorAll('aside [data-en]').forEach(s => { s.hidden = !s.dataset.en.split(' ').includes(m); });
+  pintarModuloProduccion();
   $('notaModulo').textContent = NOTAS[m];
-  // en Exportar el diseño queda fijo: si se estaba editando la línea de corte, se guarda lo hecho y se cierra
+  // con el diseño fijo: si se estaba editando la línea de corte, se guarda lo hecho y se cierra
   // (auditoría 2026-11-16: quedaba abierta y se podía seguir editando en Exportar)
-  if (m === 'exportar') { if (lc) terminarCorte(true); activo = -1; plantillaElegida = null; refrescarPosiciones(); }
+  if (fijoModulo()) { if (lc) terminarCorte(true); activo = -1; plantillaElegida = null; refrescarPosiciones(); }
   pintarPanelElemento(); bloquearMedidas();
+  // lámina ↔ sólido: se vuelve a dibujar
+  if (antes !== m && (antes === 'base' || antes === 'diseno') !== enLamina()) pedir();
 }
 document.querySelectorAll('[data-modulo]').forEach(b => b.addEventListener('click', () => ponerModulo(b.dataset.modulo)));
 ponerModulo('base');
@@ -2478,10 +2539,21 @@ function nombreBase(d) {
 }
 // Los archivos que se generan van a la carpeta del proyecto, en la carpeta de trabajo compartida (OneDrive)
 async function guardar(nombre, cuerpo) { await inicio.guardarArchivo(nombre, cuerpo); }
+// con un casillero fuera de rango la pantalla muestra lo último válido: no se exporta eso (auditoría 2026-11-18)
+function hayFueraDeRango() {
+  const f = valoresFuera();
+  // y la plantilla que de verdad se exporta (QA-02: una receta con ancho 99999 daba 99998 mm de antepié)
+  // los dos pies (QA-02c: con línea de corte propia el derecho puede salir distinto)
+  for (const [pie, m] of [['izq', actual?.m], ['der', actual?.mDer ?? actual?.m]]) {
+    if (!m) continue;
+    if (!(m.anchoAntepie >= 40 && m.anchoAntepie <= 140)) f.push(`Ancho antepié de la plantilla ${pie} (${f1(m.anchoAntepie)} mm; de 40 a 140)`);
+    if (!(m.anchoTalon >= 30 && m.anchoTalon <= 110)) f.push(`Ancho talón de la plantilla ${pie} (${f1(m.anchoTalon)} mm; de 30 a 110)`);
+  }
+  if (f.length) mensaje("No se exportó: revise " + f.join(", ") + ".", false); return f.length > 0; }
 const dondeSeGuarda = () => inicio?.carpetaProyecto() ?? '';
 
 $('exportar').addEventListener('click', async () => {
-  if (!actual) return;
+  if (!actual || hayFueraDeRango()) return;
   try {
     const base = nombreBase(actual.d), archivos = [`${base} izq.stl`, `${base} der.stl`, `${base} receta.json`];
     for (const lado of ['izq', 'der']) {
@@ -2495,10 +2567,26 @@ $('exportar').addEventListener('click', async () => {
   } catch (e) { mensaje('No se guardó: ' + e.message, false); }
 });
 
+// ---- G-code para la fresadora de EVA (Sensor Medica VX1R con EdingCNC; Ernesto 2026-11-17) ----
+// El par en un bloque de 350 × 260 mm, como los trabajos que ya fresa la máquina (motor/fresado.js). Se guarda como
+// .iso en la carpeta del proyecto, junto a los STL.
+$('exportarGcode').addEventListener('click', async () => {
+  if (!actual || hayFueraDeRango()) return;
+  try {
+    // auditoría 2026-11-18: vacío o con letras ya no se toma 26 por su cuenta; se pide el alto real del bloque
+    const alto = parseFloat($('altoBloque').value), base = nombreBase(actual.d);
+    if (!Number.isFinite(alto) || alto < 10 || alto > 60) { mensaje('No se generó el G-code: escriba el alto real del bloque de EVA (de 10 a 60 mm).', false); $('altoBloque').focus(); return; }
+    const r = gcodeEVA(actual.izq, actual.der, { nombre: base, bloque: { alto } });
+    if (r.avisos.length) { mensaje('No se generó el G-code: ' + r.avisos.join(' '), false); return; }
+    const nombre = `${base} fresadora.iso`;
+    await guardar(nombre, r.texto);
+    mensaje(`Guardado en ${dondeSeGuarda()}: "${nombre}" (${r.lineas.toLocaleString('es')} líneas, alto máximo ${r.alturaMax.toFixed(1).replace('.', ',')} mm). Antes de fresar: revíselo en la vista de EdingCNC y páselo primero en el aire.`);
+  } catch (e) { mensaje('No se generó el G-code: ' + e.message, false); }
+});
+
 // ---- Hoja del diseño ----
 // Página para imprimir o guardar en PDF: paciente, medidas, elementos por pie, avisos y tres vistas del 3D.
 // Se guarda en salida/ junto a los STL y se abre en otra pestaña.
-const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 function hojaHTML() {
   const d = actual.d, m = actual.m, prod = producto();
   // valores distintos por pie: "izq / der"
@@ -2555,7 +2643,7 @@ function hojaHTML() {
 </body></html>`;
 }
 $('hojaDiseno').addEventListener('click', async () => {
-  if (!actual) return;
+  if (!actual || hayFueraDeRango()) return;
   const ventana = window.open('', '_blank');   // se abre ya (dentro del clic) para que el navegador no la bloquee
   try {
     const nombre = `${nombreBase(actual.d)} hoja.html`, html = hojaHTML();
@@ -2566,7 +2654,7 @@ $('hojaDiseno').addEventListener('click', async () => {
 });
 
 $('guardarReceta').addEventListener('click', async () => {
-  if (!actual) return;
+  if (!actual || hayFueraDeRango()) return;
   try {
     const nombre = `${nombreBase(actual.d)} receta.json`;
     await guardar(nombre, JSON.stringify({ ...actual.d, fecha: new Date().toISOString() }, null, 2));
@@ -2617,6 +2705,14 @@ function limpiarReceta(r) {
   if (c.talla != null && typeof c.talla !== 'string' && typeof c.talla !== 'number') delete c.talla;
   if (c.cuadro != null && !CUADROS[c.cuadro]) delete c.cuadro;
   if (c.paciente != null && typeof c.paciente !== 'string') c.paciente = String(c.paciente);
+  // correcciones (auditoría 2026-11-18): dos números por corrección, dentro de los límites del panel
+  if (c.correcciones != null) {
+    const par = (v, lo, hi) => Array.isArray(v) ? [0, 1].map(k => numFin(v[k]) ? Math.min(Math.max(+v[k], lo), hi) : 0) : [0, 0];
+    c.correcciones = esObj(c.correcciones) ? { arcoMedial: par(c.correcciones.arcoMedial, -10, 15), moverApice: par(c.correcciones.moverApice, -40, 40) } : null;
+  }
+  if (c.orden != null && !esObj(c.orden)) c.orden = null;
+  // ancho de la receta (QA-02): fuera de lo posible se rechaza la receta, no se genera una plantilla gigante
+  if (c.ancho != null && !(c.ancho >= 40 && c.ancho <= 160)) throw new Error(`ancho fuera de rango en la receta (${c.ancho} mm; de 40 a 160)`);
   return c;
 }
 // Pone en la pantalla un diseño (receta). Lo usan abrir receta, deshacer/rehacer, recuperar y la orden del
@@ -2656,6 +2752,9 @@ function aplicarRecetaSinRed(r) {
   if (r.arco != null) $('arco').value = r.arco;
   escalaTalon = r.escalaTalon > 0 ? Math.min(Math.max(+r.escalaTalon, 0.6), 1.5) : null; talonPedido = null; $('anchoTalonAuto').checked = !escalaTalon;
   $('arcoPosAuto').checked = r.arcoPos == null; if (r.arcoPos != null) $('arcoPos').value = Math.round(r.arcoPos * 100);
+  // correcciones como LutraCAD (2026-11-17); las recetas de antes no traen: 0
+  { const c = r.correcciones ?? {}; $('corrArcoIzq').value = c.arcoMedial?.[0] ?? 0; $('corrArcoDer').value = c.arcoMedial?.[1] ?? 0;
+    $('corrApiceIzq').value = c.moverApice?.[0] ?? 0; $('corrApiceDer').value = c.moverApice?.[1] ?? 0; }
   for (const id of POR_PIE) ponerSeparado(id, false);
   for (const id of POR_PIE) ponerSeparado(id, Array.isArray(r.separados) ? r.separados.includes(id) : id in (r.der ?? {}));
   for (const [k, v] of Object.entries(r.der ?? {})) if (POR_PIE.includes(k)) $(k + 'Der').value = k === 'arcoPos' ? Math.round(v * 100) : v;
@@ -2870,7 +2969,7 @@ document.addEventListener('keydown', ev => {
     reglas = reglas.filter(r => r !== reglaElegida); reglaElegida = null;
     if (!reglas.length && !medidasTomadas.length) $('borrarMedidas').hidden = true;
     visor?.pedir();
-  } else if ((ev.key === 'Delete' || ev.key === 'Supr') && activo >= 0 && modulo !== 'exportar') {
+  } else if ((ev.key === 'Delete' || ev.key === 'Supr') && activo >= 0 && !fijoModulo()) {
     elegidos.splice(activo, 1); activo = -1; pintarElementos(); pedir();
   } else if (ev.key === 'Escape') {
     activo = -1; refrescarPosiciones();

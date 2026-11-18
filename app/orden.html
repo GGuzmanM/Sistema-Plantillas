@@ -88,9 +88,10 @@ const ponerProducto = () => { const p = bib.productos.find(x => x.id === $('prod
 $('producto').addEventListener('change', ponerProducto); ponerProducto();
 $('fecha').value = new Date().toISOString().slice(0, 10);
 
-$('elementos').innerHTML = catalogo.map(e => `<tr data-id="${e.id}"><td>${e.nombre}</td>
-  <td><input type="number" min="0" max="15" step="0.5" data-pie="izq" aria-label="${e.nombre}, izquierdo" placeholder="–"></td>
-  <td><input type="number" min="0" max="15" step="0.5" data-pie="der" aria-label="${e.nombre}, derecho" placeholder="–"></td></tr>`).join('');
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+$('elementos').innerHTML = catalogo.map(e => `<tr data-id="${esc(e.id)}"><td>${esc(e.nombre)}</td>
+  <td><input type="number" min="0" max="15" step="0.5" data-pie="izq" aria-label="${esc(e.nombre)}, izquierdo" placeholder="–"></td>
+  <td><input type="number" min="0" max="15" step="0.5" data-pie="der" aria-label="${esc(e.nombre)}, derecho" placeholder="–"></td></tr>`).join('');
 $('elementos').addEventListener('input', ev => {
   const tr = ev.target.closest('tr');
   tr.classList.toggle('lleva', [...tr.querySelectorAll('input')].some(i => parseFloat(i.value) > 0));

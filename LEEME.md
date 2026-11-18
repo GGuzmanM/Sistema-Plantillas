@@ -348,6 +348,71 @@ de ejemplo el trazo mide 0,25 a 0,57 mm. La foto de una plantilla (sin trazo) no
 ### Biblioteca con menú y descargas (2026-11-16, pedido de Ernesto)
 
 - **Biblioteca** como LutraCAD: menú a la izquierda (Hormas · Elementos: Elementos y Descargas) y lista en filas.
+- **Guía de tallas = STL de referencia de Ernesto** (2026-11-17, "idéntico a la referencia"): 
+  `referencias/guia_de_talla_L_optimizada_v2.stl` (pie izq. 268 mm, copa 13, espesor 2, arco 20,1 al 40 %) se pasó al
+  formato de horma (`hormas/guia_stl.json`: cara de arriba cada 0,5 mm, 61 columnas; el chaflán del borde del antepié
+  se subió a 2 mm porque el programa pone su canto). Horma raíz oculta `base_guia_stl` con `op` de suavizado propio
+  (`recorteBorde` 0,01, `suaveAncho` 0,03, `suaveLargo` 0,002, `suaveContorno` 1; app.js pasa `m.op` / `b.op` a
+  `prepararHorma`). `guia_tallas` = `base: base_guia_stl` sin relieve ni contorno. Con copa 13 / espesor 2 / arco 20,1
+  queda a 0,08 mm del STL en promedio (95 % < 0,39 mm), pliegue 8,3°. Luego (pedido de Ernesto) se compensaron las
+  paredes de la copa, que salían 0,2–0,3 mm bajas por el suavizado: 2 pasadas sumando la diferencia con el STL a los
+  datos, suavizada, sin tocar 3 columnas de cada borde (canto) ni 6 mm de cada punta (si no, sale un pico en la punta
+  de los dedos). Ahora prueba 19: media 0,06 mm, 95 % < 0,26 mm, pliegue 8,7°; copa 10–18 sin pliegues > 10,2°. Prueba 19 compara toda la cara de arriba con el
+  STL. Copa 10–18 y arco 20–23 dan las medidas pedidas sin pliegues > 9,5°. El editor de hormas, si la horma no trae
+  archivo de contorno, toma el de la propia horma (`defHorma`).
+- Editor de hormas, vista de costado en proporción (2026-11-17, "se ve desproporcionada"): la altura va aumentada 3
+  veces respecto del largo (`EXAG` en biblioteca.js; antes ~6), lienzo de 300 × 110, rótulo "altura ×3".
+- **4 módulos como LutraCAD** (2026-11-17): 1. Base · 2. Diseño · 3. EVA o 3. Imprimir (según el "Método de
+  producción", el antiguo "Producto": "Fresado: …" sin acabado, "Impresión 3D: …" con acabado) · 4. Exportar. En Base
+  y Diseño la plantilla se ve como **lámina** de espesor parejo (`lamina(g)`: abajo = arriba − espesor del antepié,
+  abajo en verde `COLOR_LAMINA`), solo para ver; en 3 y 4 se ve el sólido real y el diseño queda fijo
+  (`fijoModulo()`). En 3. EVA está el alto del bloque (`#altoBloque`); el G-code sigue en 4. Exportar.
+- Editor de hormas: al elegir la plantilla, dos modos como LutraCAD: "✂ Editar línea de corte" (solo puntos azules
+  del contorno) y "✎ Editar alturas" (rojos interno / amarillos externo); solo se muestran y se agarran los puntos
+  del lado que mira a la cámara (`seVe`, por la normal de cada punto; desde arriba, todos).
+- **Correcciones como LutraCAD** (2026-11-17, sección "Correcciones" en 2. Diseño, valor izq/der, receta
+  `correcciones: { arcoMedial: [i, d], moverApice: [i, d] }`), medidas en vistas de costado de LutraCAD que mandó
+  Ernesto: **Corrección del arco medial** = campana gaussiana a lo largo (sigma 12 % del largo: del ~10 % al ~59 %)
+  centrada en la cima del arco, solo hacia el lado interno (`suave((v−0,3)/0,6)`), sumada después de las alturas
+  (motor: `p.arcoMedial`, paso 2c); talón y antepié no cambian. **Mover ápice** = corre la cima esos mm hacia los
+  dedos (motor: `p.moverApice`, en `correrArco`), sin mover el comienzo ni el final del arco. Pendientes, cuando haya
+  capturas: ancho de la plantilla, ancho del talón, altura de la cazoleta, elevación del talón, suave.
+- **G-code para la fresadora de EVA** (2026-11-17, `motor/fresado.js`, botón "G-code para la fresadora (EVA)" en
+  Exportar, solo con productos sin acabado de resina). Máquina: Sensor Medica VX1R (2021) con EdingCNC 4.03.55, CPU5A,
+  en mm. Formato copiado de un trabajo real de la máquina (proyecto de un paciente, .iso descargado en la PC de la
+  fresadora): par en un bloque de 350 × 260 mm (alto 26–30), cero en el centro, Z 0 = base; cada plantilla a lo largo
+  de X (talón en X−), izquierda en Y+ y derecha en Y− con el arco hacia el centro (borde interno a |Y| = 7); relieve
+  en zigzag (filas cada 0,5 mm a lo ancho, puntos cada 2 mm, X impares); contorno corrido 5 mm (radio de la fresa) con
+  una vuelta a Z 15 y otra a Z 1; `S24000 M03 G64`, todo G01 (F14400 trasladar, F900 bajar, F1800 cortar); fin
+  `G01 Z55 / G28 / M5 / %`, saltos de línea LF. Fresa de bola Ø 10 mm (Ernesto): la altura de cada punto se calcula
+  para que la bola no toque la plantilla. Avisa y no genera si no entra en el bloque o si pasa el alto del bloque.
+  Se guarda como "… fresadora.iso" en la carpeta del proyecto. Prueba 20. Antes de usarlo de verdad: verlo en la
+  vista de EdingCNC, pasarlo en el aire y luego en un bloque de prueba.
+- **Chimpunes y Crocs rehechas desde las capturas** (2026-11-17, Ernesto: "se ven tan mal… idénticas a las imágenes").
+  Las de antes (base EasyCAD + factores de relieve cada 2,5 %, hasta ×12) tenían arrugas a lo ancho. Ahora cada una es
+  una horma raíz propia (`base_chimpunes` / `base_crocs`, datos `hormas/chimpunes_datos.json` / `crocs_datos.json`),
+  armada con `herramientas/horma_de_capturas.js`: contorno de arriba, lado interno (silueta del costado interno) y
+  borde externo (línea blanca del costado externo; copa recta hasta el 42 % / 40 %), cortes de lado a lado de la Guía
+  (STL) como molde, sin cortes bruscos, alisada 6 mm a lo largo, puntas del talón y de los dedos parejas, y 4 pasadas
+  de corrección (alisadas). Contra las capturas: Chimpunes ±0,22 / ±0,10 mm, Crocs ±0,28 / ±0,21 mm; pliegue 3,4–4°.
+  Prueba 19 las compara con las capturas (`armarDesdeCapturas`, `perfilCostado`); prueba 16 mide pliegues fuera del
+  2 % del talón y abajo admite 33° (canto del acabado: 28° ya con la Guía).
+- **Editor de hormas sobre el 3D** (2026-11-17, Ernesto): sin vistas 2D. Clic en la plantilla → "✎ Editar con puntos":
+  azules en el borde (mueven el contorno sobre el plano del borde, radio en mm), rojos (lado interno) y amarillos (borde
+  externo) suben o bajan (escala de la pantalla igual al largo; ±10 mm por arrastre). `editorHorma.vista3D` devuelve
+  `visor`; capa `#eh-capa`, barra `#eh-barra`. Sin archivo de contorno, `defHorma` toma el de la horma.
+- STL de referencia de Ernesto (`referencias/referencia eva|3d nuevo programa_L|R.stl`): misma cara de arriba (0 mm);
+  EVA = bloque con base plana y paredes rectas; 3D = macizo, plano al centro y la base sube cerca del borde (hasta
+  9,4 mm bajo el arco interno): es lo que ya hace el acabado de resina. Falta el acabado de EVA.
+- **El arco sube solo con la copa** (Ernesto, 2026-11-17): en `generarPies` el arco nunca queda a menos de
+  `DIF_ARCO_COPA` (6 mm) sobre la copa de ese pie (copa 16 → arco 22; copa 18 → 24). Estándar 14/20 y delgado 10/20 no
+  cambian. Aviso `#avisoArcoSube` bajo "Alto de arco". Motivo: el motor escala aparte lo que está bajo la copa y lo
+  que está sobre ella; con poca diferencia el arco se aplana en meseta y baja de golpe.
+- (Antes) Arco de la Guía de tallas (2026-11-17, Ernesto eligió la propuesta "C1" vista de costado): lado interno 100 % recto a
+  14,6 mm desde el talón hasta el 16 %, sube parejo hasta 20 mm al 38 % (`valores.arcoPos` 0,38) y baja largo hasta
+  2,6 mm al 66 %. Factores `relieve` reajustados (interno a ±0,2 mm de la curva; borde externo igual que antes, ±0,4 mm,
+  sin el bulto de la punta del talón). Prueba 19 actualizada; su control de talón ahora mide el salto entre puntos
+  vecinos del borde (< 0,3 mm), porque el borde sube parejo de 13,4 (externo) a 14,6 mm (interno).
 - Miniaturas (2026-11-17, como LutraCAD): silueta gris clara con luz (`luzCara`, `SILUETA` en app.js), sin recuadro y
   solo con el nombre; los datos (copa, espesor, altura…) salen al pasar el mouse. Hormas: la plantilla entera;
   elementos y descargas: solo la forma del elemento (`miniaturaElemento(def, cv, { silueta: true })`), con el borde

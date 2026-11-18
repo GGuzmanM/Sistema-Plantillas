@@ -302,7 +302,8 @@
     <nav class="modulos" role="tablist" aria-label="Módulos">
       <button role="tab" data-modulo="base" class="activo">1. Base</button>
       <button role="tab" data-modulo="diseno">2. Diseño</button>
-      <button role="tab" data-modulo="exportar">3. Exportar</button>
+      <button role="tab" data-modulo="produccion" id="tabProduccion">3. EVA</button>
+      <button role="tab" data-modulo="exportar">4. Exportar</button>
     </nav>
     <p class="nota-modulo" id="notaModulo"></p>
     <div class="orden" id="orden" hidden></div>
@@ -365,7 +366,7 @@
       <h2>Plantilla</h2>
       <div class="fila ancha"><label for="medidaDesde">Medida desde</label><select id="medidaDesde" title="Guía de tallas: el largo sale del cuadro según la talla. Muestra o escaneo: el largo sale del pie o de la muestra.">
         <option value="guia">Guía de tallas</option><option value="muestra">Muestra o escaneo</option></select></div>
-      <div class="fila ancha"><label for="producto">Producto</label><select id="producto" title="En EVA el largo de la guía de tallas lleva 5 mm más para pulir"></select></div>
+      <div class="fila ancha"><label for="producto">Método de producción</label><select id="producto" title="Como LutraCAD: el módulo 3 es EVA (fresado) o Imprimir (impresión 3D). En EVA el largo de la guía de tallas lleva 5 mm más para pulir"></select></div>
       <!-- tipo de diseño con botones, como LutraCAD: un clic elige (Ernesto, 2026-11-16); el desplegable queda oculto -->
       <div class="fila tipo-diseno"><span class="etiqueta" id="etTipoDiseno">Tipo de diseño</span>
         <div class="botones-tipo" role="radiogroup" aria-labelledby="etTipoDiseno" id="botonesTipo"></div>
@@ -379,7 +380,7 @@
           <ul class="st-lista" role="listbox" aria-labelledby="etTalla" hidden></ul>
         </div></div>
     </section>
-    <section data-en="base diseno exportar" class="medidas-alturas">
+    <section data-en="base diseno produccion exportar" class="medidas-alturas">
       <h2 id="tituloMedidas">Medidas y alturas</h2>
       <div class="fila"><label for="largo">Largo</label><span class="campo"><input type="number" id="largo" min="150" max="360" step="0.5"><span class="unidad">mm</span></span>
         <p class="auto nota-largo" id="notaLargo" hidden></p></div>
@@ -393,6 +394,7 @@
         <div class="botones-tipo tres" role="radiogroup" aria-labelledby="etTipoArco" id="botonesArco"></div>
         <select id="tipoArco" hidden aria-hidden="true" tabindex="-1"></select></div>
       <div class="fila"><label for="arco">Alto de arco</label><span class="campo"><input type="number" id="arco" min="4" max="35" step="0.5"><span class="unidad">mm</span></span></div>
+      <p id="avisoArcoSube" class="aviso-muestra" hidden></p>
       <div class="fila"><label for="antepie">Antepié (espesor)</label><span class="campo"><input type="number" id="antepie" min="0.8" max="6" step="0.1"><span class="unidad">mm</span></span></div>
       <details class="mas-ajustes" id="masAjustes"><summary>Más ajustes</summary>
         <div class="fila"><label for="arcoPos">Ubicación del arco</label><span class="campo"><input type="number" id="arcoPos" min="28" max="52" step="1"><span class="unidad">%</span></span>
@@ -402,6 +404,18 @@
       <div class="fila" id="filaContacto" hidden><label for="contactoPct">Contacto con el pie</label><span class="campo"><input type="number" id="contactoPct" min="0" max="100" step="5" value="100"><span class="unidad">%</span></span>
         <label class="auto"><input type="checkbox" id="contactoActivo" checked> Arco igual al escaneo (contacto total; 100 % = copia la planta del pie)</label>
         <label class="auto">Forma del arco <select id="contactoForma"><option value="natural" selected>Natural (alisada)</option><option value="fiel">Fiel al escaneo</option></select></label></div>
+    </section>
+    <!-- Correcciones como LutraCAD (2026-11-17): se suman a la horma sin reescalarla; izquierdo / derecho -->
+    <section data-en="diseno" class="correcciones">
+      <h2>Correcciones</h2>
+      <div class="corr-fila corr-cab"><span></span><span>Izq.</span><span>Der.</span></div>
+      <div class="corr-fila"><label for="corrArcoIzq">Corrección del arco medial</label>
+        <input type="number" id="corrArcoIzq" step="0.5" min="-10" max="15" value="0" aria-label="Arco medial, pie izquierdo (mm)">
+        <input type="number" id="corrArcoDer" step="0.5" min="-10" max="15" value="0" aria-label="Arco medial, pie derecho (mm)"></div>
+      <div class="corr-fila"><label for="corrApiceIzq">Mover ápice (hacia los dedos)</label>
+        <input type="number" id="corrApiceIzq" step="1" min="-40" max="40" value="0" aria-label="Mover ápice, pie izquierdo (mm)">
+        <input type="number" id="corrApiceDer" step="1" min="-40" max="40" value="0" aria-label="Mover ápice, pie derecho (mm)"></div>
+      <p class="nota-modulo">En mm. Suben o bajan solo el arco, sin cambiar la copa, el talón ni el antepié.</p>
     </section>
     <section data-en="diseno">
       <h2>Elementos</h2>
@@ -415,7 +429,17 @@
       <label class="auto juntos"><input type="checkbox" id="moverJuntos" checked> Mover igual en los dos pies</label>
       <div id="listaElementos"></div>
     </section>
-    <section data-en="base diseno exportar">
+    <!-- módulo 3 como LutraCAD (2026-11-17): EVA (fresado) o Imprimir (impresión 3D), según el método de producción -->
+    <section data-en="produccion" id="seccionEVA">
+      <h2>Fresadora (EVA)</h2>
+      <div class="fila" id="filaFresadora"><label for="altoBloque">Alto del bloque de EVA</label><span class="campo"><input type="number" id="altoBloque" min="10" max="60" step="0.5" value="26"><span class="unidad">mm</span></span></div>
+      <p class="nota-modulo">Sensor Medica VX1R con EdingCNC: el par en un bloque de 350 × 260 mm, cero en el centro y Z 0 sobre la mesa; fresa de punta redonda de 10 mm. El G-code se genera en 4. Exportar.</p>
+    </section>
+    <section data-en="produccion" id="seccionImprimir">
+      <h2>Impresión 3D</h2>
+      <p class="nota-modulo">Plantilla maciza con la base curva y canto fino, para imprimir en resina. El STL se genera en 4. Exportar. (Ajustes de la impresora: más adelante.)</p>
+    </section>
+    <section data-en="base diseno produccion exportar">
       <h2>Revisión</h2>
       <ul class="avisos" id="avisos"></ul>
     </section>
@@ -423,6 +447,8 @@
       <h2>Archivos</h2>
       <div class="botones">
         <button class="primario" id="exportar">Exportar STL (izquierdo y derecho)</button>
+        <!-- EVA: G-code para la fresadora Sensor Medica VX1R (EdingCNC), 2026-11-17; el alto del bloque está en 3. EVA -->
+        <button class="primario" id="exportarGcode" hidden title="Par en un bloque de 350 × 260 mm, cero en el centro y Z 0 en la base; fresa de bola de 10 mm">G-code para la fresadora (EVA)</button>
         <button id="hojaDiseno">Hoja del diseño (imprimir / PDF)</button>
         <button id="guardarReceta">Guardar receta</button>
         <button id="abrirReceta">Abrir receta…</button>
