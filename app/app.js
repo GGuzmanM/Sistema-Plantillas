@@ -1485,7 +1485,58 @@ async function abrirCarpeta(archivos) {
     muestrasCarpeta.length ? `${muestrasCarpeta.length} muestra${muestrasCarpeta.length > 1 ? 's' : ''} (${muestrasCarpeta.map(m => m.nombre).join(', ')})` : 'sin muestras escaneadas'];
   mensaje(partes.join(' · ') + '.' + (muestrasCarpeta.length > 1 ? ' Elija la muestra en "Muestra 2D".' : ''), true);
 }
-$('abrirCarpeta').addEventListener('click', () => $('archivoCarpeta').click());
+// ---- Carpeta del paciente recordada por proyecto (Ernesto, 2026-11-19: al cerrar o recargar y volver a abrir el
+// proyecto desaparecían el escaneo y la muestra) ----
+// Con Chrome/Edge se elige la carpeta con showDirectoryPicker y el navegador guarda el acceso (IndexedDB, en esta PC):
+// no se copia ningún archivo del paciente. Al abrir el proyecto se vuelve a leer la carpeta; si el navegador pide
+// permiso de nuevo, aparece "Volver a abrir la carpeta de …" (un clic).
+const BD_PAC = 'plantillas-lima-blue', T_PAC = 'ajustes';
+function bdPac() {
+  return new Promise((ok, mal) => { const r = indexedDB.open(BD_PAC, 1); r.onupgradeneeded = () => r.result.createObjectStore(T_PAC); r.onsuccess = () => ok(r.result); r.onerror = () => mal(r.error); });
+}
+async function carpetaPacienteGuardada(clave) {
+  try { const b = await bdPac(); return await new Promise(ok => { const r = b.transaction(T_PAC).objectStore(T_PAC).get('paciente:' + clave); r.onsuccess = () => ok(r.result ?? null); r.onerror = () => ok(null); }); } catch { return null; }
+}
+async function guardarCarpetaPaciente(clave, h) {
+  try { const b = await bdPac(); await new Promise(ok => { const t = b.transaction(T_PAC, 'readwrite'); t.objectStore(T_PAC).put(h, 'paciente:' + clave); t.oncomplete = ok; t.onerror = ok; }); } catch { /* sin almacenamiento */ }
+}
+// archivos de la carpeta (solo los de adentro, sin subcarpetas), con su ruta como los de <input webkitdirectory>
+async function archivosDeCarpeta(h) {
+  const fs = [];
+  for await (const [n, e] of h.entries()) if (e.kind === 'file') { const f = await e.getFile(); Object.defineProperty(f, 'webkitRelativePath', { value: h.name + '/' + n }); fs.push(f); }
+  return fs;
+}
+// elegir la carpeta del paciente: { archivos, handle } (handle null si el navegador no deja recordarla) o null
+async function elegirCarpetaPaciente() {
+  if (!window.showDirectoryPicker) return null;
+  try { const h = await window.showDirectoryPicker({ id: 'paciente', mode: 'read' }); return { archivos: await archivosDeCarpeta(h), handle: h }; }
+  catch (e) { if (e.name === 'AbortError') return { cancelado: true }; return null; }
+}
+async function abrirCarpetaRecordando(archivos, handle) {
+  await abrirCarpeta(archivos);
+  const clave = claveArchivos;
+  if (handle && clave) { await guardarCarpetaPaciente(clave, handle); $('reabrirCarpeta').hidden = true; }
+}
+// al abrir un proyecto sin el escaneo en memoria: se vuelve a leer su carpeta (o se ofrece el botón)
+async function reabrirCarpetaGuardada(clave) {
+  $('reabrirCarpeta').hidden = true;
+  const h = clave && await carpetaPacienteGuardada(clave); if (!h || claveArchivos !== clave) return;
+  let permiso = 'denied'; try { permiso = await h.queryPermission({ mode: 'read' }); } catch { /* handle viejo */ }
+  if (permiso === 'granted') { try { await abrirCarpeta(await archivosDeCarpeta(h)); return; } catch { /* la carpeta ya no está */ } }
+  const b = $('reabrirCarpeta'); b.textContent = `Volver a abrir la carpeta "${h.name}"`; b.hidden = false;
+  b.onclick = async () => {
+    try {
+      if ((await h.requestPermission({ mode: 'read' })) !== 'granted') return;
+      b.hidden = true; await abrirCarpeta(await archivosDeCarpeta(h));
+    } catch (e) { mensaje('No se pudo abrir la carpeta (¿se movió o se borró?): ' + e.message, false); }
+  };
+  mensaje(`Para ver el escaneo y la muestra, use "Volver a abrir la carpeta" en Paciente (el navegador pide permiso).`);
+}
+$('abrirCarpeta').addEventListener('click', async () => {
+  const r = await elegirCarpetaPaciente();
+  if (r?.cancelado) return;
+  if (r?.archivos?.length) await abrirCarpetaRecordando(r.archivos, r.handle); else if (!r) $('archivoCarpeta').click();
+});
 $('archivoCarpeta').addEventListener('change', async ev => {
   const fs = [...ev.target.files]; ev.target.value = '';
   if (fs.length) await abrirCarpeta(fs);
@@ -3355,6 +3406,8 @@ zonaVisor.addEventListener('dragover', ev => { if ([...ev.dataTransfer.types].in
 zonaVisor.addEventListener('dragleave', ev => { if (!zonaVisor.contains(ev.relatedTarget)) zonaVisor.classList.remove('soltando'); });
 zonaVisor.addEventListener('drop', async ev => {
   ev.preventDefault(); zonaVisor.classList.remove('soltando');
+  // acceso recordable a lo soltado (Chrome/Edge): hay que pedirlo antes de cualquier await
+  const accesos = [...ev.dataTransfer.items].map(it => (it.kind === 'file' && it.getAsFileSystemHandle ? it.getAsFileSystemHandle().catch(() => null) : null));
   // una carpeta soltada = la carpeta del paciente
   const dir = [...ev.dataTransfer.items].map(it => it.webkitGetAsEntry?.()).find(e => e?.isDirectory);
   if (dir) {
@@ -3362,7 +3415,8 @@ zonaVisor.addEventListener('drop', async ev => {
       const leer = () => r.readEntries(es => { if (!es.length) ok(todas); else { todas.push(...es); leer(); } }, mal); leer(); });
     const archivosDir = await Promise.all(entradas.filter(e => e.isFile).map(e => new Promise((ok, mal) => e.file(f => {
       Object.defineProperty(f, 'webkitRelativePath', { value: dir.name + '/' + f.name }); ok(f); }, mal))));
-    if (archivosDir.length) await abrirCarpeta(archivosDir);
+    const hDir = (await Promise.all(accesos)).find(h => h?.kind === 'directory') ?? null;
+    if (archivosDir.length) await abrirCarpetaRecordando(archivosDir, hDir);
     return;
   }
   const archivos = [...ev.dataTransfer.files];
@@ -3463,6 +3517,9 @@ inicio = crearInicio({
       if (guardado.muestra) ponerMuestra(guardado.muestra);
       pintarListaMuestras(); pedir();
     }
+    // sin nada en memoria (se recargó o cerró la página): se vuelve a leer la carpeta del paciente recordada
+    $('reabrirCarpeta').hidden = true;
+    if (!guardado && !nuevo && claveArchivos) reabrirCarpetaGuardada(claveArchivos);
     historial.pila = []; historial.pos = -1; registrarHistorial();
     $('recuperar').hidden = true; autoguardarListo = true;
     return !!guardado;
@@ -3471,7 +3528,8 @@ inicio = crearInicio({
   recetaNueva: paciente => ({ version: 1, producto: 'resina', horma: 'guia_tallas', tipoArco: 'neutro', paciente, elementos: [] }),
   mensaje,
   antesDeSalir: () => { if (lc) terminarCorte(true); volcarHistorial(); },
-  abrirCarpeta,   // "Nuevo desde carpeta": carga el escaneo y las muestras de la carpeta del paciente
+  // "Nuevo desde carpeta": elige la carpeta del paciente (recordándola) y carga el escaneo y las muestras
+  abrirCarpeta: abrirCarpetaRecordando, elegirCarpetaPaciente,
   biblioteca: { catalogo: () => catalogo, miniatura: miniaturaElemento, recuadro: recuadroElemento, vista3D: vista3DElemento, aplicar: ponerElementosPropios, hormas: listaHormas,
                 aplicarHormas: ponerHormasPropias, editorHorma },
 });

@@ -328,6 +328,8 @@
       <h2>Paciente</h2>
       <button id="abrirCarpeta" class="ancho-total primario" title="La carpeta del paciente en Baro: carga el escaneo y las muestras (también se puede arrastrar la carpeta sobre el 3D)">Abrir carpeta del paciente…</button>
       <input type="file" id="archivoCarpeta" webkitdirectory multiple hidden>
+      <!-- proyecto abierto después de recargar: el navegador pide permiso para volver a leer la carpeta (2026-11-19) -->
+      <button id="reabrirCarpeta" class="ancho-total" style="margin-top:8px" hidden></button>
       <input type="text" id="paciente" class="ancho-total" placeholder="Nombre del paciente" style="margin-top:8px">
     </section>
     <section data-en="base">

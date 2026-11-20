@@ -533,6 +533,22 @@ for (const lado of ['izq', 'der']) {
   prueba('Mover ápice: corre todo el arco', bien, `cima ${a.ap} → ${b.ap} mm (${dA}), mitad de la subida ${a.sube} → ${b.sube} mm (${dS}), copa y antepié cambian ${n2(fuera)} mm, ${rev.cerrado ? 'cerrado' : 'abierto'}, pliegues ${n1(l.pliegueArriba)} (antes ${n1(l0.pliegueArriba)})`);
 }
 
+// 27. Subir la copa no corre el arco (2026-11-19, Ernesto con Chimpunes: "cuando aumento la copa el arco se va para
+// atrás"). En todas las hormas de la biblioteca (las nuevas entran solas), con copa 10, 14 y 18 la cima del arco queda
+// a menos de 3 mm. Regla de Ernesto: el arco solo se mueve con Mover ápice, la línea de corte o la altura del arco.
+{
+  const L = 244, texto = []; let bien = true;
+  const perfil = gg => { const s = new Array(L + 1).fill(0); for (let q = 0; q < gg.y.length; q++) { const k = Math.round(gg.y[q]); if (k >= 0 && k <= L) s[k] = Math.max(s[k], gg.z[q]); } return s; };
+  for (const m of bib.hormas.filter(x => !x.oculta)) {
+    const b = m.base ? bib.hormas.find(x => x.id === m.base) : m; if (!b?.archivo) continue;
+    const h = prepararHorma(await leer('../biblioteca/' + b.archivo), b.ref, { ...b.op, copaLado: m.copaLado, relieve: m.relieve });
+    const cimas = [10, 14, 18].map(copa => { const s = perfil(generar(h, { largo: L, antepie: 1.5, copa, arco: 20, lado: 'izq' })); let ap = 40; for (let k = 40; k < 160; k++) if (s[k] > s[ap]) ap = k; return ap; });
+    const ok = Math.max(...cimas) - Math.min(...cimas) <= 3; bien = bien && ok;
+    texto.push(`${m.nombre}: cima a ${cimas.join(' / ')} mm`);
+  }
+  prueba('Subir la copa no corre el arco', bien, texto.join(' · ') + ' (copa 10 / 14 / 18)');
+}
+
 // 25. Caja del elemento en el diseño (Ernesto, 2026-11-19): con conUV el motor dice de qué (u, v) del elemento viene cada
 // punto de la malla (para dibujar y arrastrar la caja). Corrido 10 mm hacia los dedos, u = (y − 10) / largo; pedir los
 // (u, v) no cambia la plantilla; sin conUV no se guardan.

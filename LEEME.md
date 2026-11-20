@@ -219,6 +219,13 @@ Ocultar la muestra (2026-11-13): botón "👁 Muestra" en la barra de vistas, ju
 solo con una muestra abierta y va junto con la casilla "Mostrar debajo (vista Arriba)" de la sección Muestra 2D.
 "👁 Escaneo" (2026-11-19) hace lo mismo con el escaneo, en cualquier módulo.
 
+Escaneo y muestra al volver a abrir un proyecto (2026-11-19, Ernesto): "Abrir carpeta del paciente…", "📁 Nuevo desde
+carpeta…" y soltar la carpeta sobre el 3D usan, en Chrome/Edge, el acceso a la carpeta que el navegador deja recordar
+(showDirectoryPicker / getAsFileSystemHandle). Se guarda en IndexedDB de esta PC como `paciente:<diseñador>/<carpeta del
+proyecto>`; no se copia ningún archivo del paciente. Al abrir el proyecto (también después de recargar o cerrar) se
+vuelve a leer esa carpeta; si el navegador pide permiso otra vez aparece "Volver a abrir la carpeta …" en Paciente (un
+clic). Dentro de la misma sesión, el escaneo y la muestra ya abiertos se reponen de memoria (`archivosAbiertos`).
+
 Correr y girar el escaneo y la muestra con el ratón (2026-11-19, Ernesto, como "Girar" de LutraCAD): clic sobre el
 escaneo lo elige (se pinta verde) y aparece su panel con Mover / Girar; arrastrar sobre él lo corre o lo gira
 alrededor del medio del pie (`escaneos[pie].ajuste` = { dx, dy, giro }, aplicado en `alinearEscaneo`, así el contacto
@@ -436,7 +443,11 @@ de ejemplo el trazo mide 0,25 a 0,57 mm. La foto de una plantilla (sin trazo) no
   arco del lado interno (15 %–65 %) para que la cima quede en el arco pedido. Así una horma delgada puesta en estándar
   no hace meseta, la cima no se corre y el arco puede bajar de copa + 6 (con copa 14 no baja de ~14: aviso
   `#avisoArcoSube`). Prueba 22 "Copa y arco por capas". Comparado con LutraCAD (capturas de costado: copa 10 → 14 con
-  el arco igual, 17,09 mm). Las hormas sin capas siguen con `curvaAlturas`.
+  el arco igual, 17,09 mm). Las hormas sin capas siguen con `curvaAlturas`. Corregido el 2026-11-19 (Ernesto con
+  Chimpunes: "cuando aumento la copa el arco se va para atrás"): del lado interno el cambio de copa ahora se apaga 14 %
+  del largo antes de la cima de la horma (`ref.arcoPos`; nunca después del 40 %), porque en Chimpunes (cima al 35 %) y
+  Crocs (38 %) el 40 % ya era dentro del arco y la cima se corría hasta 40 mm hacia el talón. Prueba 27 "Subir la copa
+  no corre el arco" (copa 10, 14 y 18 en las tres hormas).
 - (Antes) Arco de la Guía de tallas (2026-11-17, Ernesto eligió la propuesta "C1" vista de costado): lado interno 100 % recto a
   14,6 mm desde el talón hasta el 16 %, sube parejo hasta 20 mm al 38 % (`valores.arcoPos` 0,38) y baja largo hasta
   2,6 mm al 66 %. Factores `relieve` reajustados (interno a ±0,2 mm de la curva; borde externo igual que antes, ±0,4 mm,

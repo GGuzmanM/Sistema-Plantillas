@@ -197,9 +197,15 @@ export function prepararHorma(datos, ref, op = {}) {
 // (Probado 2026-11-19: escalar la copa pareja en todo el largo bajaba antes el arco de la Guía en estándar, 2,6 mm;
 // dejar la parte de la copa del medio pie fuera del arco corría la cima hasta 4 % al bajar la copa.)
 const lado = v => suave((v - 0.35) / 0.3);
-const talon = t => 1 - suave((t - 0.15) / 0.25), antepieF = t => 1 - suave((t - 0.6) / 0.15);
+const antepieF = t => 1 - suave((t - 0.6) / 0.15);   // talon(t) va dentro de alturasPorCapas (depende de la horma)
 const apagaExt = t => 1 - suave((t - 0.4) / 0.3);
 export function alturasPorCapas(ref, p) {
+  // 2026-11-19 (Ernesto, Chimpunes: "cuando aumento la copa el arco se va para atrás"): el cambio de copa del lado
+  // interno se apagaba al 40 % del largo, pero en Chimpunes (cima al 35 %) y Crocs (38 %) eso es dentro del arco:
+  // subía la parte de atrás de la subida y la cima se corría hasta 40 mm hacia el talón. Ahora se apaga 14 % del largo
+  // antes de la cima de la horma (nunca después del 40 %); con copa 10, 14 y 18 la cima queda en su lugar.
+  const N = ref.arcoPos ?? 0.4, fin = Math.min(0.40, N - 0.14), ini = Math.min(0.15, fin - 0.12);
+  const talon = t => 1 - suave((t - ini) / (fin - ini));
   const K = ref.capas, S = K.muestras, V = K.copaMuestras, rc = ref.copa - ref.antepie, Rc = p.copa - p.antepie;
   const Ra = (p.arco ?? p.antepie + (ref.arco - ref.antepie) * (Rc / rc)) - p.antepie;
   const nom = (ref.copaNominal ?? ref.copa) - (ref.antepieNominal ?? ref.antepie);

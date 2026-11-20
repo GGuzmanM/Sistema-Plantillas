@@ -299,3 +299,7 @@ aside section > h2 .plegar { margin: 0 -4px; width: calc(100% + 8px); }
 aside section > h2 .plegar:hover { background: #e2eaf6; }
 aside section.cerrada { padding-bottom: 0; }
 aside section.cerrada > h2 { margin-bottom: 0; border-bottom: 0; border-radius: 0 calc(var(--radio) - 1px) calc(var(--radio) - 1px) 0; }
+
+/* Módulos siempre a la vista (2026-11-19, Ernesto): al bajar en el panel, las 4 pestañas quedan pegadas arriba.
+   La franja del fondo del panel (sombra) tapa lo que pasa por detrás; aside tiene 14 px de margen arriba. */
+aside .modulos { position: sticky; top: 0; z-index: 6; box-shadow: 0 -14px 0 6px var(--fondo), 0 6px 8px -6px rgba(23, 32, 43, .25); }

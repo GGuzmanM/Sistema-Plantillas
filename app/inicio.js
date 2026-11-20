@@ -53,7 +53,7 @@ import { pintarBiblioteca } from './biblioteca.js';
 
 // biblioteca: { catalogo(), miniatura(def, canvas), aplicar(datos) } — aplicar suma los propios al programa
 // antesDeSalir(): pasa ya al guardado el último cambio del diseño que todavía esperaba (auditoría 2026-11-16)
-export function crearInicio({ aplicarReceta, recetaNueva, mensaje, alAbrir, biblioteca, antesDeSalir, abrirCarpeta }) {
+export function crearInicio({ aplicarReceta, recetaNueva, mensaje, alAbrir, biblioteca, antesDeSalir, abrirCarpeta, elegirCarpetaPaciente }) {
   let datosBib = { elementos: [], favoritos: [] };   // Biblioteca/elementos.json de la carpeta compartida
   let datosHormas = { hormas: [] };                   // Biblioteca/hormas.json (hormas propias y modificadas, 2026-11-17)
   async function cargarBiblioteca() {
@@ -224,7 +224,7 @@ export function crearInicio({ aplicarReceta, recetaNueva, mensaje, alAbrir, bibl
     });
     let creando = false;
     // archivos = carpeta del paciente (Nuevo desde carpeta): el nombre sale de la carpeta y después se cargan su escaneo y muestras
-    const crear = async (archivos = null) => {
+    const crear = async (archivos = null, handle = null) => {
       const desdeCarpeta = archivos?.length ? (archivos[0].webkitRelativePath || '').split('/')[0].replace(/\s*-\s*\d{6,}\s*$/, '') : null;
       const paciente = limpioNombre(desdeCarpeta ?? $('nuevoPaciente').value);
       if (!paciente) { if (archivos) alert('No se pudo leer el nombre de la carpeta.'); else $('nuevoPaciente').focus(); return; }
@@ -241,7 +241,7 @@ export function crearInicio({ aplicarReceta, recetaNueva, mensaje, alAbrir, bibl
         const datos = { paciente, disenador, creado: ahora.toISOString(), modificado: ahora.toISOString(), estado: 'En diseño', exportes: [], receta: recetaNueva(paciente) };
         await escribir(h, 'proyecto.json', JSON.stringify(datos, null, 2));
         abrirNuevo(h, carpeta, datos, paciente);
-        if (archivos?.length && abrirCarpeta) await abrirCarpeta(archivos);
+        if (archivos?.length && abrirCarpeta) await abrirCarpeta(archivos, handle);
       } catch (e) { alert('No se pudo crear el proyecto: ' + e.message); }
       finally { creando = false; }
     };
@@ -253,7 +253,12 @@ export function crearInicio({ aplicarReceta, recetaNueva, mensaje, alAbrir, bibl
     $('crearProyecto').onclick = () => crear();
     $('nuevoPaciente').onkeydown = e => { if (e.key === 'Enter') crear(); };
     // Nuevo desde carpeta (Ernesto, 2026-11-19): sin escribir el nombre; sale de la carpeta del paciente
-    $('crearDesdeCarpeta').onclick = () => $('archivoNuevoCarpeta').click();
+    // con Chrome/Edge la carpeta se elige recordándola (al volver a abrir el proyecto se relee, 2026-11-19)
+    $('crearDesdeCarpeta').onclick = async () => {
+      const r = await elegirCarpetaPaciente?.();
+      if (r?.cancelado) return;
+      if (r?.archivos?.length) crear(r.archivos, r.handle); else if (!r) $('archivoNuevoCarpeta').click();
+    };
     $('archivoNuevoCarpeta').onchange = ev => { const fs = [...ev.target.files]; ev.target.value = ''; if (fs.length) crear(fs); };
   }
   // Eliminar un diseño (Ernesto, 2026-11-14): no se borra de una, se mueve a Papelera/<diseñador>/<proyecto> dentro
