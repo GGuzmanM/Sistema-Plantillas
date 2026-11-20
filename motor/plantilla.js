@@ -646,7 +646,9 @@ export function generar(h, p) {
     const sl = Math.max(e.escala?.[0] ?? 1, 0.2), sa = Math.max(e.escala?.[1] ?? 1, 0.2), centro = forma.centro ?? [0.5, 0.5];
     const r = { altura: e.altura, relleno: !!e.forma.relleno, descarga: !!e.forma.descarga, forma, du: (e.mover?.[0] ?? 0) / p.largo, dmm: e.mover?.[1] ?? 0,
                 transf: g !== 0 || sl !== 1 || sa !== 1, cg: Math.cos(g), sg: Math.sin(g), sl, sa, centro,
-                rigida: !!e.forma.rigida, aporte: new Float32Array(ns * nr) };
+                rigida: !!e.forma.rigida, aporte: new Float32Array(ns * nr),
+                // caja del elemento en el diseño (2026-11-19): de qué punto (u, v) del elemento viene cada punto de la malla
+                uv: e.conUV ? new Float32Array(ns * nr * 2) : null };
     if (r.rigida) {
       // centro del elemento en su lugar de la biblioteca (mm de esta plantilla) y adonde se corrió
       const [a, b] = h.borde(Math.min(Math.max(centro[0] * L, 0.1 * L), 0.9 * L));
@@ -766,6 +768,7 @@ export function generar(h, p) {
           }
           const a = e.altura * e.forma(uu, vv);
           e.aporte[q] = a;
+          if (e.uv) { e.uv[2 * q] = uu; e.uv[2 * q + 1] = vv; }
           if (e.descarga) hunde += a; else if (e.relleno) relleno += a; else suma += a;
         }
         // la zona de suavizado es como mucho la altura del relleno: así en el antepié plano sube exactamente su
@@ -793,7 +796,7 @@ export function generar(h, p) {
   // Y negativo); del 3 % al 23 % se estira suave y desde ahí nada se mueve
   if (mT) for (let q = 0; q < y.length; q++) { const t = y[q] / p.largo; if (t < 0.23) y[q] -= mT * (1 - suave((t - 0.03) / 0.2)); }
   // aportes: cuánto sube cada elemento en cada punto (en el orden de p.elementos), para saber cuál se toca con el ratón
-  return { ns, nr, x, y, z, zb, he, rk, aportes: elementos.map(e => e.aporte), p: { ...p, arco: f.arco, arcoMin: f.arcoMin ?? null, copaLado: h.ref.copaLado } };
+  return { ns, nr, x, y, z, zb, he, rk, aportes: elementos.map(e => e.aporte), uvs: elementos.map(e => e.uv), p: { ...p, arco: f.arco, arcoMin: f.arcoMin ?? null, copaLado: h.ref.copaLado } };
 }
 
 // Contacto total en el arco (como el "Full Contact" de LutraCAD). c = { altura(x, y) → z de la planta del pie o null,

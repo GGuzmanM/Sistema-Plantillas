@@ -145,6 +145,13 @@ Biblioteca de elementos (2026-11-13, apartado "Biblioteca" del inicio; `app/bibl
   5 abajo, fijos); subir o bajar uno cambia el alto en ese tramo y muestra los mm. Se guarda como `perfil` =
   { u0, u1, f } (alto relativo en cada punto; el motor lo interpola con Catmull-Rom, `factorPerfil`, y multiplica
   la forma antes de suavizarla). "Restablecer forma" quita caja y perfil.
+- Caja del elemento en el diseño (2026-11-19, Ernesto): en el panel del elemento elegido, "Caja: editar la forma"
+  pone la misma caja de 5 × 5 puntos sobre el elemento en el 3D (vista Arriba), con Mover, Girar, Escala 1D, Escala 2D
+  y Lazo como la caja de la línea de corte; "↶ Paso" (o Ctrl+Z) deshace, "Restablecer forma" vuelve a la de la
+  biblioteca y "Listo" (o Esc) termina. Cambia la forma solo en este diseño: se guarda en el elemento de la receta como
+  `caja` = { izq, der } (cada una como la `caja` de la biblioteca; con "Mover igual en los dos pies" se copia al otro
+  pie). Para dibujar y arrastrar los puntos, el motor devuelve con `conUV` de qué (u, v) del elemento viene cada punto
+  de la malla (`uvs`). "Añadir a la biblioteca" guarda el elemento con esa forma.
 - Los propios y los favoritos van a `Biblioteca/elementos.json` de la carpeta compartida (los ven las tres PC). Al
   conectar la carpeta se suman al programa: "Agregar elemento" muestra ★ Favoritos primero y después por categoría.
 - Los elementos del programa tienen ahora `categoria` en `biblioteca/elementos.json`.

@@ -184,7 +184,7 @@
   .barra button { height: 30px; border: 0; background: transparent; padding: 0 10px; border-radius: 5px; }
   .barra button:hover, .barra button.activo { background: #e9eff8; color: var(--acento-2); }
   .barra .sep { width: 1px; background: var(--linea); margin: 4px 2px; }
-  .barra button[data-ver-pie]:not(.activo), .barra #verMuestraBarra:not(.activo) { color: #9aa3af; text-decoration: line-through; }
+  .barra button[data-ver-pie]:not(.activo), .barra #verMuestraBarra:not(.activo), .barra #verEscaneoBarra:not(.activo) { color: #9aa3af; text-decoration: line-through; }
   .visor canvas.cubo-vistas { position: absolute; inset: auto; top: 56px; right: 12px; left: auto; bottom: auto; width: 120px; height: 120px; cursor: grab; touch-action: none; z-index: 3; }
   #capa { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
   /* la muestra se mezcla multiplicando: el papel blanco no tapa la plantilla, solo se ve el trazo */
@@ -254,6 +254,12 @@
   .pe-botones { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; }
   .pe-botones button { height: 30px; font-size: 12.5px; padding: 0 6px; }
   .pe-botones #peBiblioteca { grid-column: 1 / -1; }
+  .pe-caja-boton { width: 100%; height: 30px; margin-top: 8px; font-size: 12.5px; }
+  .pe-caja-boton.activo { background: var(--acento-claro); border-color: var(--acento); color: var(--acento-2); font-weight: 600; }
+  .pe-caja-boton[hidden] { display: none; }
+  #peCajaHerr .pe-caja-nota { margin: 6px 0 0; font-size: 12px; }
+  #peCajaHerr .pe-caja-listo { grid-column: 1 / -1; }
+  #panelElemento.con-caja .pe-modos, #panelElemento.con-caja .pe-numeros, #panelElemento.con-caja > .pe-botones { display: none; }
   #panelPlantilla .pp-cab { display: flex; align-items: center; justify-content: space-between; }
   #panelPlantilla .pp-cab button { border: 0; background: none; font-size: 18px; line-height: 1; cursor: pointer; color: #5d6878; padding: 0 2px; }
   #panelPlantilla .pp-nota { color: #5d6878; font-size: 12px; margin: 4px 0 0; }
@@ -503,7 +509,8 @@
       <span class="sep"></span>
       <button data-ver-pie="izq" class="activo" title="Mostrar u ocultar el pie izquierdo">👁 Izquierdo</button>
       <button data-ver-pie="der" class="activo" title="Mostrar u ocultar el pie derecho">👁 Derecho</button>
-      <button id="verMuestraBarra" class="activo" aria-pressed="true" title="Mostrar u ocultar la muestra debajo de la plantilla (se ve en la vista Arriba)" hidden>👁 Muestra</button>
+      <button id="verEscaneoBarra" class="activo" aria-pressed="true" title="Mostrar u ocultar el escaneo del pie sobre la plantilla" hidden>👁 Escaneo</button>
+      <button id="verMuestraBarra"class="activo" aria-pressed="true" title="Mostrar u ocultar la muestra debajo de la plantilla (se ve en la vista Arriba)" hidden>👁 Muestra</button>
     </div>
     <!-- plantilla elegida (clic en la plantilla, fuera de los elementos): línea de corte y reflejar (Ernesto, 2026-11-16) -->
     <div class="accion-corte" id="panelPlantilla" hidden>
@@ -523,6 +530,19 @@
         <button data-modo-elem="girar" title="Arrastrar gira el elemento alrededor de su centro">Girar</button>
         <button data-modo-elem="escala1" title="Arrastrar lo agranda o achica en una dirección (a lo largo o a lo ancho, según desde dónde se agarre)">Escala 1D</button>
         <button data-modo-elem="escala2" title="Arrastrar lo agranda o achica parejo">Escala 2D</button>
+      </div>
+      <!-- caja del elemento en el diseño (Ernesto, 2026-11-19): la misma caja de la línea de corte, sobre el elemento -->
+      <button id="peCaja" class="pe-caja-boton" aria-pressed="false" title="Cambiar la forma del elemento con una caja de 5 × 5 puntos, como la caja de LutraCAD">Caja: editar la forma</button>
+      <div id="peCajaHerr" hidden>
+        <div class="modos-corte herramientas-caja" role="group" aria-label="Herramienta de la caja del elemento">
+          <button data-caja-el="mover" class="activo">Mover</button><button data-caja-el="girar">Girar</button><button data-caja-el="escala1">Escala 1D</button><button data-caja-el="escala2">Escala 2D</button><button data-caja-el="lazo">Lazo</button>
+        </div>
+        <p class="pe-caja-nota">Clic en un punto lo elige (Shift + clic suma o quita) · Lazo para elegir varios · arrastre los elegidos para dar forma. Arrastrar fuera de los puntos gira la vista.</p>
+        <div class="pe-botones">
+          <button id="peCajaPaso" title="Deshacer el último cambio de la caja" disabled>↶ Paso</button>
+          <button id="peCajaReset" title="Volver a la forma de la biblioteca">Restablecer forma</button>
+          <button id="peCajaListo" class="primario pe-caja-listo" title="Terminar la caja (Esc)">Listo</button>
+        </div>
       </div>
       <div class="pe-numeros">
         <label>Giro <input type="number" id="peGiro" min="-90" max="90" step="5"> °</label>

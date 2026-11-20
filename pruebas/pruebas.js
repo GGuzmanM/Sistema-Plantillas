@@ -511,6 +511,24 @@ for (const lado of ['izq', 'der']) {
   prueba('Margen para pulir', bien, texto.join(' · '));
 }
 
+// 25. Caja del elemento en el diseño (Ernesto, 2026-11-19): con conUV el motor dice de qué (u, v) del elemento viene cada
+// punto de la malla (para dibujar y arrastrar la caja). Corrido 10 mm hacia los dedos, u = (y − 10) / largo; pedir los
+// (u, v) no cambia la plantilla; sin conUV no se guardan.
+{
+  const { prepararElemento } = await import('../motor/plantilla.js');
+  const oliva = (await leer('../biblioteca/elementos.json')).elementos.find(e => e.id === 'oliva');
+  const p0 = { largo: 250, antepie: 1.5, copa: 10, acabado, lado: 'izq' }, forma = prepararElemento(oliva);
+  const g0 = generar(horma, { ...p0, elementos: [{ forma, altura: 4, mover: [10, 0] }] });
+  const g = generar(horma, { ...p0, elementos: [{ forma, altura: 4, mover: [10, 0], conUV: true }] }), uv = g.uvs[0];
+  let du = 0, dz = 0;
+  for (let q = 0; q < g.y.length; q++) {
+    dz = Math.max(dz, Math.abs(g.z[q] - g0.z[q]));
+    if (uv && g.y[q] > 25 && g.y[q] < 225) du = Math.max(du, Math.abs(uv[2 * q] - (g.y[q] - 10) / 250));
+  }
+  const bien = !!uv && g0.uvs[0] === null && du < 2e-3 && dz < 1e-9;
+  prueba('Caja del elemento: (u, v) de la malla', bien, `u vs (y − 10) / largo: ${n2(du * 250)} mm, alturas ${n2(dz)} mm, sin conUV ${g0.uvs[0] === null ? 'no guarda' : 'guarda'}`);
+}
+
 // 6. Guardar los STL del pedido en la carpeta salida.
 for (const lado of ['izq', 'der']) {
   const nombre = `prueba_resina_240_${lado}.stl`;

@@ -52,6 +52,32 @@ const ORIGINALES_HORMA = Object.fromEntries(bib.hormas.map(m => [m.id, { meta: m
 for (const a of bib.acabados) acabados[a.id] = prepararAcabado(await leer('../biblioteca/' + a.archivo));
 const catalogo = (await leer('../biblioteca/elementos.json')).elementos;
 const formas = Object.fromEntries(catalogo.map(e => [e.id, prepararElemento(e)]));
+// Caja del elemento en el diseño (Ernesto, 2026-11-19): cada elemento puesto puede llevar su propia caja por pie
+// (e.caja = { izq, der }, la misma forma que la caja de la biblioteca: { u0, u1, v0, v1, nf, nc, d }). Reemplaza a la
+// caja de la biblioteca solo en este diseño. Las formas se guardan por caja para no rehacerlas en cada dibujo.
+let cajaEl = null;   // caja abierta: { i (elemento), pie, herr, sel, hist, lazo }
+const formasCaja = new Map();
+function formaConCaja(e, pie) {
+  const c = e.caja?.[pie], base = formas[e.id];
+  if (!c || !base) return base;
+  const clave = e.id + '|' + JSON.stringify(c);
+  let f = formasCaja.get(clave);
+  if (!f) {
+    const def = catalogo.find(x => x.id === e.id); if (!def) return base;
+    f = prepararElemento({ ...def, caja: c });
+    if (formasCaja.size > 40) formasCaja.delete(formasCaja.keys().next().value);
+    formasCaja.set(clave, f);
+  }
+  return f;
+}
+// caja guardada en una receta: se acepta solo si tiene la forma esperada (5 × 5 puntos, números finitos)
+function cajaValida(c) {
+  if (!c || typeof c !== 'object') return null;
+  const n = v => Number.isFinite(+v), lim = (v, a, b) => Math.min(Math.max(+v, a), b);
+  if (![c.u0, c.u1, c.v0, c.v1].every(n) || !Array.isArray(c.d) || c.d.length !== 25 || !c.d.every(p => Array.isArray(p) && n(p[0]) && n(p[1]))) return null;
+  if (c.d.every(p => !+p[0] && !+p[1])) return null;   // sin cambios: no hace falta guardarla
+  return { u0: lim(c.u0, 0, 1), u1: lim(c.u1, 0, 1), v0: lim(c.v0, 0, 1), v1: lim(c.v1, 0, 1), nf: 5, nc: 5, d: c.d.map(p => [lim(p[0], -1, 1), lim(p[1], -1, 1)]) };
+}
 // los del programa tal como vienen: si en la biblioteca compartida se sobrescribe uno, se puede volver a este
 const ORIGINALES = Object.fromEntries(catalogo.map(e => [e.id, JSON.parse(JSON.stringify(e))]));
 
@@ -469,6 +495,7 @@ $('veLista').addEventListener('click', ev => {
 });
 // Elementos propios de Lima Blue (de la carpeta compartida, Biblioteca/elementos.json): se suman al catálogo
 function ponerElementosPropios({ elementos = [], favoritos: fav = [] } = {}) {
+  formasCaja.clear();   // las formas con caja salen de la biblioteca: se rehacen con la biblioteca nueva
   // primero vuelve todo a como viene el programa
   for (let i = catalogo.length - 1; i >= 0; i--) {
     const e = catalogo[i];
@@ -891,7 +918,9 @@ function generarPies(d) {
   // Ernesto 2026-11-12)
   base.arcoPos = d.arcoPos || (hormaInfo[idH]?.valores?.arcoPos ?? ARCO_POS);
   // ref = posición en la lista de elementos, para saber cuál se agarra en el 3D
-  const de = pie => d.elementos.map((e, ref) => ({ forma: formas[e.id], altura: e[pie], mover: e.mov?.[pie], ref,
+  // con caja propia en este diseño (2026-11-19) la forma sale de la caja; el elemento con la caja abierta pide sus (u, v)
+  const de = pie => d.elementos.map((e, ref) => ({ forma: formaConCaja(e, pie), altura: e[pie], mover: e.mov?.[pie], ref,
+      conUV: !!cajaEl && cajaEl.i === ref && cajaEl.pie === pie,
       giro: e.giro?.[pie] ?? 0, escala: e.tam ? [e.tam[pie][0] / 100, e.tam[pie][1] / 100] : [1, 1] }))
     .filter(e => e.forma && e.altura > 0);
   // contacto total: primero la plantilla sin contacto para alinear el escaneo (el contorno no cambia), después la
@@ -1206,6 +1235,7 @@ function actualizar() {
   if (visor) {
     const sep = m.anchoAntepie / 2 + 14, lista = [];
     enVista = [];
+    pintarVerEscaneo();   // se abrió o se cerró un escaneo
     if (pies !== 'der') enVista.push({ pie: 'izq', g: r.izq, ox: pies === 'ambos' ? -sep : 0 });
     if (pies !== 'izq') enVista.push({ pie: 'der', g: r.der, ox: pies === 'ambos' ? sep : 0 });
     for (const v of enVista) {
@@ -1323,7 +1353,14 @@ function aplicarEscaneo() {
   pedir();
 }
 $('abrirEscaneo').addEventListener('click', () => $('archivoEscaneo').click());
-$('verEscaneo').addEventListener('change', pedir);
+$('verEscaneo').addEventListener('change', () => { pintarVerEscaneo(); pedir(); });
+// botón "👁 Escaneo" en la barra de vistas (Ernesto, 2026-11-19): ocultar o mostrar el escaneo en cualquier módulo, sin
+// bajar a la sección; va junto con la casilla "Mostrar sobre la plantilla" y solo aparece con un escaneo abierto
+function pintarVerEscaneo() {
+  const b = $('verEscaneoBarra'), si = $('verEscaneo').checked;
+  b.hidden = !escaneos.izq && !escaneos.der; b.classList.toggle('activo', si); b.setAttribute('aria-pressed', String(si));
+}
+$('verEscaneoBarra').addEventListener('click', () => { $('verEscaneo').checked = !$('verEscaneo').checked; pintarVerEscaneo(); pedir(); });
 // Abre los STL del escaneo (uno o los dos pies). `aplicar` = poner largo, ancho y arco del escaneo.
 async function cargarEscaneos(archivos, aplicar = true) {
   const avisos = [];
@@ -1830,6 +1867,7 @@ if (visor) {
   });
   visor.alClic((px, py, ev) => {
     if (lc) return;   // editando la línea de corte: los clics son de la edición
+    if (cajaEl && !midiendo && !cortando && !reglando) return;   // con la caja del elemento abierta, igual
     if (clicDeRegla) { clicDeRegla = false; return; }   // fue elegir o agarrar una cota, no un clic de herramienta
     if (reglaElegida) { reglaElegida = null; visor.pedir(); }   // clic en otro lado: la cota deja de estar elegida
     if (cortando) {
@@ -1849,8 +1887,15 @@ if (visor) {
     medidasTomadas.push({ pie: p.pie, x: p.x, y: p.y }); if (medidasTomadas.length > 8) medidasTomadas.shift();
     $('borrarMedidas').hidden = false; visor.pedir();
   });
+  // la caja del elemento, encima del 3D
+  visor.alDibujar(() => {
+    if (!cajaEl) return;
+    const dpr = window.devicePixelRatio || 1, c = capa.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0); dibujarCajaEl(c);
+  });
   visor.alAgarrar((px, py, ev) => {
     if (lc) return agarrarCorte(px, py, ev);
+    // con la caja abierta, arrastrar mueve los puntos (o gira la vista); el elemento no se corre
+    if (cajaEl) return agarrarCajaEl(px, py, ev);
     const r = agarrarRegla(px, py); if (r) return r;
     if (reglaElegida) { reglaElegida = null; visor.pedir(); }
     return agarrarElemento(px, py, ev);
@@ -2419,7 +2464,18 @@ function pintarPanelElemento() {
   let si;
   try { si = !!elegidos[activo] && !fijoModulo() && !lc; } catch (err) { if (err instanceof ReferenceError) return; throw err; }
   const e = elegidos[activo];
+  // la caja se cierra sola si se elige otro elemento, otro pie o se suelta el elemento
+  if (cajaEl && (!si || cajaEl.i !== activo || cajaEl.pie !== activoPie)) soltarCajaEl();
   $('panelElemento').hidden = !si; pintarPanelPlantilla(); if (!si) return;
+  $('panelElemento').classList.toggle('con-caja', !!cajaEl);
+  $('peCaja').classList.toggle('activo', !!cajaEl); $('peCaja').setAttribute('aria-pressed', !!cajaEl);
+  $('peCaja').hidden = !!cajaEl;
+  $('peCajaHerr').hidden = !cajaEl;
+  if (cajaEl) {
+    document.querySelectorAll('[data-caja-el]').forEach(b => b.classList.toggle('activo', b.dataset.cajaEl === cajaEl.herr));
+    $('peCajaPaso').disabled = !cajaEl.hist.length;
+  }
+  $('peCaja').textContent = e.caja?.[activoPie] ? 'Caja: editar la forma (cambiada)' : 'Caja: editar la forma';
   const p = activoPie, def = catalogo.find(x => x.id === e.id);
   $('peNombre').textContent = def?.nombre ?? e.id;
   // en una descarga el número es la profundidad
@@ -2447,6 +2503,8 @@ $('peReflejar').addEventListener('click', () => {
   const e = elegidos[activo]; if (!e) return;
   const de = activoPie, a = de === 'izq' ? 'der' : 'izq';
   e[a] = e[de]; e.mov[a] = [...e.mov[de]]; e.giro[a] = e.giro[de]; e.tam[a] = [...e.tam[de]];
+  // la forma de la caja también (2026-11-19)
+  if (e.caja?.[de]) e.caja[a] = JSON.parse(JSON.stringify(e.caja[de])); else if (e.caja) { delete e.caja[a]; if (!e.caja.izq && !e.caja.der) delete e.caja; }
   pintarElementos(); pedir(); mensaje(`Elemento reflejado del pie ${de === 'izq' ? 'izquierdo' : 'derecho'} al ${a === 'izq' ? 'izquierdo' : 'derecho'}.`);
 });
 $('peBorrar').addEventListener('click', () => { if (activo < 0) return; elegidos.splice(activo, 1); activo = -1; abiertos.clear(); pintarElementos(); pedir(); });
@@ -2459,9 +2517,187 @@ $('peBiblioteca').addEventListener('click', async () => {
   def.id = 'propio_' + nombre.normalize('NFD').replace(/[^\w]+/g, '_').toLowerCase().slice(0, 30) + '_' + Date.now().toString(36);
   def.nombre = nombre.trim();
   def.inicial = { altura: e[p], mov: [...e.mov[p]], giro: e.giro[p], tam: [...e.tam[p]] };
+  // con la forma cambiada con la caja en este diseño, el elemento de la biblioteca queda con esa forma
+  if (e.caja?.[p]) def.caja = JSON.parse(JSON.stringify(e.caja[p]));
   try { await inicio.agregarABiblioteca(def); mensaje(`"${def.nombre}" quedó en la biblioteca (con su tamaño, giro y posición).`); }
   catch (err) { mensaje('No se pudo guardar en la biblioteca: ' + err.message, false); }
 });
+
+// ---- Caja del elemento en el diseño (Ernesto, 2026-11-19) ----
+// Como la caja de la línea de corte, pero sobre el elemento elegido: 5 × 5 puntos que cambian su forma (la misma caja
+// que "Editar forma con la caja" de la biblioteca), solo en este diseño. Los puntos viven en las coordenadas (u, v)
+// del elemento; para dibujarlos y arrastrarlos se usa la malla, porque el motor dice de qué (u, v) viene cada punto
+// (así siguen la posición, el giro, el tamaño y el margen para pulir sin repetir esas cuentas).
+const CAJA_EL_N = 5;
+const cajaInicial = (c, i) => { const j = Math.floor(i / CAJA_EL_N), k = i % CAJA_EL_N; return [c.u0 + (j / (CAJA_EL_N - 1)) * (c.u1 - c.u0), c.v0 + (k / (CAJA_EL_N - 1)) * (c.v1 - c.v0)]; };
+const copiaCajas = e => (e?.caja ? JSON.parse(JSON.stringify(e.caja)) : null);
+// (u, v) del elemento ↔ punto de la plantilla, con el punto de malla más cercano y su gradiente (lineal entre puntos)
+function mapaCajaEl() {
+  if (!cajaEl || !visor) return null;
+  const v = enVista.find(x => x.pie === cajaEl.pie); if (!v) return null;
+  const g = v.g, k = g.p.elementos?.findIndex(x => x.ref === cajaEl.i), uv = k >= 0 ? g.uvs?.[k] : null;
+  if (!uv) return null;
+  const n = g.x.length, nr = g.nr, L = g.p.largo, A = 90;   // mm aproximados por unidad de u y de v
+  // jacobiano en q: d(u, v) = J · d(x, y), con dos vecinos de la malla (a lo ancho y a lo largo)
+  const jac = q => {
+    const i = Math.floor(q / nr), kk = q % nr, qa = kk < nr - 1 ? q + 1 : q - 1, qb = i < g.ns - 1 ? q + nr : q - nr;
+    const ax = g.x[qa] - g.x[q], ay = g.y[qa] - g.y[q], au = uv[2 * qa] - uv[2 * q], av = uv[2 * qa + 1] - uv[2 * q + 1];
+    const bx = g.x[qb] - g.x[q], by = g.y[qb] - g.y[q], bu = uv[2 * qb] - uv[2 * q], bv = uv[2 * qb + 1] - uv[2 * q + 1];
+    const det = ax * by - ay * bx; if (Math.abs(det) < 1e-9) return null;
+    const i0 = by / det, i1 = -bx / det, i2 = -ay / det, i3 = ax / det;
+    return [au * i0 + bu * i2, au * i1 + bu * i3, av * i0 + bv * i2, av * i1 + bv * i3];
+  };
+  return {
+    ox: v.ox, pie: v.pie,
+    // (u, v) → [x, y, z] del mundo (para dibujar)
+    aMundo(u, w) {
+      let q0 = 0, dmin = Infinity;
+      for (let q = 0; q < n; q++) { const d = ((uv[2 * q] - u) * L) ** 2 + ((uv[2 * q + 1] - w) * A) ** 2; if (d < dmin) { dmin = d; q0 = q; } }
+      let x = g.x[q0], y = g.y[q0]; const J = jac(q0);
+      if (J) {
+        const du = u - uv[2 * q0], dv = w - uv[2 * q0 + 1], det = J[0] * J[3] - J[1] * J[2];
+        if (Math.abs(det) > 1e-12) {
+          let dx = (J[3] * du - J[1] * dv) / det, dy = (-J[2] * du + J[0] * dv) / det;
+          const l = Math.hypot(dx, dy); if (l > 60) { dx *= 60 / l; dy *= 60 / l; }
+          x += dx; y += dy;
+        }
+      }
+      return [x + v.ox, y, g.z[q0] + 0.3];
+    },
+    // [x, y] de la plantilla (sin el corrimiento de la vista) → (u, v)
+    aUV(x, y) {
+      let q0 = 0, dmin = Infinity;
+      for (let q = 0; q < n; q++) { const d = (g.x[q] - x) ** 2 + (g.y[q] - y) ** 2; if (d < dmin) { dmin = d; q0 = q; } }
+      const J = jac(q0), dx = x - g.x[q0], dy = y - g.y[q0];
+      return J ? [uv[2 * q0] + J[0] * dx + J[1] * dy, uv[2 * q0 + 1] + J[2] * dx + J[3] * dy] : [uv[2 * q0], uv[2 * q0 + 1]];
+    },
+  };
+}
+// caja nueva para un pie: la de la biblioteca (si el elemento ya trae una) o un cuadro parejo alrededor del elemento
+function cajaNueva(e) {
+  const def = catalogo.find(x => x.id === e.id);
+  if (def?.caja?.d?.length === 25) return { ...JSON.parse(JSON.stringify(def.caja)), nf: 5, nc: 5 };
+  return { ...recuadroElemento(def), nf: 5, nc: 5, d: Array.from({ length: 25 }, () => [0, 0]) };
+}
+function abrirCajaEl() {
+  const e = elegidos[activo]; if (!e || lc) return;
+  const pie = activoPie, otro = pie === 'izq' ? 'der' : 'izq';
+  e.caja ??= {};
+  if (!e.caja[pie]) e.caja[pie] = e.juntos !== false && e.caja[otro] ? JSON.parse(JSON.stringify(e.caja[otro])) : cajaNueva(e);
+  if (e.juntos !== false && !e.caja[otro]) e.caja[otro] = JSON.parse(JSON.stringify(e.caja[pie]));
+  cajaEl = { i: activo, pie, herr: cajaEl?.herr ?? 'mover', sel: new Set(), hist: [], lazo: null };
+  visor?.vista('arriba'); pintarPanelElemento(); pedir();
+}
+// sin cambios la caja no se guarda (el elemento vuelve a la forma de la biblioteca)
+function soltarCajaEl() {
+  if (!cajaEl) return;
+  const e = elegidos[cajaEl.i]; cajaEl = null;
+  if (e?.caja) {
+    for (const p of ['izq', 'der']) if (e.caja[p] && !cajaValida(e.caja[p])) delete e.caja[p];
+    if (!e.caja.izq && !e.caja.der) delete e.caja;
+  }
+  pedir();
+}
+function cerrarCajaEl() { soltarCajaEl(); pintarPanelElemento(); }
+function pasoCajaEl() {
+  const e = elegidos[cajaEl?.i]; if (!e || !cajaEl.hist.length) return;
+  e.caja = cajaEl.hist.pop() ?? {}; cajaEl.sel.clear(); pintarPanelElemento(); pedir();
+}
+// después de cambiar la caja de un pie: si el elemento se mueve igual en los dos pies, el otro queda igual
+function copiarCajaAlOtro(e, pie) {
+  if (e.juntos === false) return;
+  e.caja[pie === 'izq' ? 'der' : 'izq'] = JSON.parse(JSON.stringify(e.caja[pie]));
+}
+function puntosCajaEl(m) {
+  const e = elegidos[cajaEl.i], c = e?.caja?.[cajaEl.pie]; if (!c) return null;
+  return c.d.map((d, i) => { const [u, w] = cajaInicial(c, i); return m.aMundo(u + d[0], w + d[1]); });
+}
+function agarrarCajaEl(px, py, ev) {
+  const m = mapaCajaEl(), e = elegidos[cajaEl.i], pie = cajaEl.pie, c = e?.caja?.[pie];
+  if (!m || !c) return null;
+  const W = puntosCajaEl(m), S = W.map(w => visor.proyectar(w)), herr = cajaEl.herr, sel = cajaEl.sel;
+  if (herr === 'lazo') {
+    cajaEl.lazo = [[px, py]]; if (!ev?.shiftKey) sel.clear();
+    return {
+      mover(x, y) { const u = cajaEl.lazo.at(-1); if (Math.hypot(x - u[0], y - u[1]) > 3) { cajaEl.lazo.push([x, y]); visor.pedir(); } },
+      soltar() {
+        const L = cajaEl.lazo; cajaEl.lazo = null;
+        const adentro = (x, y) => { let si = false; for (let i = 0, j = L.length - 1; i < L.length; j = i++) { const [xi, yi] = L[i], [xj, yj] = L[j]; if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) si = !si; } return si; };
+        if (L.length > 2) S.forEach((s, i) => { if (s && adentro(s.x, s.y)) sel.add(i); });
+        visor.pedir();
+      },
+    };
+  }
+  let hit = -1, dmin = 10;
+  S.forEach((s, i) => { if (!s) return; const d = Math.hypot(s.x - px, s.y - py); if (d < dmin) { dmin = d; hit = i; } });
+  if (hit < 0) return null;   // fuera de los puntos: arrastrar mueve la vista
+  if (ev?.shiftKey) { sel.has(hit) ? sel.delete(hit) : sel.add(hit); visor.pedir(); return { mover() {}, soltar() {} }; }
+  if (!sel.has(hit)) { sel.clear(); sel.add(hit); }
+  // el ratón se lleva a un plano horizontal a la altura del punto tocado
+  const z0 = W[hit][2];
+  const enPlano = (x, y) => { const { o, d } = visor.rayo(x, y); if (Math.abs(d[2]) < 1e-9) return null; const t = (z0 - o[2]) / d[2]; return [o[0] + t * d[0] - m.ox, o[1] + t * d[1]]; };
+  const q0 = enPlano(px, py); if (!q0) return { mover() {}, soltar() {} };
+  const antes = W.map(w => [w[0] - m.ox, w[1]]), idx = [...sel], grupo = idx.length > 1 ? idx : antes.map((_, i) => i);
+  // centro para girar y escalar: el de los puntos elegidos, o el de la caja si es uno solo
+  const C = [grupo.reduce((a, i) => a + antes[i][0], 0) / grupo.length, grupo.reduce((a, i) => a + antes[i][1], 0) / grupo.length];
+  const r0 = [q0[0] - C[0], q0[1] - C[1]], eje = Math.abs(r0[0]) > Math.abs(r0[1]) ? 0 : 1;
+  let guardado = false;
+  return {
+    mover(x, y) {
+      const q = enPlano(x, y); if (!q) return;
+      if (!guardado) { cajaEl.hist.push(copiaCajas(e)); if (cajaEl.hist.length > 40) cajaEl.hist.shift(); guardado = true; $('peCajaPaso').disabled = false; }
+      const r = [q[0] - C[0], q[1] - C[1]];
+      for (const i of idx) {
+        const a = antes[i]; let nn;
+        if (herr === 'mover') nn = [a[0] + q[0] - q0[0], a[1] + q[1] - q0[1]];
+        else if (herr === 'girar') {
+          const gg = Math.atan2(r[1], r[0]) - Math.atan2(r0[1], r0[0]), cg = Math.cos(gg), sg = Math.sin(gg), dx = a[0] - C[0], dy = a[1] - C[1];
+          nn = [C[0] + dx * cg - dy * sg, C[1] + dx * sg + dy * cg];
+        } else if (herr === 'escala2') {
+          const k = Math.hypot(r[0], r[1]) / Math.max(Math.hypot(r0[0], r0[1]), 1); nn = [C[0] + (a[0] - C[0]) * k, C[1] + (a[1] - C[1]) * k];
+        } else {
+          const k = Math.abs(r0[eje]) > 1 ? r[eje] / r0[eje] : 1; nn = [...a]; nn[eje] = C[eje] + (a[eje] - C[eje]) * k;
+        }
+        const uvN = m.aUV(nn[0], nn[1]); if (!Number.isFinite(uvN[0]) || !Number.isFinite(uvN[1])) continue;
+        const [u0, w0] = cajaInicial(c, i);
+        c.d[i] = [Math.min(Math.max(uvN[0] - u0, -1), 1), Math.min(Math.max(uvN[1] - w0, -1), 1)];
+      }
+      copiarCajaAlOtro(e, pie); pedir();
+    },
+    soltar() { visor.pedir(); },
+  };
+}
+function dibujarCajaEl(c) {
+  if (!cajaEl) return;
+  const m = mapaCajaEl(); if (!m) return;
+  const W = puntosCajaEl(m); if (!W) return;
+  const S = W.map(w => visor.proyectar(w)); if (S.some(s => !s)) return;
+  c.save(); c.setLineDash([2, 3]); c.strokeStyle = 'rgba(30,40,60,.6)'; c.lineWidth = 1;
+  for (let j = 0; j < CAJA_EL_N; j++) { c.beginPath(); for (let k = 0; k < CAJA_EL_N; k++) { const s = S[j * CAJA_EL_N + k]; k ? c.lineTo(s.x, s.y) : c.moveTo(s.x, s.y); } c.stroke(); }
+  for (let k = 0; k < CAJA_EL_N; k++) { c.beginPath(); for (let j = 0; j < CAJA_EL_N; j++) { const s = S[j * CAJA_EL_N + k]; j ? c.lineTo(s.x, s.y) : c.moveTo(s.x, s.y); } c.stroke(); }
+  c.restore();
+  S.forEach((s, i) => {
+    const el = cajaEl.sel.has(i);
+    c.beginPath(); c.arc(s.x, s.y, el ? 5 : 4, 0, 7);
+    c.fillStyle = el ? '#12b33c' : '#fff'; c.fill(); c.strokeStyle = el ? '#0a6b24' : '#1e2a3c'; c.lineWidth = 1.5; c.stroke();
+  });
+  if (cajaEl.lazo?.length > 1) {
+    c.save(); c.setLineDash([4, 3]); c.strokeStyle = '#e0661b'; c.lineWidth = 1.5; c.beginPath();
+    cajaEl.lazo.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y))); c.closePath(); c.stroke(); c.restore();
+  }
+}
+$('peCaja').addEventListener('click', () => (cajaEl ? cerrarCajaEl() : abrirCajaEl()));
+$('peCajaListo').addEventListener('click', cerrarCajaEl);
+$('peCajaPaso').addEventListener('click', pasoCajaEl);
+$('peCajaReset').addEventListener('click', () => {
+  const e = elegidos[cajaEl?.i]; if (!e) return;
+  cajaEl.hist.push(copiaCajas(e)); cajaEl.sel.clear();
+  const def = catalogo.find(x => x.id === e.id), fresca = () => ({ ...recuadroElemento({ ...def, caja: undefined }), nf: 5, nc: 5, d: Array.from({ length: 25 }, () => [0, 0]) });
+  // vuelve a la forma de la biblioteca: la caja de la biblioteca si la trae, si no un cuadro sin cambios
+  e.caja[cajaEl.pie] = def?.caja ? cajaNueva(e) : fresca();
+  copiarCajaAlOtro(e, cajaEl.pie); pintarPanelElemento(); pedir();
+});
+document.querySelectorAll('[data-caja-el]').forEach(b => b.addEventListener('click', () => { if (cajaEl) { cajaEl.herr = b.dataset.cajaEl; pintarPanelElemento(); visor?.pedir(); } }));
 
 // ---- Plantilla elegida (Ernesto, 2026-11-16) ----
 // Clic en una plantilla (fuera de los elementos) la elige: aparece su panel con "Línea de corte" y "Reflejar", como
@@ -2901,7 +3137,9 @@ function normalizarElemento(e) {
            giro: { izq: lim(num1(e.giro?.izq, 0), -90, 90), der: lim(num1(e.giro?.der, 0), -90, 90) },
            tam: { izq: parLim(par(e.tam?.izq, 100), 40, 250), der: parLim(par(e.tam?.der, 100), 40, 250) },
            // mover igual en los dos pies, por elemento (Ernesto, 2026-11-19); por defecto sí
-           juntos: e.juntos !== false };
+           juntos: e.juntos !== false,
+           // caja propia de este diseño, por pie (2026-11-19); sin caja el elemento usa la forma de la biblioteca
+           ...((c => (c.izq || c.der ? { caja: c } : {}))({ izq: cajaValida(e.caja?.izq), der: cajaValida(e.caja?.der) })) };
 }
 
 // ---- Combinaciones guardadas de elementos ----
@@ -3063,6 +3301,11 @@ document.addEventListener('keydown', ev => {
       pintarCorte(); visor?.pedir(); return;
     }
     if (ev.key === 'Enter') { terminarCorte(true); return; }
+  }
+  // caja del elemento abierta: Esc la termina, Ctrl+Z deshace un paso de la caja
+  if (cajaEl && !enCampo) {
+    if (ev.key === 'Escape') { ev.preventDefault(); cerrarCajaEl(); return; }
+    if ((ev.ctrlKey || ev.metaKey) && k === 'z' && !ev.shiftKey && cajaEl.hist.length) { ev.preventDefault(); pasoCajaEl(); return; }
   }
   if ((ev.ctrlKey || ev.metaKey) && !ev.altKey) {
     if (k === 'z' && !ev.shiftKey) { ev.preventDefault(); moverHistorial(-1); }
