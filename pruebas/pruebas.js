@@ -424,6 +424,93 @@ for (const lado of ['izq', 'der']) {
   prueba('G-code fresadora EVA', ok, `${r.lineas} líneas; X ${n1(X0)} a ${n1(X1)}, Y ${n1(Y0)} a ${n1(Y1)} (bloque ±175 × ±130); Z mín ${n2(zMin)}; arco izq ${n1(arcoI[0])} mm en Y ${n1(arcoI[1])}, der en Y ${n1(arcoD[1])}; la bola entra ${n2(Math.max(pen, 0))} mm; avisa bloque bajo: ${bajo ? 'sí' : 'no'}`);
 }
 
+// 22. Copa y arco por capas (Ernesto, 2026-11-19): con cada horma, en delgado (copa 10) y estándar (copa 14), la copa
+// y el arco quedan en lo pedido y la bajada del arco (del 40 % al 65 %) es la misma: el arco no se vuelve meseta al
+// subir la copa. Con copa 10 el arco puede bajar a 12 (antes no bajaba de copa + 6).
+{
+  const { hormaConContorno } = await import('../motor/plantilla.js');
+  const hormaDe = async id => {
+    const m = bib.hormas.find(x => x.id === id), b = m.base ? bib.hormas.find(x => x.id === m.base) : m;
+    let h = prepararHorma(await leer('../biblioteca/' + b.archivo), b.ref, { ...b.op, relieve: m.relieve, copaLado: m.copaLado });
+    if (m.contorno) { const pts = (await leer('../biblioteca/' + m.contorno)).puntos; if (pts?.length > 20) h = hormaConContorno(h, pts); }
+    return h;
+  };
+  const sil = g => { const N = 20, s = new Array(N + 1).fill(0), L = Math.max(...g.y);
+    for (let q = 0; q < g.z.length; q++) { const k = Math.round(g.y[q] / L * N); s[k] = Math.max(s[k], g.z[q]); } return s; };
+  const texto = []; let bien = true;
+  for (const id of ['guia_tallas', 'chimpunes', 'crocs']) {
+    const h = await hormaDe(id), p = { largo: 258, arco: 20, arcoPos: 0.35, lado: 'izq' };
+    const d = generar(h, { ...p, copa: 10, antepie: 1.5 }), e = generar(h, { ...p, copa: 14, antepie: 2 }), b = generar(h, { ...p, copa: 10, antepie: 1.5, arco: 12 });
+    const md = medidas(d), me = medidas(e), mb = medidas(b), sd = sil(d), se = sil(e);
+    let dif = 0; for (let k = 8; k <= 13; k++) dif = Math.max(dif, Math.abs(se[k] - sd[k]));
+    const ok = Math.abs(md.copa - 10) < 0.2 && Math.abs(me.copa - 14) < 0.2 && Math.abs(md.arco - 20) < 0.2 && Math.abs(me.arco - 20) < 0.2 &&
+      Math.abs(mb.arco - 12) < 0.3 && dif < 1.2;
+    bien = bien && ok;
+    texto.push(`${id}: copa ${n1(md.copa)}/${n1(me.copa)}, arco ${n1(md.arco)}/${n1(me.arco)}, bajada del arco ±${n1(dif)} mm, arco 12 → ${n1(mb.arco)}`);
+  }
+  prueba('Copa y arco por capas', bien, texto.join(' · '));
+}
+
+// 23. Alza (Ernesto, 2026-11-19): 5 mm de talón sube la cara de arriba 5 mm hasta el 30 % y nada desde el 60 %;
+// completa sube 5 mm en todo el largo. En EVA (base plana) la cara de abajo no cambia; en resina la base curva sigue
+// al alza y el borde queda con el mismo canto fino (sin pared recta del alto del alza). Sólido cerrado y sin pliegues nuevos.
+{
+  const texto = []; let bien = true, L = 250;
+  // espesor del borde (anillo 0) en el talón y el arco (5 % al 50 %), donde la base de resina sube: el mayor. En el
+  // antepié la base de resina es plana, así que el alza completa ahí es espesor (como en EVA).
+  const cantoMax = g => { let m = 0; for (let i = 0; i < g.ns; i++) { const q = i * g.nr, t = g.y[q] / L; if (t > 0.05 && t < 0.5) m = Math.max(m, g.z[q] - g.zb[q]); } return m; };
+  for (const [nombre, base] of [['EVA', {}], ['resina', { acabado }]]) {
+    const p0 = { largo: L, antepie: 1.5, copa: 10, lado: 'izq', ...base }, g0 = generar(horma, p0);
+    for (const tipo of ['talon', 'completa']) {
+      const g = generar(horma, { ...p0, alza: 5, alzaTipo: tipo });
+      let enTalon = [Infinity, -Infinity], adelante = [Infinity, -Infinity], abajo = 0;
+      for (let q = 0; q < g.z.length; q++) {
+        const t = g.y[q] / L, d = g.z[q] - g0.z[q]; abajo = Math.max(abajo, Math.abs(g.zb[q] - g0.zb[q]));
+        if (t > 0.03 && t < 0.28) enTalon = [Math.min(enTalon[0], d), Math.max(enTalon[1], d)];
+        if (t > 0.62 && t < 0.97) adelante = [Math.min(adelante[0], d), Math.max(adelante[1], d)];
+      }
+      const esperadoAdelante = tipo === 'completa' ? 5 : 0, rev = revisarSolido(solido(g)), l = lisura(g), l0 = lisura(g0);
+      const c0 = cantoMax(g0), c1 = cantoMax(g);
+      const baseOk = nombre === 'EVA' ? abajo < 1e-6 : c1 < c0 + 0.3;
+      const ok = Math.abs(enTalon[0] - 5) < 0.01 && Math.abs(enTalon[1] - 5) < 0.01 && Math.abs(adelante[0] - esperadoAdelante) < 0.01 &&
+        Math.abs(adelante[1] - esperadoAdelante) < 0.01 && baseOk && rev.cerrado && l.pliegueArriba <= l0.pliegueArriba + 1;
+      bien = bien && ok;
+      texto.push(`${nombre} ${tipo === 'talon' ? 'de talón' : 'completa'}: talón +${n1(enTalon[0])}, antepié +${n1(adelante[1])} mm, ${nombre === 'EVA' ? `abajo ${n2(abajo)} mm` : `borde ${n1(c1)} mm (sin alza ${n1(c0)})`}, pliegue ${n1(l.pliegueArriba)}°, ${rev.cerrado ? 'cerrado' : 'abierto'}`);
+    }
+  }
+  prueba('Alza', bien, texto.join(' · '));
+}
+
+// 24. Margen para pulir (Ernesto, 2026-11-19): 5 mm en la punta. El largo crece 5 mm; hasta el 75 % del largo nada se
+// mueve; el relieve y el ancho del antepié no cambian; sólido cerrado y sin pliegues nuevos. EVA y resina.
+{
+  const texto = []; let bien = true, L = 250;
+  for (const [nombre, base] of [['EVA', {}], ['resina', { acabado }]]) {
+    const p0 = { largo: L, antepie: 1.5, copa: 10, arco: 20, lado: 'izq', ...base }, g0 = generar(horma, p0), g = generar(horma, { ...p0, margenPunta: 5, margenLados: 3 });
+    let quieto = 0, dz = 0;
+    for (let q = 0; q < g.y.length; q++) {
+      if (g0.y[q] / L < 0.35) quieto = Math.max(quieto, Math.abs(g.y[q] - g0.y[q]), Math.abs(g.x[q] - g0.x[q]));
+      dz = Math.max(dz, Math.abs(g.z[q] - g0.z[q]), Math.abs(g.zb[q] - g0.zb[q]));
+    }
+    // ancho del borde a la altura del 70 % (filas de anillo 0 cerca de ese largo, sin margen en largo ahí: t < 0.75)
+    const anchoEn = (gg, t0) => { let a = Infinity, b = -Infinity; for (let i = 0; i < gg.ns; i++) { const q = i * gg.nr; if (Math.abs(gg.y[q] / L - t0) < 0.01) { a = Math.min(a, gg.x[q]); b = Math.max(b, gg.x[q]); } } return b - a; };
+    const a0 = anchoEn(g0, 0.7), a1 = anchoEn(g, 0.7);
+    const m0 = medidas(g0), m1 = medidas(g), rev = revisarSolido(solido(g)), l = lisura(g), l0 = lisura(g0);
+    const ok = Math.abs(m1.largo - m0.largo - 5) < 0.05 && quieto < 1e-4 && dz < 1e-6 && Math.abs(a1 - a0 - 6) < 0.3 &&
+      rev.cerrado && l.pliegueArriba <= l0.pliegueArriba + 1 && l.quiebreContorno <= l0.quiebreContorno + 1;
+    // retropié 3 y costados 3: banda pareja de 3 mm por lado en todo el largo (sin angostarse en el arco, 2026-11-19)
+    const gT = generar(horma, { ...p0, margenPunta: 5, margenLados: 3, margenTalon: 3 }), mT = medidas(gT), lT = lisura(gT), revT = revisarSolido(solido(gT));
+    const enG0 = gg => ({ ...gg, y: gg.y.map((v, q) => g0.y[q]) });
+    const crece = [0.15, 0.3, 0.45, 0.6, 0.7].map(t => anchoEn(enG0(gT), t) - anchoEn(g0, t));
+    const okT = Math.abs(mT.largo - m0.largo - 8) < 0.05 && crece.every(c => Math.abs(c - 6) < 0.3) && revT.cerrado &&
+      lT.pliegueArriba <= l0.pliegueArriba + 1 && lT.quiebreContorno <= l0.quiebreContorno + 1;
+    bien = bien && ok && okT;
+    texto.push(`${nombre} con retropié 3: largo ${n1(mT.largo)} mm, el ancho crece al 15/30/45/60/70 %: ${crece.map(n1).join(' / ')} mm, quiebre ${n1(lT.quiebreContorno)}°, ${revT.cerrado ? 'cerrado' : 'abierto'}`);
+    texto.push(`${nombre}: largo ${n1(m0.largo)} → ${n1(m1.largo)} mm, ancho al 70 % ${n1(a0)} → ${n1(a1)} mm, antes del 35 % se mueve ${n2(quieto)} mm, alturas ${n2(dz)} mm, quiebre ${n1(l.quiebreContorno)}° (sin margen ${n1(l0.quiebreContorno)}), ${rev.cerrado ? 'cerrado' : 'abierto'}`);
+  }
+  prueba('Margen para pulir', bien, texto.join(' · '));
+}
+
 // 6. Guardar los STL del pedido en la carpeta salida.
 for (const lado of ['izq', 'der']) {
   const nombre = `prueba_resina_240_${lado}.stl`;

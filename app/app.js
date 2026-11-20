@@ -159,9 +159,19 @@ const recordar = (k, v) => { try { localStorage.setItem('plantillas.' + k, v); }
 const recordado = k => { try { return localStorage.getItem('plantillas.' + k); } catch { return null; } };
 
 // Medida desde la guía de tallas o desde la muestra / escaneo (Ernesto, 2026-11-13). Con guía de tallas el largo
-// sale del cuadro (+5 mm para pulir si el producto es EVA) y abrir el escaneo no lo cambia; con muestra o escaneo
-// el largo sale del pie o de la muestra, como antes.
-const margenPulido = () => producto()?.margenPulido ?? 0;
+// sale del cuadro y abrir el escaneo no lo cambia; con muestra o escaneo el largo sale del pie o de la muestra.
+// Margen para pulir (2026-11-19): ya no se suma al largo según el producto; es un interruptor en Plantilla que alarga
+// solo la punta (en EVA o impresa, cuando Ernesto lo pide). El largo sigue siendo el de la talla.
+const margenPunta = () => $('margenActivo').checked ? Math.min(Math.max(num('margenMm') || 0, 0), 15) : 0;
+// y a cada costado del antepié (Ernesto, 2026-11-19: 3 mm por lado)
+const margenLados = () => $('margenActivo').checked ? Math.min(Math.max(num('margenLados') || 0, 0), 10) : 0;
+// y en el retropié, a los costados y atrás del talón (2026-11-19; 0 por defecto, Ernesto lo pone cuando quiere)
+const margenTalon = () => $('margenActivo').checked ? Math.min(Math.max(num('margenTalon') || 0, 0), 10) : 0;
+function pintarMargen() {
+  const m = margenPunta(), l = margenLados(), t = margenTalon(), e = $('estadoMargen'), c = v => String(v).replace('.', ',');
+  e.textContent = m || l || t ? `punta ${c(m)} · costados ${c(l)}${t ? ` · retropié ${c(t)}` : ''} mm` : 'no'; e.classList.toggle('si', !!(m || l || t));
+  $('margenMm').disabled = $('margenLados').disabled = $('margenTalon').disabled = !$('margenActivo').checked;
+}
 const conGuia = () => $('medidaDesde').value === 'guia';
 // Talla (Ernesto, 2026-11-16): primero la EU en negrita, después el largo en mm y al final la US. El desplegable
 // del navegador no deja poner negrita, así que se muestra una lista propia; el <select> oculto sigue siendo el
@@ -219,11 +229,11 @@ function ponerCuadro(id) {
   if (!CUADROS[id]) id = 'hombre';
   $('cuadro').value = id; tallas = CUADROS[id].tallas; pintarCuadro(); recordar('cuadro', id);
 }
-const tallaDeLargo = largo => tallas.find(t => t.largo + margenPulido() === largo)?.talla ?? 'otra';
+const tallaDeLargo = largo => tallas.find(t => t.largo === largo)?.talla ?? 'otra';
 const tallaCercana = largo => tallas.reduce((a, b) => (Math.abs(b.largo - largo) < Math.abs(a.largo - largo) ? b : a));
 function pintarNotaLargo() {
-  const t = tallas.find(x => x.talla === $('talla').value), m = margenPulido();
-  $('notaLargo').textContent = !t ? '' : m ? `${t.largo} mm del cuadro + ${m} mm para pulir (EVA)` : `${t.largo} mm del cuadro`;
+  const t = tallas.find(x => x.talla === $('talla').value), m = margenPunta();
+  $('notaLargo').textContent = !t ? '' : m ? `${t.largo} mm del cuadro + ${String(m).replace('.', ',')} mm para pulir en la punta` : `${t.largo} mm del cuadro`;
   $('notaLargo').hidden = !t;
   pintarSelTalla();   // la lista propia de tallas sigue a la talla elegida
 }
@@ -231,10 +241,10 @@ function ponerMedidaDesde(modo, aplicar = true) {
   $('medidaDesde').value = modo === 'muestra' ? 'muestra' : 'guia'; recordar('medidaDesde', $('medidaDesde').value);
   if (!aplicar || !conGuia()) return;
   // a guía de tallas: la talla elegida (o la más cercana al largo de ahora), ancho proporcional y forma de la horma
-  const t = tallas.find(x => x.talla === $('talla').value) ?? tallaCercana(num('largo') - margenPulido());
+  const t = tallas.find(x => x.talla === $('talla').value) ?? tallaCercana(num('largo'));
   ponerTalla(t.talla); $('anchoAuto').checked = true; escalaTalon = null; talonPedido = null; $('anchoTalonAuto').checked = true;
   if (contornoActual) { contornoActual = null; pintarContorno(); }
-  mensaje(`Con guía de tallas: ${t.corta}, largo ${num('largo')} mm${margenPulido() ? ` (${t.largo} + ${margenPulido()} para pulir)` : ''}.`);
+  mensaje(`Con guía de tallas: ${t.corta}, largo ${num('largo')} mm.`);
 }
 
 // copa y espesor: los del tipo de diseño (delgado o estándar), salvo que la horma traiga los suyos
@@ -267,7 +277,7 @@ $('arco').closest('.fila').addEventListener('click', ev => {
 });
 function ponerTalla(talla) {
   const t = tallas.find(x => x.talla === String(talla));
-  if (t) { $('talla').value = t.talla; $('largo').value = t.largo + margenPulido(); }
+  if (t) { $('talla').value = t.talla; $('largo').value = t.largo; }
   pintarNotaLargo();
 }
 
@@ -348,16 +358,19 @@ $('tipoArco').addEventListener('change', () => { pintarTipoArco(); pedir(); });
 ponerCuadro(recordado('cuadro') ?? 'hombre'); ponerTalla('9');
 $('medidaDesde').value = recordado('medidaDesde') === 'muestra' ? 'muestra' : 'guia';
 
-// cambiar de producto: con una talla elegida el largo se rehace (el EVA suma o quita el margen de pulido)
+// cambiar de producto: con una talla elegida el largo se rehace
 $('producto').addEventListener('change', () => {
   // cada producto trae su tipo de diseño (resina: delgado; EVA urbanas: estándar), salvo una horma delgada o estándar
   if (producto().tipo && !hormaInfo[hormaId()]?.tipo) $('tipoDiseno').value = producto().tipo;
   valoresDeProducto();
+  // margen para pulir (Ernesto, 2026-11-19): en EVA viene prendido (margenPulido del producto, 5 mm); en impresión 3D
+  // apagado, lo elige él
+  { const m = producto().margenPulido ?? 0; $('margenActivo').checked = m > 0; if (m > 0) { $('margenMm').value = m; $('margenLados').value = producto().margenLados ?? 3; } pintarMargen(); }
   if ($('talla').value !== 'otra' && conGuia()) ponerTalla($('talla').value); else pintarNotaLargo();
   pedir();
 });
 $('cuadro').addEventListener('change', () => {
-  const largo = num('largo') - margenPulido(); ponerCuadro($('cuadro').value);
+  const largo = num('largo'); ponerCuadro($('cuadro').value);
   if (conGuia()) ponerTalla(tallaCercana(largo).talla); else { $('talla').value = tallaDeLargo(num('largo')); pintarNotaLargo(); }
   pedir();
 });
@@ -368,7 +381,11 @@ $('talla').addEventListener('change', () => {
 });
 $('medidaDesde').addEventListener('change', () => { ponerMedidaDesde($('medidaDesde').value); pedir(); });
 $('largo').addEventListener('input', () => { $('talla').value = tallaDeLargo(num('largo')); pintarNotaLargo(); pedir(); });
-for (const id of ['copa', 'antepie', 'arco', 'arcoPos', 'canto', 'paciente', 'contactoPct', 'corrArcoIzq', 'corrArcoDer', 'corrApiceIzq', 'corrApiceDer']) $(id).addEventListener('input', pedir);
+for (const id of ['copa', 'antepie', 'arco', 'arcoPos', 'canto', 'paciente', 'contactoPct', 'corrArcoIzq', 'corrArcoDer', 'corrApiceIzq', 'corrApiceDer', 'alzaIzq', 'alzaDer']) $(id).addEventListener('input', pedir);
+$('alzaTipo').addEventListener('change', pedir);
+$('margenActivo').addEventListener('change', () => { pintarMargen(); pintarNotaLargo(); pedir(); });
+for (const id of ['margenMm', 'margenLados', 'margenTalon']) $(id).addEventListener('input', () => { pintarMargen(); pintarNotaLargo(); pedir(); });
+pintarMargen();
 for (const id of ['arcoPosAuto', 'contactoActivo', 'contactoForma']) $(id).addEventListener('change', pedir);
 // Anchos (Ernesto, 2026-11-16): se escriben como se miden en la plantilla. El ancho del antepié se pasa al ancho de
 // la horma ("ancho", oculto) con la proporción de la última plantilla; el del talón, a un factor solo del talón.
@@ -418,6 +435,38 @@ function pintarListaElementos() {
   for (const c of cats) grupo(c, catalogo.filter(e => (e.categoria || 'Otros') === c));
 }
 pintarListaElementos();
+// Ventana "Agregar elemento" con el dibujo de cada uno sobre la plantilla, como la de LutraCAD (Ernesto, 2026-11-19):
+// favoritos primero y después por categoría; clic en uno lo agrega (por la lista oculta, igual que antes).
+let veFiltro = '';
+function pintarVentanaElementos() {
+  const cats = [...CATEGORIAS, ...new Set(catalogo.map(e => e.categoria).filter(c => c && !CATEGORIAS.includes(c)))];
+  const pasa = e => !veFiltro || e.nombre.toLowerCase().includes(veFiltro);
+  const grupos = [['★ Favoritos', favoritos.map(id => catalogo.find(e => e.id === id)).filter(Boolean)],
+                  ...cats.map(c => [c, catalogo.filter(e => (e.categoria || 'Otros') === c)])]
+    .map(([t, l]) => [t, l.filter(pasa)]).filter(([, l]) => l.length);
+  const tarjeta = e => `<button class="ve-tarjeta${e.descarga ? ' descarga' : ''}" data-agregar="${esc(e.id)}" title="${esc(e.nombre)} · ${String(e.altura ?? '').replace('.', ',')} mm${e.descarga ? ' de profundidad' : ''}">
+      <canvas width="96" height="134" data-ve-mini="${esc(e.id)}" aria-hidden="true"></canvas>
+      <span>${esc(e.nombre)}${e.propio ? ' <em>propio</em>' : ''}</span></button>`;
+  $('veLista').innerHTML = grupos.length
+    ? grupos.map(([t, l]) => `<h3>${esc(t)}</h3><div class="ve-grilla">${l.map(tarjeta).join('')}</div>`).join('')
+    : '<p class="ve-vacio">Nada coincide con la búsqueda.</p>';
+  // dibujos de a uno, para no trabar la pantalla
+  const minis = [...$('veLista').querySelectorAll('[data-ve-mini]')];
+  const sig = () => { const cv = minis.shift(); if (!cv || !$('ventanaElementos').open) return; const def = catalogo.find(e => e.id === cv.dataset.veMini); if (def) miniaturaElemento(def, cv); requestAnimationFrame(sig); };
+  requestAnimationFrame(sig);
+}
+$('abrirElementos').addEventListener('click', () => {
+  veFiltro = ''; $('veBuscar').value = ''; $('ventanaElementos').showModal(); pintarVentanaElementos(); $('veBuscar').focus();
+});
+$('veBuscar').addEventListener('input', () => { veFiltro = $('veBuscar').value.trim().toLowerCase(); pintarVentanaElementos(); });
+$('veCerrar').addEventListener('click', () => $('ventanaElementos').close());
+// clic fuera de la ventana (en el fondo oscuro) la cierra
+$('ventanaElementos').addEventListener('click', ev => { if (ev.target === $('ventanaElementos')) $('ventanaElementos').close(); });
+$('veLista').addEventListener('click', ev => {
+  const b = ev.target.closest('[data-agregar]'); if (!b) return;
+  $('ventanaElementos').close();
+  const s = $('agregarElemento'); s.value = b.dataset.agregar; s.dispatchEvent(new Event('change'));
+});
 // Elementos propios de Lima Blue (de la carpeta compartida, Biblioteca/elementos.json): se suman al catálogo
 function ponerElementosPropios({ elementos = [], favoritos: fav = [] } = {}) {
   // primero vuelve todo a como viene el programa
@@ -694,6 +743,7 @@ function pintarElementos() {
         <label for="el-der-${i}">Der</label><input type="number" id="el-der-${i}" data-i="${i}" data-pie="der" min="0" max="15" step="0.5" value="${+e.der || 0}">
         <span>${esDescargaId(e.id) ? 'mm hondo' : 'mm'}</span>
       </div>
+      <label class="auto juntos"><input type="checkbox" data-juntos="${i}"${e.juntos !== false ? ' checked' : ''}> Mover igual en los dos pies</label>
       <details class="ajustes" data-det="${i}"${abiertos.has(i) ? ' open' : ''}>
         <summary>Posición, giro y tamaño</summary>
         <div class="posicion">
@@ -735,13 +785,14 @@ $('agregarElemento').addEventListener('change', () => {
 $('listaElementos').addEventListener('input', ev => {
   const t = ev.target;
   // 0 a 15 mm, como en el panel del elemento (auditoría 2026-11-16: aquí se podían poner 500 mm)
+  if (t.dataset.juntos != null) { const e = elegidos[+t.dataset.juntos]; if (e) { e.juntos = t.checked; activo = +t.dataset.juntos; refrescarPosiciones(); pedir(); } return; }
   if (t.dataset.pie) { elegidos[+t.dataset.i][t.dataset.pie] = Math.min(15, Math.max(0, parseFloat(t.value) || 0)); pedir(); return; }
   if (t.dataset.campo) {
     const c = campo(t.dataset.campo), e = elegidos[+t.dataset.i], n = parseFloat(t.value);
     if (!Number.isFinite(n)) return;   // campo a medio escribir: se espera
     const val = Math.max(c.min, Math.min(c.max, n));
     c.poner(e, t.dataset.lado, val);
-    if ($('moverJuntos').checked) c.poner(e, t.dataset.lado === 'izq' ? 'der' : 'izq', val);
+    if (e.juntos !== false) c.poner(e, t.dataset.lado === 'izq' ? 'der' : 'izq', val);
     activo = +t.dataset.i; refrescarPosiciones(); pedir();
   }
 });
@@ -770,6 +821,8 @@ function diseno() {
     cuadro: $('cuadro').value,
     talla: $('talla').value === 'otra' ? null : $('talla').value,
     largo: num('largo'),
+    // mm de más en la punta para pulir (0 = sin margen); el largo de arriba no los incluye
+    margenPulido: margenPunta(), margenLados: margenLados(), margenTalon: margenTalon(),
     ancho: $('anchoAuto').checked ? null : num('ancho'),
     tipoDiseno: $('tipoDiseno').value,
     escalaTalon,
@@ -779,7 +832,8 @@ function diseno() {
     arcoPos: $('arcoPosAuto').checked || !(num('arcoPos') > 0) ? null : num('arcoPos') / 100,
     canto: num('canto'),
     // correcciones como LutraCAD (2026-11-17): [izquierdo, derecho] en mm
-    correcciones: { arcoMedial: [num('corrArcoIzq') || 0, num('corrArcoDer') || 0], moverApice: [num('corrApiceIzq') || 0, num('corrApiceDer') || 0] },
+    correcciones: { arcoMedial: [num('corrArcoIzq') || 0, num('corrArcoDer') || 0], moverApice: [num('corrApiceIzq') || 0, num('corrApiceDer') || 0],
+                    alza: [num('alzaIzq') || 0, num('alzaDer') || 0], alzaTipo: $('alzaTipo').value === 'completa' ? 'completa' : 'talon' },
     elementos: JSON.parse(JSON.stringify(elegidos)),
     // archivos del escaneo con que se hizo (solo el nombre: el escaneo se abre de la carpeta del paciente)
     escaneo: escaneos.izq || escaneos.der ? { izq: escaneos.izq?.nombre ?? null, der: escaneos.der?.nombre ?? null } : null,
@@ -809,7 +863,6 @@ function valoresDer() {
 
 let pies = 'ambos', actual = null;
 const ARCO_POS = 0.35;   // cima del arco por defecto, fracción del largo desde el talón (como LutraCAD)
-const DIF_ARCO_COPA = 6; // mm mínimos del arco sobre la copa (estándar 14/20 y delgado 10/20 no cambian)
 
 // Forma de la plantilla: la horma del producto o, si se eligió, el contorno de la muestra con el relieve de esa
 // horma. Se guarda una por contorno para no rehacerla (ni los elementos) en cada cambio.
@@ -831,6 +884,9 @@ function generarPies(d) {
   if (d.ancho) base.ancho = d.ancho;
   if (d.arco) base.arco = d.arco;
   if (d.escalaTalon) base.escalaTalon = d.escalaTalon;
+  if (d.margenPulido > 0) base.margenPunta = d.margenPulido;
+  if (d.margenLados > 0) base.margenLados = d.margenLados;
+  if (d.margenTalon > 0) base.margenTalon = d.margenTalon;
   // ubicación del arco: la pedida o, por defecto, la de la horma (guía de tallas: al 35 % del largo como LutraCAD,
   // Ernesto 2026-11-12)
   base.arcoPos = d.arcoPos || (hormaInfo[idH]?.valores?.arcoPos ?? ARCO_POS);
@@ -850,11 +906,10 @@ function generarPies(d) {
       if (base.ancho) b.ancho = base.ancho * hDer.ancho / h.ancho;
     }
     const hp = lado === 'der' ? hDer : h;
-    // el arco sube solo si la copa le queda cerca (Ernesto, 2026-11-17): siempre al menos DIF_ARCO_COPA mm sobre la
-    // copa, para que el arco no se aplane (con copa 16 y arco neutro 20 quedaría una meseta)
-    if (b.arco != null && b.copa != null && b.arco < b.copa + DIF_ARCO_COPA) b = { ...b, arco: +(b.copa + DIF_ARCO_COPA).toFixed(1) };
+    // 2026-11-19: ya no se fuerza el arco a 6 mm sobre la copa. Con copa y arco por capas el arco no se aplana, y
+    // Ernesto pidió poder bajarlo de ahí (aviso en la pantalla si no llega a lo pedido).
     // correcciones de este pie (se suman a la horma, sin reescalarla)
-    { const k = lado === 'izq' ? 0 : 1, c = d.correcciones; if (c) b = { ...b, arcoMedial: c.arcoMedial?.[k] || 0, moverApice: c.moverApice?.[k] || 0 }; }
+    { const k = lado === 'izq' ? 0 : 1, c = d.correcciones; if (c) b = { ...b, arcoMedial: c.arcoMedial?.[k] || 0, moverApice: c.moverApice?.[k] || 0, alza: c.alza?.[k] || 0, alzaTipo: c.alzaTipo }; }
     const p = { ...b, lado, elementos: de(lado), alturaBorde: d.alturaBorde?.[lado] ?? undefined }, es = escaneos[lado];
     if (!(d.contacto > 0 && es)) return generar(hp, p);
     const al = alinearEscaneo(es, generar(hp, { ...b, lado, lados: 120, anillos: 20 }), b.antepie);
@@ -894,11 +949,29 @@ function colorAjuste(dz) {
 let modoMapa = null;   // null, 'alturas' o 'ajuste'
 
 // Lámina para ver el diseño (Base y Diseño, como LutraCAD, 2026-11-17): la misma cara de arriba y la de abajo
-// paralela, al espesor del antepié; abajo en verde. Solo para ver: lo que se exporta es el sólido.
-const COLOR_LAMINA = [0.36, 0.66, 0.1];
+// paralela, casi sin espesor. 2026-11-19, con la captura de LutraCAD de Ernesto: una superficie (blanca arriba,
+// gris oscura abajo, sin canto verde) y la huella del contorno dibujada en el piso. Solo para ver: lo que se
+// exporta es el sólido.
+const COLOR_LAMINA = [0.2, 0.21, 0.24];
+const ESPESOR_LAMINA = 0.15;
+// Huella del contorno en el piso (z = 0), como la línea oscura que LutraCAD dibuja debajo de la plantilla.
+function huellaEnPiso(g, ox) {
+  const { ns, nr, x, y } = g, ANCHO = 1.4, Z = 0.05;
+  const pos = new Float32Array(ns * 6), nor = new Float32Array(ns * 6), idx = new Uint32Array(ns * 6), col = new Float32Array(ns * 6);
+  for (let i = 0; i < ns; i++) {
+    const q0 = i * nr; let q1 = q0 + 1;
+    while (q1 < q0 + nr - 1 && Math.hypot(x[q1] - x[q0], y[q1] - y[q0]) < ANCHO) q1++;
+    const d = Math.hypot(x[q1] - x[q0], y[q1] - y[q0]) || 1, f = Math.min(ANCHO / d, 1);
+    pos.set([x[q0] + ox, y[q0], Z, x[q0] + (x[q1] - x[q0]) * f + ox, y[q0] + (y[q1] - y[q0]) * f, Z], 6 * i);
+    nor.set([0, 0, 1, 0, 0, 1], 6 * i); col.set([0.06, 0.07, 0.1, 0.06, 0.07, 0.1], 6 * i);
+    const j = (i + 1) % ns;
+    idx.set([2 * i, 2 * j, 2 * j + 1, 2 * i, 2 * j + 1, 2 * i + 1], 6 * i);
+  }
+  return { pos, nor, idx, col };
+}
 function lamina(g) {
-  const esp = g.p?.antepie ?? 1.5, zb = new Float32Array(g.z.length);
-  for (let q = 0; q < zb.length; q++) zb[q] = Math.max(0, g.z[q] - esp);
+  const zb = new Float32Array(g.z.length);
+  for (let q = 0; q < zb.length; q++) zb[q] = g.z[q] - ESPESOR_LAMINA;
   return { ...g, zb, lamina: true };
 }
 // Malla para el visor: cara de arriba, cara de abajo y pared, con normales suaves en cada cara y canto marcado.
@@ -1039,7 +1112,7 @@ function valoresFuera() {
     }
   }
   // correcciones (auditoría 2026-11-18: antes aceptaban 999 mm de arco medial sin avisar)
-  for (const [id, nombre] of [['corrArcoIzq', 'Arco medial izq'], ['corrArcoDer', 'Arco medial der'], ['corrApiceIzq', 'Mover ápice izq'], ['corrApiceDer', 'Mover ápice der']]) {
+  for (const [id, nombre] of [['corrArcoIzq', 'Arco medial izq'], ['corrArcoDer', 'Arco medial der'], ['corrApiceIzq', 'Mover ápice izq'], ['corrApiceDer', 'Mover ápice der'], ['alzaIzq', 'Alza izq'], ['alzaDer', 'Alza der']]) {
     const el = $(id); if (!el) continue;
     const v = el.value === '' ? 0 : parseFloat(el.value), lo = parseFloat(el.min), hi = parseFloat(el.max);
     if (!Number.isFinite(v) || v < lo || v > hi) fuera.push(`${nombre} (${String(lo).replace('.', ',')} a ${String(hi).replace('.', ',')})`);
@@ -1062,10 +1135,12 @@ function actualizar() {
   if ($('anchoAuto').checked) $('ancho').value = (r.h.ancho * d.largo / r.h.largo).toFixed(1);
   // G-code de la fresadora solo para EVA (sin acabado de resina: base plana)
   { const eva = !producto().acabado; $('exportarGcode').hidden = !eva; pintarModuloProduccion(); }
-  // arco subido solo por la copa (ver generarPies): se avisa al lado del alto de arco
-  { const sube = d.arco != null && d.copa != null && d.arco < d.copa + DIF_ARCO_COPA, av = $('avisoArcoSube');
-    av.hidden = !sube; if (sube) av.textContent = `Con copa ${String(d.copa).replace('.', ',')} el arco sube solo a ${String(+(d.copa + DIF_ARCO_COPA).toFixed(1)).replace('.', ',')} mm (siempre ${DIF_ARCO_COPA} mm sobre la copa, para que no se aplane).`; }
-  ultimoAncho = { ancho: num('ancho'), antepie: m.anchoAntepie, escala: d.escalaTalon ?? 1, talon: m.anchoTalon };
+  // arco pedido más bajo de lo que da la horma sin su capa de arco (2026-11-19): se avisa al lado del alto de arco
+  { const min = r.izq.p.arcoMin, av = $('avisoArcoSube'), sube = min != null && d.arco != null && min > d.arco + 0.05;
+    av.hidden = !sube; if (sube) av.textContent = `Con esta horma y copa ${String(d.copa).replace('.', ',')} el arco no baja de ${f1(min)} mm: queda sin subida propia del arco.`; }
+  // ancho del antepié sin el margen para pulir de los costados (como el largo, que no lleva el de la punta)
+  const anchoSinMargen = m.anchoAntepie - 2 * (d.margenLados || 0), talonSinMargen = m.anchoTalon - 2 * (d.margenTalon || 0);
+  ultimoAncho = { ancho: num('ancho'), antepie: anchoSinMargen, escala: d.escalaTalon ?? 1, talon: talonSinMargen };
   // el talón no escala parejo (pasa suave al antepié): con un ancho escrito se afina una vez más hasta ±0,2 mm
   if (talonPedido && escalaTalon && Math.abs(m.anchoTalon - talonPedido) > 0.2) {
     const nueva = Math.min(Math.max(escalaTalon * talonPedido / m.anchoTalon, 0.6), 1.5);
@@ -1077,8 +1152,8 @@ function actualizar() {
   $('arcoPos').disabled = $('arcoPosDer').disabled = $('arcoPosAuto').checked;
   // Medidas y alturas (Ernesto, 2026-11-16): los anchos se muestran como quedan en la plantilla (pie izquierdo);
   // mientras se escribe en el casillero no se pisa
-  if (document.activeElement !== $('anchoAntepie')) $('anchoAntepie').value = m.anchoAntepie.toFixed(1);
-  if (document.activeElement !== $('anchoTalon')) $('anchoTalon').value = m.anchoTalon.toFixed(1);
+  if (document.activeElement !== $('anchoAntepie')) $('anchoAntepie').value = anchoSinMargen.toFixed(1);
+  if (document.activeElement !== $('anchoTalon')) $('anchoTalon').value = talonSinMargen.toFixed(1);
   bloquearMedidas();
   const dos = (f, k) => d.der ? `${f(m[k])} / ${f(mDer[k])}` : f(m[k]);
   // resumen en el título de cada sección (se ve cuando está cerrada)
@@ -1092,7 +1167,7 @@ function actualizar() {
   actual = { d, ...r, m, mDer };
 
   const avisos = [];
-  if (d.largo < LARGO_MIN || d.largo > LARGO_MAX + margenPulido()) avisos.push(`El largo está fuera de los cuadros de tallas (${LARGO_MIN} a ${LARGO_MAX + margenPulido()} mm).`);
+  if (d.largo < LARGO_MIN || d.largo > LARGO_MAX) avisos.push(`El largo está fuera de los cuadros de tallas (${LARGO_MIN} a ${LARGO_MAX} mm).`);
   if (m.espesor < 1) avisos.push(`Hay zonas de ${f2(m.espesor)} mm: muy finas para imprimir.`);
   if (Math.min(d.antepie, dd.antepie) < 1.2) avisos.push('El antepié es menor a 1,2 mm.');
   if (m.arco <= d.copa) avisos.push(`El arco quedó igual o más bajo que la copa${d.der ? ' (izq)' : ''}.`);
@@ -1138,6 +1213,7 @@ function actualizar() {
       // en Base y Diseño, lámina de espesor parejo (como LutraCAD); en EVA/Imprimir y Exportar, el sólido real
       let lam = false; try { lam = enLamina(); } catch { /* al cargar, antes de que existan los módulos */ }
       lista.push(malla(lam ? lamina(v.g) : v.g, v.ox, v.al), contornoPlantilla(v.g, v.ox));
+      if (lam) lista.push(huellaEnPiso(v.g, v.ox));
       // con el mapa de ajuste el escaneo no se dibuja: taparía los colores
       if (v.al && $('verEscaneo').checked && modoMapa !== 'ajuste') lista.push(escaneoSobre(v.al, v.ox));
     }
@@ -1217,18 +1293,11 @@ function escaneoSobre(al, ox) {
 }
 function pintarEscaneo() {
   $('filaContacto').hidden = !(escaneos.izq || escaneos.der);
+  // 2026-11-19 (Ernesto): la sección queda solo para abrir el escaneo; las medidas del pie, la sugerida y el botón
+  // "Usar las medidas del escaneo" se quitaron. Solo se muestra qué archivo está abierto en cada pie.
   const filas = [];
-  for (const pie of ['izq', 'der']) {
-    const e = escaneos[pie]; if (!e) continue;
-    const t = pie === 'izq' ? 'Izq' : 'Der';
-    filas.push([`${t}: archivo`, e.nombre], [`${t}: largo del pie`, f1(e.m.largo) + ' mm'],
-               [`${t}: ancho antepié`, f1(e.m.anchoAntepie) + ' mm'], [`${t}: ancho talón`, f1(e.m.anchoTalon) + ' mm'],
-               [`${t}: arco del pie`, `a ${Math.round(e.m.arcoPos * 100)} % del talón`]);
-  }
-  const s = sugerenciaEscaneo();
-  if (s) filas.push(['Sugerido', `${f1(s.largo)} × ${f1(s.ancho)} mm, arco al ${s.arcoPos} % (cerca de ${s.talla.corta})`]);
+  for (const pie of ['izq', 'der']) { const e = escaneos[pie]; if (e) filas.push([pie === 'izq' ? 'Izquierdo' : 'Derecho', e.nombre]); }
   $('medidasEscaneo').innerHTML = filas.map(([a, b]) => `<tr><td>${esc(a)}</td><td>${esc(b)}</td></tr>`).join('');
-  $('aplicarEscaneo').hidden = !s;
 }
 // Largo y ancho que salen del escaneo: la plantilla mide igual que el pie (Ernesto, 2026-11-11), con el pie más
 // grande de los dos para que el par salga igual. Se pueden cambiar a mano después; el escaneo no los vuelve a
@@ -1274,12 +1343,11 @@ async function cargarEscaneos(archivos, aplicar = true) {
   // con guía de tallas el escaneo no cambia el largo ni el ancho (sirve para el arco y para comparar)
   else if (aplicar && conGuia()) {
     const s = sugerenciaEscaneo();
-    mensaje(`Escaneo abierto. Se trabaja con guía de tallas: el largo queda en ${num('largo')} mm (el pie mide ${f1(s.largo)} mm, cerca de ${s.talla.corta}). Para usar el largo del pie: "Usar las medidas del escaneo".`);
+    mensaje(`Escaneo abierto. Se trabaja con guía de tallas: el largo queda en ${num('largo')} mm (el pie mide ${f1(s.largo)} mm, cerca de ${s.talla.corta}).`);
     pedir();
   } else if (aplicar) aplicarEscaneo(); else pedir();
 }
 $('archivoEscaneo').addEventListener('change', async ev => { await cargarEscaneos([...ev.target.files]); ev.target.value = ''; });
-$('aplicarEscaneo').addEventListener('click', aplicarEscaneo);
 
 // ---- Muestra 2D (PNG con regla de 100 mm, de muestra_a_png.ps1) ----
 // Se dibuja debajo de la plantilla en la vista de arriba, alineada como el escaneo (talón con talón y el eje
@@ -2319,12 +2387,12 @@ function agarrarElemento(px, py, ev) {
       if (modo === 'escala2' && r0 > 1) {
         const f = Math.hypot(X - cx, Y - cy) / r0;
         e.tam[pie] = [tamOk(tam0[0] * f), tamOk(tam0[1] * f)];
-        if ($('moverJuntos').checked) e.tam[otro] = [...e.tam[pie]];
+        if (e.juntos !== false) e.tam[otro] = [...e.tam[pie]];
       } else if (modo === 'escala1') {
         const dx = X - cx, dy = Y - cy;
         if (aLoLargo && l0 > 1) e.tam[pie] = [tamOk(tam0[0] * Math.abs(dx * eje[0] + dy * eje[1]) / l0), tam0[1]];
         else if (w0 > 1) e.tam[pie] = [tam0[0], tamOk(tam0[1] * Math.abs(dx * perp[0] + dy * perp[1]) / w0)];
-        if ($('moverJuntos').checked) e.tam[otro] = [...e.tam[pie]];
+        if (e.juntos !== false) e.tam[otro] = [...e.tam[pie]];
       } else if (girar) {
         // ángulo alrededor del centro del elemento, medido en la pantalla del plano; en el pie derecho el
         // sentido se invierte porque es el espejo
@@ -2332,12 +2400,12 @@ function agarrarElemento(px, py, ev) {
         let gnuevo = giro0 + signo * d;
         gnuevo = ((gnuevo + 540) % 360) - 180;
         e.giro[pie] = Math.max(-90, Math.min(90, Math.round(gnuevo)));
-        if ($('moverJuntos').checked) e.giro[otro] = e.giro[pie];
+        if (e.juntos !== false) e.giro[otro] = e.giro[pie];
       } else {
         // de medio en medio milímetro, como en la biblioteca
         const r = val => Math.max(-80, Math.min(80, Math.round(val * 2) / 2));
         e.mov[pie] = [r(inicio[0] + (Y - toque.y)), r(inicio[1] + signo * (X - toque.x))];
-        if ($('moverJuntos').checked) e.mov[otro] = [...e.mov[pie]];
+        if (e.juntos !== false) e.mov[otro] = [...e.mov[pie]];
       }
       refrescarPosiciones(); pedir();
     },
@@ -2356,7 +2424,7 @@ function pintarPanelElemento() {
   $('peNombre').textContent = def?.nombre ?? e.id;
   // en una descarga el número es la profundidad
   $('peAltura').closest('label').firstChild.textContent = def?.descarga ? 'Profundidad ' : 'Altura ';
-  $('pePie').textContent = `· pie ${p === 'izq' ? 'izquierdo' : 'derecho'}${$('moverJuntos').checked ? ' (y el otro igual)' : ''}`;
+  $('pePie').textContent = `· pie ${p === 'izq' ? 'izquierdo' : 'derecho'}${e.juntos !== false ? ' (y el otro igual)' : ''}`;
   for (const [id, v] of [['peAltura', e[p]], ['peGiro', e.giro[p]], ['peLargo', e.tam[p][0]], ['peAncho', e.tam[p][1]]])
     if (document.activeElement !== $(id)) $(id).value = fmtMov(v);
   document.querySelectorAll('[data-modo-elem]').forEach(b => b.classList.toggle('activo', b.dataset.modoElem === modoElem));
@@ -2371,7 +2439,7 @@ for (const [id, poner] of [
 ]) $(id).addEventListener('input', () => {
   const e = elegidos[activo], v = parseFloat($(id).value); if (!e || !Number.isFinite(v)) return;
   poner(e, activoPie, v);
-  if ($('moverJuntos').checked) poner(e, activoPie === 'izq' ? 'der' : 'izq', v);
+  if (e.juntos !== false) poner(e, activoPie === 'izq' ? 'der' : 'izq', v);
   pintarElementos(); pedir();
 });
 // Reflejar: lo de este pie (altura, posición, giro y tamaño) pasa al otro, en espejo
@@ -2455,7 +2523,7 @@ const NOTAS = {
   base: 'Paciente, talla y alturas. Los elementos se pueden arrastrar en el 3D. La plantilla se ve como lámina.',
   diseno: 'Agregue elementos y arrástrelos en el 3D para ubicarlos (Ctrl + arrastrar para girarlos).',
   produccion: 'Diseño fijo: la plantilla se ve sólida, como sale de la máquina. Ajustes de la producción.',
-  exportar: 'Diseño fijo: los elementos ya no se mueven. Revise las medidas y exporte.',
+  exportar: 'Diseño fijo: los elementos ya no se mueven. Revise los avisos y exporte (las medidas se cambian en 2. Diseño).',
 };
 function ponerModulo(m) {
   const antes = modulo; modulo = m;
@@ -2552,17 +2620,38 @@ function hayFueraDeRango() {
   if (f.length) mensaje("No se exportó: revise " + f.join(", ") + ".", false); return f.length > 0; }
 const dondeSeGuarda = () => inicio?.carpetaProyecto() ?? '';
 
+// Carpeta elegida por el diseñador para el STL y el G-code (Ernesto, 2026-11-19), además de la copia en la carpeta
+// del proyecto. Se pregunta antes de generar: el navegador solo abre el diálogo justo después del clic.
+// null = no se pregunta; false = canceló.
+try { const v = localStorage.getItem('plantillas.elegirCarpeta'); if (v != null) $('elegirCarpeta').checked = v === '1'; } catch { /* sin almacenamiento */ }
+$('elegirCarpeta').addEventListener('change', () => { try { localStorage.setItem('plantillas.elegirCarpeta', $('elegirCarpeta').checked ? '1' : '0'); } catch { /* sin almacenamiento */ } });
+async function pedirCarpetaDestino() {
+  if (!$('elegirCarpeta').checked) return null;
+  if (!window.showDirectoryPicker) throw new Error('este navegador no deja elegir carpetas; use Google Chrome o Microsoft Edge actualizados');
+  try { return await window.showDirectoryPicker({ id: 'plantillas-exportar', mode: 'readwrite', startIn: 'downloads' }); }
+  catch (e) { if (e.name === 'AbortError') return false; throw e; }
+}
+async function escribirEnCarpeta(dir, nombre, cuerpo) {
+  const f = await dir.getFileHandle(nombre, { create: true }), w = await f.createWritable();
+  await w.write(cuerpo); await w.close();
+}
+
 $('exportar').addEventListener('click', async () => {
   if (!actual || hayFueraDeRango()) return;
   try {
+    const destino = await pedirCarpetaDestino();
+    if (destino === false) { mensaje('No se exportó: no se eligió la carpeta.', false); return; }
     const base = nombreBase(actual.d), archivos = [`${base} izq.stl`, `${base} der.stl`, `${base} receta.json`];
     for (const lado of ['izq', 'der']) {
-      const nombre = `${base} ${lado}.stl`;
-      await guardar(nombre, aSTL(solido(actual[lado]), nombre));
+      const nombre = `${base} ${lado}.stl`, stl = aSTL(solido(actual[lado]), nombre);
+      await guardar(nombre, stl);
+      if (destino) await escribirEnCarpeta(destino, nombre, stl);
     }
     await guardar(`${base} receta.json`, JSON.stringify({ ...actual.d, fecha: new Date().toISOString() }, null, 2));
     await inicio.exportado(archivos);
-    mensaje(`Guardados en ${dondeSeGuarda()}: "${base} izq.stl", "${base} der.stl" y la receta.`);
+    mensaje(destino
+      ? `Guardados en la carpeta "${destino.name}": "${base} izq.stl" y "${base} der.stl". Copia y receta en ${dondeSeGuarda()}.`
+      : `Guardados en ${dondeSeGuarda()}: "${base} izq.stl", "${base} der.stl" y la receta.`);
     marcarExportado();
   } catch (e) { mensaje('No se guardó: ' + e.message, false); }
 });
@@ -2576,11 +2665,14 @@ $('exportarGcode').addEventListener('click', async () => {
     // auditoría 2026-11-18: vacío o con letras ya no se toma 26 por su cuenta; se pide el alto real del bloque
     const alto = parseFloat($('altoBloque').value), base = nombreBase(actual.d);
     if (!Number.isFinite(alto) || alto < 10 || alto > 60) { mensaje('No se generó el G-code: escriba el alto real del bloque de EVA (de 10 a 60 mm).', false); $('altoBloque').focus(); return; }
+    const destino = await pedirCarpetaDestino();
+    if (destino === false) { mensaje('No se generó el G-code: no se eligió la carpeta.', false); return; }
     const r = gcodeEVA(actual.izq, actual.der, { nombre: base, bloque: { alto } });
     if (r.avisos.length) { mensaje('No se generó el G-code: ' + r.avisos.join(' '), false); return; }
     const nombre = `${base} fresadora.iso`;
     await guardar(nombre, r.texto);
-    mensaje(`Guardado en ${dondeSeGuarda()}: "${nombre}" (${r.lineas.toLocaleString('es')} líneas, alto máximo ${r.alturaMax.toFixed(1).replace('.', ',')} mm). Antes de fresar: revíselo en la vista de EdingCNC y páselo primero en el aire.`);
+    if (destino) await escribirEnCarpeta(destino, nombre, r.texto);
+    mensaje(`Guardado en ${destino ? `la carpeta "${destino.name}" (y copia en ${dondeSeGuarda()})` : dondeSeGuarda()}: "${nombre}" (${r.lineas.toLocaleString('es')} líneas, alto máximo ${r.alturaMax.toFixed(1).replace('.', ',')} mm). Antes de fresar: revíselo en la vista de EdingCNC y páselo primero en el aire.`);
   } catch (e) { mensaje('No se generó el G-code: ' + e.message, false); }
 });
 
@@ -2628,10 +2720,12 @@ function hojaHTML() {
 <div class="sub">${esc(prod.nombre)} · ${new Date().toLocaleString('es-PE', { dateStyle: 'long', timeStyle: 'short' })}</div>
 <div class="grid">
   <div><h2>Plantilla</h2><table>
-    ${fila('Talla', d.talla ? `${CUADROS[d.cuadro]?.tallas.find(t => t.talla === String(d.talla))?.corta ?? d.talla} (${d.largo} mm${margenPulido() ? `, con ${margenPulido()} mm para pulir` : ''})` : 'personalizada')}${fila('Largo', f1(m.largo) + ' mm')}
+    ${fila('Talla', d.talla ? `${CUADROS[d.cuadro]?.tallas.find(t => t.talla === String(d.talla))?.corta ?? d.talla} (${d.largo} mm${d.margenPulido || d.margenLados || d.margenTalon ? `, más margen para pulir: ${f1(d.margenPulido || 0)} mm en la punta, ${f1(d.margenLados || 0)} mm a cada costado del antepié${d.margenTalon ? ` y ${f1(d.margenTalon)} mm en el retropié` : ''}` : ''})` : 'personalizada')}${fila('Largo', f1(m.largo) + ' mm')}
     ${fila('Ancho antepié', f1(m.anchoAntepie) + ' mm')}${fila('Ancho talón', f1(m.anchoTalon) + ' mm')}
     ${fila('Copa del talón', dosH(f1, 'copa') + ' mm')}${fila('Espesor antepié', dosH(f2, 'antepie') + ' mm')}
     ${fila('Arco', `${dosM(f1, 'arco')} mm a ${dosM(v => String(Math.round(v * 100)), 'arcoDesdeTalon')} % del talón`)}${fila('Canto del borde', dosH(f1, 'canto') + ' mm')}
+    ${(() => { const al = d.correcciones?.alza ?? [0, 0]; if (!(al[0] > 0 || al[1] > 0)) return '';
+      return fila('Alza', `${d.correcciones.alzaTipo === 'completa' ? 'completa' : 'de talón'}: izq ${f1(al[0])} mm · der ${f1(al[1])} mm`); })()}
     ${fila('Material del par', f1(volPar) + ' cm³' + (prod.densidad ? ` · ${Math.round(volPar * prod.densidad)} g macizo` : ''))}${fila('Escaneo', escTxt)}${fila('Horma', hormaInfo[d.horma]?.nombre ?? hormaInfo[prod.horma]?.nombre ?? '')}${fila('Forma', d.contorno ? 'contorno de la muestra ' + d.contorno.archivo : 'la de la horma')}
   </table></div>
   <div><h2>Revisión</h2>${avisos.length ? avisos.map(a => `<div class="aviso">${esc(a)}</div>`).join('') : '<p>Sin observaciones.</p>'}</div>
@@ -2708,9 +2802,21 @@ function limpiarReceta(r) {
   // correcciones (auditoría 2026-11-18): dos números por corrección, dentro de los límites del panel
   if (c.correcciones != null) {
     const par = (v, lo, hi) => Array.isArray(v) ? [0, 1].map(k => numFin(v[k]) ? Math.min(Math.max(+v[k], lo), hi) : 0) : [0, 0];
-    c.correcciones = esObj(c.correcciones) ? { arcoMedial: par(c.correcciones.arcoMedial, -10, 15), moverApice: par(c.correcciones.moverApice, -40, 40) } : null;
+    c.correcciones = esObj(c.correcciones) ? { arcoMedial: par(c.correcciones.arcoMedial, -10, 15), moverApice: par(c.correcciones.moverApice, -40, 40),
+      alza: par(c.correcciones.alza, 0, 15), alzaTipo: c.correcciones.alzaTipo === 'completa' ? 'completa' : 'talon' } : null;
   }
   if (c.orden != null && !esObj(c.orden)) c.orden = null;
+  // margen para pulir (2026-11-19). Recetas de antes: en EVA el largo de la guía traía 5 mm de más; si el largo es
+  // justo la talla + 5, pasan a la punta (largo de la talla y margen de 5)
+  if (c.margenPulido != null) c.margenPulido = numFin(c.margenPulido) ? Math.min(Math.max(+c.margenPulido, 0), 15) : 0;
+  else {
+    const viejo = bib.productos.find(p => p.id === c.producto)?.margenPulido ?? 0;
+    const t = viejo && c.talla != null ? CUADROS[c.cuadro ?? 'eu']?.tallas.find(x => x.talla === String(c.talla)) : null;
+    if (t && c.largo === t.largo + viejo) { c.largo = t.largo; c.margenPulido = viejo; } else c.margenPulido = 0;
+  }
+  // costados: recetas sin el dato (hechas antes) no llevan margen a los costados
+  c.margenLados = numFin(c.margenLados) ? Math.min(Math.max(+c.margenLados, 0), 10) : 0;
+  c.margenTalon = numFin(c.margenTalon) ? Math.min(Math.max(+c.margenTalon, 0), 10) : 0;
   // ancho de la receta (QA-02): fuera de lo posible se rechaza la receta, no se genera una plantilla gigante
   if (c.ancho != null && !(c.ancho >= 40 && c.ancho <= 160)) throw new Error(`ancho fuera de rango en la receta (${c.ancho} mm; de 40 a 160)`);
   return c;
@@ -2743,7 +2849,10 @@ function aplicarRecetaSinRed(r) {
   ponerMedidaDesde(r.medidaDesde ?? (r.escaneo || r.contorno ? 'muestra' : 'guia'), false);
   if (r.largo != null) $('largo').value = r.largo; else if (r.talla != null) ponerTalla(r.talla);
   const tr = r.talla == null ? null : String(r.talla);
-  $('talla').value = tallas.some(t => t.talla === tr && t.largo + margenPulido() === +$('largo').value) ? tr : tallaDeLargo(+$('largo').value);
+  $('talla').value = tallas.some(t => t.talla === tr && t.largo === +$('largo').value) ? tr : tallaDeLargo(+$('largo').value);
+  { const con = r.margenPulido > 0 || r.margenLados > 0 || r.margenTalon > 0;
+    $('margenActivo').checked = con; $('margenMm').value = con ? r.margenPulido : 5;
+    $('margenLados').value = con ? r.margenLados : 3; $('margenTalon').value = con ? r.margenTalon : 0; pintarMargen(); }
   pintarNotaLargo();
   $('anchoAuto').checked = r.ancho == null; if (r.ancho != null) $('ancho').value = r.ancho;
   $('copa').value = r.copa ?? vH.copa ?? tH?.copa ?? prod.copa; $('antepie').value = r.antepie ?? vH.antepie ?? tH?.antepie ?? prod.antepie; $('canto').value = r.canto ?? prod.canto ?? 1.2;
@@ -2754,7 +2863,8 @@ function aplicarRecetaSinRed(r) {
   $('arcoPosAuto').checked = r.arcoPos == null; if (r.arcoPos != null) $('arcoPos').value = Math.round(r.arcoPos * 100);
   // correcciones como LutraCAD (2026-11-17); las recetas de antes no traen: 0
   { const c = r.correcciones ?? {}; $('corrArcoIzq').value = c.arcoMedial?.[0] ?? 0; $('corrArcoDer').value = c.arcoMedial?.[1] ?? 0;
-    $('corrApiceIzq').value = c.moverApice?.[0] ?? 0; $('corrApiceDer').value = c.moverApice?.[1] ?? 0; }
+    $('corrApiceIzq').value = c.moverApice?.[0] ?? 0; $('corrApiceDer').value = c.moverApice?.[1] ?? 0;
+    $('alzaIzq').value = c.alza?.[0] ?? 0; $('alzaDer').value = c.alza?.[1] ?? 0; $('alzaTipo').value = c.alzaTipo === 'completa' ? 'completa' : 'talon'; }
   for (const id of POR_PIE) ponerSeparado(id, false);
   for (const id of POR_PIE) ponerSeparado(id, Array.isArray(r.separados) ? r.separados.includes(id) : id in (r.der ?? {}));
   for (const [k, v] of Object.entries(r.der ?? {})) if (POR_PIE.includes(k)) $(k + 'Der').value = k === 'arcoPos' ? Math.round(v * 100) : v;
@@ -2789,7 +2899,9 @@ function normalizarElemento(e) {
   return { id: e.id, izq: lim(+e.izq || 0, 0, 15), der: lim(+e.der || 0, 0, 15),
            mov: { izq: parLim(par(e.mov?.izq, 0), -80, 80), der: parLim(par(e.mov?.der, 0), -80, 80) },
            giro: { izq: lim(num1(e.giro?.izq, 0), -90, 90), der: lim(num1(e.giro?.der, 0), -90, 90) },
-           tam: { izq: parLim(par(e.tam?.izq, 100), 40, 250), der: parLim(par(e.tam?.der, 100), 40, 250) } };
+           tam: { izq: parLim(par(e.tam?.izq, 100), 40, 250), der: parLim(par(e.tam?.der, 100), 40, 250) },
+           // mover igual en los dos pies, por elemento (Ernesto, 2026-11-19); por defecto sí
+           juntos: e.juntos !== false };
 }
 
 // ---- Combinaciones guardadas de elementos ----

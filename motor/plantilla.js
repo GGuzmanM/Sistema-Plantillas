@@ -128,17 +128,107 @@ export function prepararHorma(datos, ref, op = {}) {
     if (t > 0.05 && t < 0.2) { if (op.copaLado === 'externo') { suma += H[i][0]; n++; } else { suma += H[i][0] + H[i][NVG - 1]; n += 2; } }
     for (let c = 0; c < NVG; c++) { if (H[i][c] > arco) { arco = H[i][c]; arcoPos = t; } antepie = Math.min(antepie, H[i][c]); }
   }
+  // Capas del relieve (Ernesto, 2026-11-19; como LutraCAD, comparado en sus vistas de costado): al subir la copa de 10 a
+  // 14 el arco no cambia, y el arco sube o baja sin mover el talón. Antes las alturas se reescalaban según qué tan
+  // alto estaba cada punto, y en una horma delgada puesta en estándar la subida del arco se levantaba con la copa
+  // (quedaba una meseta desde el talón). Ahora, sobre el espesor del antepié:
+  //   arco = lo que el lado interno sube por encima del lado externo en la misma fila (el lado externo reflejado);
+  //   copa = el resto (bordes del talón, lado externo y antepié).
+  // Cada capa se escala por su lado (ver alturasPorCapas).
+  // La copa del lado interno es el lado externo reflejado, mezclado parejo en el centro del ancho (±15 %): así la
+  // capa de la copa queda lisa (sin lomo en el centro) y copa + arco = horma exacta. Donde el interno es más bajo que
+  // el externo (talón de la Crocs) la capa del arco queda negativa: es parte de la forma y se escala con ella.
+  // (Probado 2026-11-19: apagar la capa del arco en el talón dejaba una loma al 10–15 % al subir la copa.)
+  const RA = H.map(() => new Float64Array(NVG));
+  for (let i = 0; i < NT; i++) for (let c = 0; c < NVG; c++) {
+    const s = suave((c / (NVG - 1) - 0.35) / 0.3), copa = (1 - s) * H[i][c] + s * H[i][NVG - 1 - c];
+    RA[i][c] = H[i][c] - copa;
+  }
+  // medidas de cada capa: copa (promedio del borde del 5 % al 20 %, como ref.copa) y en la cima del arco
+  let cC = 0, cA = 0, iS = 0, jS = 0;
+  const vC = [], vA = [], vT = [], vV = [];
+  for (let i = 0; i < NT; i++) for (let c = 0; c < NVG; c++) if (H[i][c] > H[iS][jS]) { iS = i; jS = c; }
+  for (let i = 0; i < NT; i++) {
+    const t = i / (NT - 1); if (!(t > 0.05 && t < 0.2)) continue;
+    for (const c of op.copaLado === 'externo' ? [0] : [0, NVG - 1]) {
+      cA += RA[i][c]; cC += H[i][c] - antepie - RA[i][c];
+      vC.push(H[i][c] - antepie - RA[i][c]); vA.push(RA[i][c]); vT.push(t); vV.push(c / (NVG - 1));
+    }
+  }
+  cC /= n; cA /= n;
+  // muestras de la zona del arco (del 10 % al 75 % del largo) para llevar el punto más alto justo al arco pedido
+  const mC = [], mA = [], mT = [], mV = [];
+  for (let i = Math.round(0.1 * (NT - 1)); i <= 0.75 * (NT - 1); i += 2) for (let c = 0; c < NVG; c += 2) {
+    mC.push(H[i][c] - antepie - RA[i][c]); mA.push(RA[i][c]); mT.push(i / (NT - 1)); mV.push(c / (NVG - 1));
+  }
+  const capas = { copaC: cC, copaA: cA, cimaC: H[iS][jS] - antepie - RA[iS][jS], cimaA: RA[iS][jS], cimaT: iS / (NT - 1),
+                  muestras: { c: Float64Array.from(mC), a: Float64Array.from(mA), t: Float64Array.from(mT), v: Float64Array.from(mV) },
+                  copaMuestras: { c: Float64Array.from(vC), a: Float64Array.from(vA), t: Float64Array.from(vT), v: Float64Array.from(vV) } };
   // altura de la horma en un punto (x, y) del contorno suave. `yH` (opcional) = fila de la horma de donde se toma
   // el relieve, para correr el arco sin cambiar el contorno
-  const altura = (x, y, yH = y) => {
+  const leer = (G, x, y, yH) => {
     const [xi, xd] = borde(y), v = xd > xi ? Math.min(Math.max((x - xi) / (xd - xi), 0), 1) : 0.5;
     const qa = Math.min(Math.max(yH / largo, 0), 1) * (NT - 1), i = Math.min(Math.floor(qa), NT - 2), fa = qa - i;
     const qb = v * (NVG - 1), j = Math.min(Math.floor(qb), NVG - 2), fb = qb - j;
-    const z0 = H[i][j] + fb * (H[i][j + 1] - H[i][j]), z1 = H[i + 1][j] + fb * (H[i + 1][j + 1] - H[i + 1][j]);
+    const z0 = G[i][j] + fb * (G[i][j + 1] - G[i][j]), z1 = G[i + 1][j] + fb * (G[i + 1][j + 1] - G[i + 1][j]);
     return z0 + fa * (z1 - z0);
   };
-  return { largo, ancho, cont, borde, altura,
-           ref: { antepie, copa: suma / n, copaNominal: ref.copa, antepieNominal: ref.antepie, arco, arcoPos, copaLado: op.copaLado } };
+  const altura = (x, y, yH = y) => leer(H, x, y, yH);
+  // [capa copa, capa arco] en mm sobre el antepié de la horma, y la fracción del ancho (0 externo, 1 interno)
+  const partes = (x, y, yH = y) => {
+    const a = leer(RA, x, y, yH), [xi, xd] = borde(y), v = xd > xi ? Math.min(Math.max((x - xi) / (xd - xi), 0), 1) : 0.5;
+    return [leer(H, x, y, yH) - antepie - a, a, v];
+  };
+  return { largo, ancho, cont, borde, altura, partes,
+           ref: { antepie, copa: suma / n, copaNominal: ref.copa, antepieNominal: ref.antepie, arco, arcoPos, copaLado: op.copaLado, capas } };
+}
+
+// Copa y arco por capas (2026-11-19). La capa de la copa se escala para llegar a la copa pedida y la del arco para
+// que la cima quede en el arco pedido, conservando su forma. El arco puede quedar más bajo que la copa; lo más bajo
+// posible es sin capa de arco (ahí `arcoMin` dice hasta dónde llegó).
+// Punto de partida: la horma con su copa aprobada (biblioteca: 10 en Crocs y Chimpunes, 13 en la Guía; Chimpunes y
+// Crocs vienen guardadas más bajas, copa 6,6 y 7, y se aprobaron así escaladas). Sobre esa forma:
+//  - copa: el cambio de copa es entero en el talón y se apaga hacia adelante. Lado externo: entero hasta el 40 % y
+//    nada desde el 70 % (la copa recta de la Crocs llega al 38 %). Lado interno: nada desde el 40 %, antes de la cima.
+//  - arco: del lado interno, todo lo que sube del 15 % al 65 % (la capa del arco y la parte de la copa que ya no es
+//    talón) se escala junto para llegar al arco pedido. El talón, el lado externo y el antepié no cambian.
+// Entre los dos lados se mezcla parejo en el centro del ancho, igual que las capas. Como LutraCAD: al subir la copa de
+// 10 a 14 el arco no cambia ni se corre, y al cambiar el arco el talón queda igual.
+// (Probado 2026-11-19: escalar la copa pareja en todo el largo bajaba antes el arco de la Guía en estándar, 2,6 mm;
+// dejar la parte de la copa del medio pie fuera del arco corría la cima hasta 4 % al bajar la copa.)
+const lado = v => suave((v - 0.35) / 0.3);
+const talon = t => 1 - suave((t - 0.15) / 0.25), antepieF = t => 1 - suave((t - 0.6) / 0.15);
+const apagaExt = t => 1 - suave((t - 0.4) / 0.3);
+export function alturasPorCapas(ref, p) {
+  const K = ref.capas, S = K.muestras, V = K.copaMuestras, rc = ref.copa - ref.antepie, Rc = p.copa - p.antepie;
+  const Ra = (p.arco ?? p.antepie + (ref.arco - ref.antepie) * (Rc / rc)) - p.antepie;
+  const nom = (ref.copaNominal ?? ref.copa) - (ref.antepieNominal ?? ref.antepie);
+  const kn = K.copaC > 0 ? Math.max(nom - K.copaA, 0.1) / K.copaC : 1;
+  // altura sobre el antepié en un punto (capa copa c, capa arco a, largo t, ancho v):
+  // forma aprobada + cambio de copa (kc) + cambio de arco (ka)
+  const pesoCopa = (t, v) => { const s = lado(v); return (1 - s) * apagaExt(t) + s * talon(t); };
+  const arcoDe = (c, a, t, v) => a + kn * c * (1 - talon(t)) * lado(v) * antepieF(t);
+  const val = (c, a, t, v, kc, ka) => kn * c + a + (kc - kn) * c * pesoCopa(t, v) + (ka - 1) * arcoDe(c, a, t, v);
+  // kc tal que la copa medida (borde del 5 % al 20 %) quede en la pedida: es lineal en kc
+  let cw = 0; for (let s = 0; s < V.c.length; s++) cw += V.c[s] * pesoCopa(V.t[s], V.v[s]); cw /= V.c.length || 1;
+  const kcDe = ka => {
+    let m = 0; for (let s = 0; s < V.c.length; s++) m += val(V.c[s], V.a[s], V.t[s], V.v[s], kn, ka); m /= V.c.length || 1;
+    return cw > 1e-6 ? kn + (Rc - m) / cw : kn;
+  };
+  const alto = ka => { const kc = kcDe(ka); let m = 0; for (let s = 0; s < S.c.length; s++) m = Math.max(m, val(S.c[s], S.a[s], S.t[s], S.v[s], kc, ka)); return m; };
+  // ka: la capa del arco escalada para que el punto más alto de la zona del arco quede en el arco pedido
+  let ka = 0, minimo = false;
+  if (alto(0) >= Ra) minimo = true;
+  else {
+    let lo = 0, hi = 2; while (alto(hi) < Ra && hi < 64) hi *= 2;
+    for (let it = 0; it < 40; it++) { const mid = (lo + hi) / 2; if (alto(mid) < Ra) lo = mid; else hi = mid; }
+    ka = (lo + hi) / 2;
+  }
+  const kc = kcDe(ka);
+  const fn = (c, a, t, v) => p.antepie + val(c, a, t, v, kc, ka);
+  fn.arco = p.antepie + alto(ka);
+  fn.arcoMin = minimo ? fn.arco : null;
+  return fn;
 }
 
 // Horma con el contorno de una muestra: el borde es el de la muestra y el relieve (copa, arco, antepié) es el de
@@ -159,7 +249,12 @@ export function hormaConContorno(h, puntos, op = {}) {
     const yh = (y / largo) * h.largo, [a, b] = h.borde(yh);
     return h.altura(a + v * (b - a), yh, (yH / largo) * h.largo);
   };
-  return { largo, ancho, cont, borde, altura, ref: h.ref, base: h, deMuestra: true };
+  const partes = (x, y, yH = y) => {
+    const [xi, xd] = borde(y), v = xd > xi ? Math.min(Math.max((x - xi) / (xd - xi), 0), 1) : 0.5;
+    const yh = (y / largo) * h.largo, [a, b] = h.borde(yh);
+    return h.partes(a + v * (b - a), yh, (yH / largo) * h.largo);
+  };
+  return { largo, ancho, cont, borde, altura, partes, ref: h.ref, base: h, deMuestra: true };
 }
 
 // Contorno cerrado suave a partir de una polilínea (talón → lado externo → punta → lado interno). Se reparte en
@@ -475,7 +570,14 @@ export function prepararElemento(def) {
 export function generar(h, p) {
   const ny = p.lados ?? 300, na = p.arcos ?? 72, nr = p.anillos ?? 44, canto = p.canto ?? 1.2;
   const sL = p.largo / h.largo, sW = p.ancho ? p.ancho / h.ancho : sL, W = h.ancho * sW;
-  const f = curvaAlturas(h.ref, p), L = h.largo, C = h.cont;
+  const L = h.largo, C = h.cont;
+  // por capas si la horma las trae (todas las de la biblioteca); curvaAlturas queda para hormas sin capas
+  const fc = h.partes && h.ref.capas ? alturasPorCapas(h.ref, p) : null, f = fc ?? curvaAlturas(h.ref, p);
+  const alturaEn = (px, py) => {
+    const yH = correrArco(py);
+    if (!fc) return f(h.altura(px, py, yH));
+    const [c, a, v] = h.partes(px, py, yH); return fc(c, a, yH / L, v);
+  };
   // la espina va de A (centro del talón) a B (centro de la punta); los lados se cortan en las mismas alturas Y
   const yA = 0.11 * L, yB = 0.9 * L, centro = y => { const [a, b] = h.borde(y); return (a + b) / 2; };
   const ys = Array.from({ length: ny }, (_, j) => yA + ((yB - yA) * j) / (ny - 1));
@@ -557,11 +659,25 @@ export function generar(h, p) {
   const rampaSuave = (d, k = 1) => (d <= -k ? 0 : d >= k ? d : ((d + k) * (d + k)) / (4 * k));
   const rk = Array.from({ length: nr }, (_, k) => (k / (nr - 1)) ** 1.7);
   const d0 = (p.radioCanto ?? 2) / W;
+  // Margen para pulir a los costados (Ernesto, 2026-11-19): p.margenLados mm de más a cada lado del antepié (interno y
+  // externo). Nada hasta el 50 % del largo, entero desde el 65 % hasta la punta. Se abre alrededor del centro de cada
+  // fila (el medio no se mueve, el borde sale esos mm); en la punta se usa el ancho de la fila del 90 %.
+  // p.margenTalon (2026-11-19): lo mismo en el retropié, a cada costado (entero hasta el 25 %, nada desde el 40 %) y
+  // atrás (paso 4). En el talón se usa el ancho de la fila del 10 %.
+  const mL = p.margenLados > 0 ? p.margenLados : 0, mT = p.margenTalon > 0 ? p.margenTalon : 0;
+  const abreLados = !mL && !mT ? null : (px, py, xa) => {
+    // 2026-11-19 (Ernesto: "se ve raro"): antes cada margen se apagaba antes del arco y el borde se angostaba ahí. Ahora
+    // es una banda seguida: la del retropié hasta el 35 %, pasa suave a la del antepié entre el 35 % y el 65 %
+    const w = suave((py / L - 0.35) / 0.3), m = mT * (1 - w) + mL * w; if (!m) return xa;
+    const yc = Math.min(Math.max(py, yA), yB), c = centro(yc), [a, b] = h.borde(Math.min(Math.max(py, 0.1 * L), 0.9 * L)), medio = Math.max((b - a) / 2, 1);
+    return c + (xa - c) * (1 + m / (medio * sW));
+  };
   // 1) cara de arriba de la horma
   for (let i = 0; i < ns; i++) for (let k = 0; k < nr; k++) {
     const px = cx[i] + rk[k] * (ex[i] - cx[i]), py = cy[i] + rk[k] * (ey[i] - cy[i]), q = i * nr + k;
-    const xa = anchoX(px, py);
-    x[q] = (espejo ? -xa : xa) * sW; y[q] = py * sL; z[q] = f(h.altura(px, py, correrArco(py)));
+    let xa = anchoX(px, py);
+    if (abreLados) xa = abreLados(px, py, xa);
+    x[q] = (espejo ? -xa : xa) * sW; y[q] = py * sL; z[q] = alturaEn(px, py);
   }
   // 2) contacto total en el arco: la cara de arriba copia la planta del pie del escaneo
   if (p.contacto?.altura && p.contacto.pct > 0) aplicarContacto(x, y, z, p.contacto, p.largo, p.antepie);
@@ -597,6 +713,12 @@ export function generar(h, p) {
       if (dz) z[q] = Math.max(z[q] + dz, Math.min(z[q], p.antepie));
     }
   }
+  // 2d) Alza (Ernesto, 2026-11-19): p.alza mm que sube toda la cara de arriba (talón, copa y arco juntos, sin cambiar
+  // su forma). En EVA la base queda plana; en resina la base curva acompaña y el canto sigue fino.
+  // p.alzaTipo 'talon' (talonera: entera hasta el 30 % del largo y baja suave a 0 en el 60 %, antes de las cabezas
+  // de los metatarsianos) o 'completa' (pareja del talón a la punta).
+  const alza = p.alza > 0 ? p.alza : 0;
+  const alzaEn = !alza ? () => 0 : p.alzaTipo === 'completa' ? () => alza : u => alza * (1 - suave((u - 0.3) / 0.3));
   // 3) cara de abajo y elementos
   for (let i = 0; i < ns; i++) {
     const s = sFrac(i);
@@ -605,6 +727,11 @@ export function generar(h, p) {
     const peso = p.acabado ? suave(p.acabado(s, 0.004) / 0.3) : 0;
     for (let k = 0; k < nr; k++) {
       const px = cx[i] + rk[k] * (ex[i] - cx[i]), py = cy[i] + rk[k] * (ey[i] - cy[i]), q = i * nr + k;
+      // el alza sube la cara de arriba antes de calcular la de abajo: en resina la base curva la sigue hasta el canto
+      // fino (2026-11-19: calculada sin el alza quedaba una pared recta del alto del alza con una línea en el borde);
+      // en EVA la base sigue plana
+      const dzA = alzaEn(py / L);
+      if (dzA) z[q] += dzA;
       if (p.acabado && k < nr - 1) {
         const d = Math.hypot((px - cx[i]) * sW, (py - cy[i]) * sL) / W;
         let lam = p.acabado(s, d);
@@ -643,7 +770,7 @@ export function generar(h, p) {
         }
         // la zona de suavizado es como mucho la altura del relleno: así en el antepié plano sube exactamente su
         // altura y en el contorno del elemento arranca en cero, sin escalón
-        if (relleno > 0) suma += rampaSuave(p.antepie + relleno - z[q], Math.min(1, relleno));
+        if (relleno > 0) suma += rampaSuave(p.antepie + dzA + relleno - z[q], Math.min(1, relleno));
         let zt = z[q] + suma;
         // descargas: bajan la cara de arriba; el piso (cara de abajo + espesor mínimo) se toca con un mínimo suave,
         // sin arista. Donde la plantilla ya es más fina que ese piso, no baja.
@@ -656,8 +783,17 @@ export function generar(h, p) {
       }
     }
   }
+  // 4) Margen para pulir (Ernesto, 2026-11-19): p.margenPunta mm de más en la punta, para pulir al armar (muestras en
+  // EVA o impresas). Solo se alarga la punta: hasta el 75 % del largo nada se mueve (talón, arco, metatarsianos y sus
+  // elementos quedan donde estaban); del 75 % al 95 % se estira suave y la punta entera se corre esos mm sin cambiar su
+  // forma. El relieve no cambia (la punta es plana).
+  const mP = p.margenPunta > 0 ? p.margenPunta : 0;
+  if (mP) for (let q = 0; q < y.length; q++) { const t = y[q] / p.largo; if (t > 0.75) y[q] += mP * suave((t - 0.75) / 0.2); }
+  // atrás del talón (p.margenTalon): la punta del talón se corre esos mm hacia atrás sin cambiar su forma (queda en
+  // Y negativo); del 3 % al 23 % se estira suave y desde ahí nada se mueve
+  if (mT) for (let q = 0; q < y.length; q++) { const t = y[q] / p.largo; if (t < 0.23) y[q] -= mT * (1 - suave((t - 0.03) / 0.2)); }
   // aportes: cuánto sube cada elemento en cada punto (en el orden de p.elementos), para saber cuál se toca con el ratón
-  return { ns, nr, x, y, z, zb, he, rk, aportes: elementos.map(e => e.aporte), p: { ...p, arco: f.arco, copaLado: h.ref.copaLado } };
+  return { ns, nr, x, y, z, zb, he, rk, aportes: elementos.map(e => e.aporte), p: { ...p, arco: f.arco, arcoMin: f.arcoMin ?? null, copaLado: h.ref.copaLado } };
 }
 
 // Contacto total en el arco (como el "Full Contact" de LutraCAD). c = { altura(x, y) → z de la planta del pie o null,

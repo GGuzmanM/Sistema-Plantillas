@@ -67,8 +67,12 @@ un resumen (talla y largo, copa y arco, cuántos avisos…). Al abrir un escaneo
 
 Guía de tallas (2026-11-13): "Medida desde" = Guía de tallas o Muestra o escaneo. Con guía de tallas se elige el
 cuadro (Hombre US, Dama US — de `biblioteca/tallas_usa.json`, GUIA DE TALLAS USA.pdf — o EU Baroflex 27 a 48) y la
-talla, y el largo sale del cuadro; en EVA se suman 5 mm para pulir (`margenPulido` del producto en
-biblioteca.json). Con guía de tallas, abrir el escaneo no cambia el largo ni el ancho (solo se usa para el arco);
+talla, y el largo sale del cuadro. Margen para pulir (2026-11-19): desplegable con interruptor en Plantilla (EVA o
+impresa; en EVA viene prendido); alarga la punta (`margenPunta`, 5 mm: nada se mueve hasta el 75 % del largo) y abre
+los costados del antepié (`margenLados`, 3 mm por lado) y del retropié (`margenTalon`, 0 por defecto; también atrás del
+talón, que queda en Y negativo). Los costados son una banda seguida: la del retropié hasta el 35 % del largo, pasa suave
+a la del antepié hasta el 65 % (antes cada una se apagaba y el borde se angostaba en el arco). Vale con guía de
+tallas y con muestra. Largo y ancho del antepié en el panel se muestran sin el margen. Las recetas EVA de antes con largo = talla + 5 se pasan solas a margen de 5 mm. Con guía de tallas, abrir el escaneo no cambia el largo ni el ancho (solo se usa para el arco);
 "Usar las medidas del escaneo", "Usar solo largo y ancho de la muestra" o "Plantilla con la forma de la muestra"
 pasan a "Muestra o escaneo". Elegir una talla vuelve a guía de tallas. La receta guarda `medidaDesde`, `cuadro` y
 `talla` (texto); las recetas viejas con talla en número se abren con el cuadro EU.
@@ -404,10 +408,14 @@ de ejemplo el trazo mide 0,25 a 0,57 mm. La foto de una plantilla (sin trazo) no
 - STL de referencia de Ernesto (`referencias/referencia eva|3d nuevo programa_L|R.stl`): misma cara de arriba (0 mm);
   EVA = bloque con base plana y paredes rectas; 3D = macizo, plano al centro y la base sube cerca del borde (hasta
   9,4 mm bajo el arco interno): es lo que ya hace el acabado de resina. Falta el acabado de EVA.
-- **El arco sube solo con la copa** (Ernesto, 2026-11-17): en `generarPies` el arco nunca queda a menos de
-  `DIF_ARCO_COPA` (6 mm) sobre la copa de ese pie (copa 16 → arco 22; copa 18 → 24). Estándar 14/20 y delgado 10/20 no
-  cambian. Aviso `#avisoArcoSube` bajo "Alto de arco". Motivo: el motor escala aparte lo que está bajo la copa y lo
-  que está sobre ella; con poca diferencia el arco se aplana en meseta y baja de golpe.
+- **Copa y arco por capas** (Ernesto, 2026-11-19; reemplaza la regla de 2026-11-17 "arco siempre 6 mm sobre la copa"):
+  `prepararHorma` separa el relieve en capa de copa (el lado externo, reflejado del lado interno) y capa de arco (lo
+  que el interno sube sobre eso); `alturasPorCapas` parte de la horma con su copa aprobada (`ref.copa` de la
+  biblioteca), suma el cambio de copa solo en el talón (externo hasta el 40–70 %, interno hasta el 15–40 %) y escala el
+  arco del lado interno (15 %–65 %) para que la cima quede en el arco pedido. Así una horma delgada puesta en estándar
+  no hace meseta, la cima no se corre y el arco puede bajar de copa + 6 (con copa 14 no baja de ~14: aviso
+  `#avisoArcoSube`). Prueba 22 "Copa y arco por capas". Comparado con LutraCAD (capturas de costado: copa 10 → 14 con
+  el arco igual, 17,09 mm). Las hormas sin capas siguen con `curvaAlturas`.
 - (Antes) Arco de la Guía de tallas (2026-11-17, Ernesto eligió la propuesta "C1" vista de costado): lado interno 100 % recto a
   14,6 mm desde el talón hasta el 16 %, sube parejo hasta 20 mm al 38 % (`valores.arcoPos` 0,38) y baja largo hasta
   2,6 mm al 66 %. Factores `relieve` reajustados (interno a ±0,2 mm de la curva; borde externo igual que antes, ±0,4 mm,

@@ -324,8 +324,8 @@
         <input type="file" id="archivoEscaneo" accept=".stl" multiple hidden>
       </div>
       <label class="auto" style="margin-top:8px"><input type="checkbox" id="verEscaneo" checked> Mostrar sobre la plantilla</label>
+      <!-- 2026-11-19 (Ernesto): solo abrir el escaneo; sin las medidas del pie ni "Usar las medidas del escaneo" -->
       <table class="medidas"><tbody id="medidasEscaneo"></tbody></table>
-      <button id="aplicarEscaneo" class="ancho-total" style="margin-top:8px" hidden>Usar las medidas del escaneo</button>
     </section>
     <section data-en="base">
       <h2>Muestra 2D</h2>
@@ -366,7 +366,7 @@
       <h2>Plantilla</h2>
       <div class="fila ancha"><label for="medidaDesde">Medida desde</label><select id="medidaDesde" title="Guía de tallas: el largo sale del cuadro según la talla. Muestra o escaneo: el largo sale del pie o de la muestra.">
         <option value="guia">Guía de tallas</option><option value="muestra">Muestra o escaneo</option></select></div>
-      <div class="fila ancha"><label for="producto">Método de producción</label><select id="producto" title="Como LutraCAD: el módulo 3 es EVA (fresado) o Imprimir (impresión 3D). En EVA el largo de la guía de tallas lleva 5 mm más para pulir"></select></div>
+      <div class="fila ancha"><label for="producto">Método de producción</label><select id="producto" title="Como LutraCAD: el módulo 3 es EVA (fresado) o Imprimir (impresión 3D)."></select></div>
       <!-- tipo de diseño con botones, como LutraCAD: un clic elige (Ernesto, 2026-11-16); el desplegable queda oculto -->
       <div class="fila tipo-diseno"><span class="etiqueta" id="etTipoDiseno">Tipo de diseño</span>
         <div class="botones-tipo" role="radiogroup" aria-labelledby="etTipoDiseno" id="botonesTipo"></div>
@@ -379,8 +379,20 @@
           <button type="button" class="st-boton" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="etTalla"><span class="st-actual"></span><span class="st-flecha" aria-hidden="true">▾</span></button>
           <ul class="st-lista" role="listbox" aria-labelledby="etTalla" hidden></ul>
         </div></div>
+      <!-- Margen para pulir (Ernesto, 2026-11-19): desplegable con interruptor, como "Aplanar el antepié" de LutraCAD.
+           Alarga solo la punta; el largo de arriba sigue siendo el de la talla -->
+      <details class="caja-opcion" id="cajaMargen"><summary><span class="co-titulo">Margen para pulir</span><span class="co-estado" id="estadoMargen">no</span></summary>
+        <div class="co-cuerpo">
+          <label class="interruptor"><input type="checkbox" id="margenActivo" role="switch"><span class="int-pista" aria-hidden="true"></span> Margen para pulir en la punta</label>
+          <div class="fila"><label for="margenMm">En la punta</label><span class="campo"><input type="number" id="margenMm" min="0" max="15" step="0.5" value="5"><span class="unidad">mm</span></span></div>
+          <div class="fila"><label for="margenLados">A cada costado</label><span class="campo"><input type="number" id="margenLados" min="0" max="10" step="0.5" value="3"><span class="unidad">mm</span></span></div>
+          <div class="fila"><label for="margenTalon">Retropié (costados y atrás)</label><span class="campo"><input type="number" id="margenTalon" min="0" max="10" step="0.5" value="0"><span class="unidad">mm</span></span></div>
+          <p class="nota">Se suma para pulir al armar (muestras en EVA o impresas), con guía de tallas o con muestra. El borde sale como una banda seguida: a los costados del retropié y atrás del talón, la medida del retropié; a los costados del antepié y en la punta, las del antepié; en el arco pasa suave de una a otra. El relieve no cambia.</p>
+        </div></details>
     </section>
-    <section data-en="base diseno produccion exportar" class="medidas-alturas">
+    <!-- 2026-11-19 (Ernesto): fuera de 3. EVA/Imprimir y 4. Exportar, donde ya no se edita -->
+    <!-- 2026-11-19 (Ernesto): solo en 2. Diseño (antes también en 1. Base) -->
+    <section data-en="diseno" class="medidas-alturas">
       <h2 id="tituloMedidas">Medidas y alturas</h2>
       <div class="fila"><label for="largo">Largo</label><span class="campo"><input type="number" id="largo" min="150" max="360" step="0.5"><span class="unidad">mm</span></span>
         <p class="auto nota-largo" id="notaLargo" hidden></p></div>
@@ -416,17 +428,29 @@
         <input type="number" id="corrApiceIzq" step="1" min="-40" max="40" value="0" aria-label="Mover ápice, pie izquierdo (mm)">
         <input type="number" id="corrApiceDer" step="1" min="-40" max="40" value="0" aria-label="Mover ápice, pie derecho (mm)"></div>
       <p class="nota-modulo">En mm. Suben o bajan solo el arco, sin cambiar la copa, el talón ni el antepié.</p>
+      <!-- Alza (Ernesto, 2026-11-19): sube toda la plantilla en el talón (talonera) o en todo el largo; por pie -->
+      <div class="corr-fila"><label for="alzaIzq">Alza (mm)</label>
+        <input type="number" id="alzaIzq" step="0.5" min="0" max="15" value="0" aria-label="Alza, pie izquierdo (mm)">
+        <input type="number" id="alzaDer" step="0.5" min="0" max="15" value="0" aria-label="Alza, pie derecho (mm)"></div>
+      <div class="fila"><label for="alzaTipo">Tipo de alza</label><span class="campo"><select id="alzaTipo">
+        <option value="talon">De talón (baja a 0 antes de los metatarsianos)</option>
+        <option value="completa">Completa (pareja del talón a la punta)</option>
+      </select></span></div>
+      <p class="nota-modulo">El alza sube talón, copa y arco juntos; la base no cambia.</p>
     </section>
     <section data-en="diseno">
       <h2>Elementos</h2>
-      <select id="agregarElemento" class="ancho-total" aria-label="Agregar elemento"><option value="">+ Agregar elemento…</option></select>
+      <!-- 2026-11-19 (Ernesto): ventana con los dibujos de los elementos, como LutraCAD; la lista queda oculta y la usa la ventana -->
+      <button id="abrirElementos" class="ancho-total boton-agregar" aria-haspopup="dialog">+ Agregar elemento…</button>
+      <select id="agregarElemento" hidden aria-hidden="true" tabindex="-1"><option value="">+ Agregar elemento…</option></select>
       <div class="combos">
         <select id="combinacion" aria-label="Combinaciones guardadas"><option value="">Combinaciones guardadas…</option></select>
         <button id="aplicarCombo" title="Poner los elementos de la combinación elegida">Aplicar</button>
         <button id="guardarCombo" title="Guardar los elementos actuales con un nombre">Guardar…</button>
         <button id="borrarCombo" title="Borrar la combinación elegida" aria-label="Borrar la combinación elegida">×</button>
       </div>
-      <label class="auto juntos"><input type="checkbox" id="moverJuntos" checked> Mover igual en los dos pies</label>
+      <!-- "Mover igual en los dos pies" va en cada elemento desde el 2026-11-19 -->
+
       <div id="listaElementos"></div>
     </section>
     <!-- módulo 3 como LutraCAD (2026-11-17): EVA (fresado) o Imprimir (impresión 3D), según el método de producción -->
@@ -454,6 +478,8 @@
         <button id="abrirReceta">Abrir receta…</button>
         <input type="file" id="archivoReceta" accept=".json,application/json" hidden>
       </div>
+      <!-- 2026-11-19 (Ernesto): elegir la carpeta donde se guardan el STL y el G-code; la copia del proyecto se guarda igual -->
+      <label class="auto"><input type="checkbox" id="elegirCarpeta" checked> Preguntar en qué carpeta guardar el STL y el G-code</label>
       <div class="mensaje" id="mensaje"></div>
     </section>
   </aside>
@@ -534,6 +560,14 @@
     <div class="ayuda">Arrastrar: mover · Clic derecho + arrastrar: girar · Rueda: acercar · Ctrl+arrastrar elemento: girarlo · Teclas: 1–5 vistas, M medir, R regla, A alturas, Ctrl+Z deshacer</div>
   </div>
 </main>
+<dialog id="ventanaElementos" class="ventana-elementos" aria-labelledby="veTitulo">
+  <div class="ve-cab">
+    <h2 id="veTitulo">Agregar elemento</h2>
+    <input type="search" id="veBuscar" placeholder="Buscar elemento…" aria-label="Buscar elemento">
+    <button id="veCerrar" aria-label="Cerrar">×</button>
+  </div>
+  <div class="ve-cuerpo" id="veLista"></div>
+</dialog>
 <script type="module" src="app.js"></script>
 </body>
 </html>

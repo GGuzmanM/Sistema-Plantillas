@@ -93,7 +93,9 @@ export function sintetizar({ cont, I, E, f, molde, alisar = 2 }) {
 export function evaluar(datos, op, largo, p) {
   const h = prepararHorma(datos, { antepie: 1.5, copa: 10 }, op);
   const pp = p ? p(h.ref) : { copa: h.ref.copa, antepie: h.ref.antepie, arco: h.ref.arco };
-  const g = generar(h, { largo, canto: 1.2, lado: 'izq', arcoPos: h.ref.arcoPos, ...pp });
+  // sin capas (2026-11-19): con las alturas propias la conversión vieja deja la horma tal cual; las capas toman como
+  // punto de partida la copa aprobada de la horma (10), no la de la captura
+  const g = generar({ ...h, partes: undefined }, { largo, canto: 1.2, lado: 'izq', arcoPos: h.ref.arcoPos, ...pp });
   const N = 100, sil = new Array(N + 1).fill(0), ext = new Array(N + 1).fill(null), xm = new Array(N + 1).fill(Infinity);
   for (let q = 0; q < g.x.length; q++) { const k = Math.round(g.y[q] / largo * N); if (k >= 0 && k <= N) sil[k] = Math.max(sil[k], g.z[q]); }
   for (let i = 0; i < g.ns; i++) { const q = i * g.nr, k = Math.round(g.y[q] / largo * N); if (k >= 0 && k <= N && g.x[q] < 0 && g.x[q] < xm[k]) { xm[k] = g.x[q]; ext[k] = g.z[q]; } }
