@@ -56,6 +56,10 @@ const formas = Object.fromEntries(catalogo.map(e => [e.id, prepararElemento(e)])
 // (e.caja = { izq, der }, la misma forma que la caja de la biblioteca: { u0, u1, v0, v1, nf, nc, d }). Reemplaza a la
 // caja de la biblioteca solo en este diseño. Las formas se guardan por caja para no rehacerlas en cada dibujo.
 let cajaEl = null;   // caja abierta: { i (elemento), pie, herr, sel, hist, lazo }
+// escaneo o muestra elegidos para correrlos o girarlos con el ratón (2026-11-19): { tipo: 'escaneo', pie } | { tipo: 'muestra' }
+let objElegido = null, modoObj = 'mover';
+// escaneo y muestra de cada proyecto ya abierto en esta sesión (clave "diseñador/carpeta"); ver crearInicio
+const archivosAbiertos = new Map(); let claveArchivos = null;
 const formasCaja = new Map();
 function formaConCaja(e, pie) {
   const c = e.caja?.[pie], base = formas[e.id];
@@ -1248,7 +1252,7 @@ function actualizar() {
       lista.push(malla(lam ? lamina(v.g) : v.g, v.ox, v.al), contornoPlantilla(v.g, v.ox));
       if (lam) lista.push(huellaEnPiso(v.g, v.ox));
       // con el mapa de ajuste el escaneo no se dibuja: taparía los colores
-      if (v.al && $('verEscaneo').checked && modoMapa !== 'ajuste') lista.push(escaneoSobre(v.al, v.ox));
+      if (v.al && $('verEscaneo').checked && modoMapa !== 'ajuste') lista.push(escaneoSobre(v.al, v.ox, objElegido?.tipo === 'escaneo' && objElegido.pie === v.pie));
     }
     visor.poner(lista);
     if (primeraVez || cambioPies) {
@@ -1280,11 +1284,17 @@ function alinearEscaneo(es, g, apoyo) {
   const I1 = centroPlantilla(g, 0.15), I2 = centroPlantilla(g, 0.7);
   const giro = Math.atan2(I2[0] - I1[0], I2[1] - I1[1]) - Math.atan2(S2[0] - S1[0], S2[1] - S1[1]);
   const c = Math.cos(giro), s = Math.sin(giro), { pos, nor, idx } = es.malla;
+  // corrido y girado a mano (Ernesto, 2026-11-19, como "Girar" de LutraCAD): es.ajuste = { dx, dy (mm), giro (rad, a la
+  // izquierda en la vista Arriba) }, alrededor del medio del pie ya alineado. El contacto total lo sigue.
+  const aj = es.ajuste ?? { dx: 0, dy: 0, giro: 0 }, ca = Math.cos(aj.giro), sa = Math.sin(aj.giro);
+  const Sm = [m.centro(0.45) - S1[0], 0.45 * m.largo - S1[1]], Cm = [Sm[0] * c + Sm[1] * s + I1[0], -Sm[0] * s + Sm[1] * c + S1[1]];
   const P = new Float32Array(pos.length), N = new Float32Array(nor.length);
   for (let i = 0; i < pos.length; i += 3) {
     const a = pos[i] - S1[0], b = pos[i + 1] - S1[1];
-    P[i] = a * c + b * s + I1[0]; P[i + 1] = -a * s + b * c + S1[1]; P[i + 2] = pos[i + 2] + apoyo;
-    N[i] = nor[i] * c + nor[i + 1] * s; N[i + 1] = -nor[i] * s + nor[i + 1] * c; N[i + 2] = nor[i + 2];
+    const x0 = a * c + b * s + I1[0] - Cm[0], y0 = -a * s + b * c + S1[1] - Cm[1];
+    P[i] = x0 * ca - y0 * sa + Cm[0] + aj.dx; P[i + 1] = x0 * sa + y0 * ca + Cm[1] + aj.dy; P[i + 2] = pos[i + 2] + apoyo;
+    const n0 = nor[i] * c + nor[i + 1] * s, n1 = -nor[i] * s + nor[i + 1] * c;
+    N[i] = n0 * ca - n1 * sa; N[i + 1] = n0 * sa + n1 * ca; N[i + 2] = nor[i + 2];
   }
   // grilla: en cada celda, lo más bajo del escaneo (la planta), por triángulos
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
@@ -1315,13 +1325,15 @@ function alinearEscaneo(es, g, apoyo) {
     let s = 0, sw = 0; for (let k = 0; k < 4; k++) if (isFinite(v[k])) { s += w[k] * v[k]; sw += w[k]; }
     return sw > 0.15 ? s / sw : null;
   };
-  return { P, N, idx, altura };
+  // centro: donde se gira a mano (el medio del pie, ya corrido)
+  return { P, N, idx, altura, centro: [Cm[0] + aj.dx, Cm[1] + aj.dy] };
 }
-function escaneoSobre(al, ox) {
+function escaneoSobre(al, ox, elegido = false) {
   const P = new Float32Array(al.P);
   if (ox) for (let i = 0; i < P.length; i += 3) P[i] += ox;
   const col = new Float32Array(P.length);
-  for (let i = 0; i < col.length; i += 3) col.set([0.3, 0.52, 0.88], i);
+  // elegido (para correrlo o girarlo): verde, como LutraCAD
+  for (let i = 0; i < col.length; i += 3) col.set(elegido ? [0.25, 0.78, 0.35] : [0.3, 0.52, 0.88], i);
   return { pos: P, nor: al.N, idx: al.idx, col, alfa: 0.72 };
 }
 function pintarEscaneo() {
@@ -1871,6 +1883,7 @@ if (visor) {
   visor.alClic((px, py, ev) => {
     if (lc) return;   // editando la línea de corte: los clics son de la edición
     if (cajaEl && !midiendo && !cortando && !reglando) return;   // con la caja del elemento abierta, igual
+    if (objElegido?.tipo === 'muestra' && !midiendo && !cortando && !reglando) return;   // moviendo la muestra, igual
     if (clicDeRegla) { clicDeRegla = false; return; }   // fue elegir o agarrar una cota, no un clic de herramienta
     if (reglaElegida) { reglaElegida = null; visor.pedir(); }   // clic en otro lado: la cota deja de estar elegida
     if (cortando) {
@@ -1899,6 +1912,8 @@ if (visor) {
     if (lc) return agarrarCorte(px, py, ev);
     // con la caja abierta, arrastrar mueve los puntos (o gira la vista); el elemento no se corre
     if (cajaEl) return agarrarCajaEl(px, py, ev);
+    // escaneo o muestra elegidos: arrastrar sobre ellos los corre o gira
+    if (objElegido && !fijoModulo()) { const r = agarrarObjeto(px, py); if (r || objElegido.tipo === 'muestra') return r; }
     const r = agarrarRegla(px, py); if (r) return r;
     if (reglaElegida) { reglaElegida = null; visor.pedir(); }
     return agarrarElemento(px, py, ev);
@@ -2469,6 +2484,8 @@ function pintarPanelElemento() {
   const e = elegidos[activo];
   // la caja se cierra sola si se elige otro elemento, otro pie o se suelta el elemento
   if (cajaEl && (!si || cajaEl.i !== activo || cajaEl.pie !== activoPie)) soltarCajaEl();
+  // al elegir un elemento se suelta el escaneo o la muestra elegidos
+  if (si && objElegido) { objElegido = null; pintarPanelObjeto(); pedir(); }
   $('panelElemento').hidden = !si; pintarPanelPlantilla(); if (!si) return;
   $('panelElemento').classList.toggle('con-caja', !!cajaEl);
   $('peCaja').classList.toggle('activo', !!cajaEl); $('peCaja').setAttribute('aria-pressed', !!cajaEl);
@@ -2717,6 +2734,83 @@ function pintarPanelPlantilla() {
   $('ppReflejar').title = `La plantilla ${nombrePie(a)} queda igual a la ${nombrePie(de)}, en espejo`;
   $('ppNota').textContent = `Reflejar copia a la ${nombrePie(a)} solo la plantilla: alturas, línea de corte y altura del borde. Los elementos no cambian (cada uno se refleja desde su panel). Se deshace con Ctrl+Z.`;
 }
+// ---- Escaneo y muestra: correr y girar con el ratón (Ernesto, 2026-11-19, como "Girar" de LutraCAD) ----
+// Clic en el escaneo lo elige (se pinta verde) y aparece su panel: Mover o Girar, y arrastrar sobre él lo corre o lo
+// gira alrededor del medio del pie. La muestra se elige con "Mover o girar la muestra…" (está debajo de la plantilla) y
+// se arrastra sobre la plantilla. Nada de esto cambia la plantilla; el contacto total sigue al escaneo.
+const nombrePieO = p => (p === 'izq' ? 'izquierdo' : 'derecho');
+function pintarPanelObjeto() {
+  const o = objElegido;
+  $('panelObjeto').hidden = !o; if (!o) return;
+  $('poNombre').textContent = o.tipo === 'escaneo' ? `Escaneo del pie ${nombrePieO(o.pie)}` : 'Muestra';
+  $('poNota').textContent = o.tipo === 'escaneo'
+    ? 'Arrastre sobre el escaneo para correrlo o girarlo. El contacto total lo sigue. La plantilla no cambia.'
+    : 'Mire desde Arriba y arrastre sobre la plantilla para correr o girar el dibujo de la muestra. La plantilla no cambia.';
+  document.querySelectorAll('[data-modo-obj]').forEach(b => b.classList.toggle('activo', b.dataset.modoObj === modoObj));
+}
+function elegirObjeto(o) {
+  if (o && cajaEl) cerrarCajaEl();
+  if (o && (o.tipo !== objElegido?.tipo || o.pie !== objElegido?.pie)) modoObj = 'mover';   // cada vez que se elige, empieza en Mover
+  objElegido = o;
+  if (o) { activo = -1; plantillaElegida = null; refrescarPosiciones(); pintarPanelPlantilla(); if (o.tipo === 'muestra') visor?.vista('arriba'); }
+  pintarPanelObjeto(); pedir();
+}
+// pie cuyo escaneo (a la vista) está bajo el ratón, o null
+function escaneoBajo(px, py) {
+  if (!$('verEscaneo').checked || modoMapa === 'ajuste') return null;
+  const P = pisoDelRaton(px, py); if (!P) return null;
+  for (const v of enVista) if (v.al && v.al.altura(P[0] - v.ox, P[1]) != null) return v.pie;
+  return null;
+}
+function agarrarObjeto(px, py) {
+  const o = objElegido, P0 = pisoDelRaton(px, py); if (!P0) return null;
+  let v, C, poner, leer;
+  if (o.tipo === 'escaneo') {
+    if (escaneoBajo(px, py) !== o.pie) return null;   // fuera del escaneo elegido: la vista se mueve
+    const es = escaneos[o.pie]; v = enVista.find(e => e.pie === o.pie); if (!es || !v?.al) return null;
+    es.ajuste ??= { dx: 0, dy: 0, giro: 0 };
+    C = [v.al.centro[0] + v.ox, v.al.centro[1]];
+    leer = () => ({ ...es.ajuste });
+    poner = (a0, dX, dY, dG) => { es.ajuste = { dx: a0.dx + dX, dy: a0.dy + dY, giro: a0.giro + dG }; };
+  } else {
+    if (!muestra) return null;
+    const t = puntoDelClic(px, py); if (!t) return null;   // fuera de la plantilla: la vista se mueve
+    v = enVista.find(e => e.pie === t.pie);
+    const sgn = v.pie === 'izq' ? 1 : -1;   // positivo = hacia interno (en el derecho, hacia −X)
+    // la muestra gira alrededor del centro del talón (como en dibujarMuestra)
+    C = [centroPlantilla(v.g, 0.15)[0] + v.ox + sgn * (num('muestraX') || 0), 0.15 * muestra.a.largo + (num('muestraY') || 0)];
+    leer = () => ({ x: num('muestraX') || 0, y: num('muestraY') || 0, g: num('muestraGiro') || 0 });
+    // el giro de la muestra es en grados, positivo = punta hacia interno (en la vista, a la derecha en el izquierdo)
+    poner = (a0, dX, dY, dG) => {
+      $('muestraX').value = Math.round((a0.x + sgn * dX) * 2) / 2; $('muestraY').value = Math.round((a0.y + dY) * 2) / 2;
+      $('muestraGiro').value = Math.round((a0.g - sgn * dG * 180 / Math.PI) * 2) / 2;
+    };
+  }
+  const a0 = leer(), ang0 = Math.atan2(P0[1] - C[1], P0[0] - C[0]);
+  document.querySelector('.visor').classList.add('moviendo');
+  return {
+    mover(x, y) {
+      const P = pisoDelRaton(x, y); if (!P) return;
+      if (modoObj === 'girar') {
+        let d = Math.atan2(P[1] - C[1], P[0] - C[0]) - ang0; d = Math.atan2(Math.sin(d), Math.cos(d));
+        // el giro es alrededor del centro; se corrige el corrimiento para que el centro no se mueva
+        poner(a0, 0, 0, d);
+      } else poner(a0, P[0] - P0[0], P[1] - P0[1], 0);
+      if (o.tipo === 'escaneo') pedir(); else visor.pedir();
+    },
+    soltar() { document.querySelector('.visor').classList.remove('moviendo'); },
+  };
+}
+document.querySelectorAll('[data-modo-obj]').forEach(b => b.addEventListener('click', () => { modoObj = b.dataset.modoObj; pintarPanelObjeto(); }));
+$('poListo').addEventListener('click', () => elegirObjeto(null));
+$('poCerrar').addEventListener('click', () => elegirObjeto(null));
+$('poLugar').addEventListener('click', () => {
+  const o = objElegido; if (!o) return;
+  if (o.tipo === 'escaneo') { if (escaneos[o.pie]) escaneos[o.pie].ajuste = null; pedir(); }
+  else { for (const id of ['muestraX', 'muestraY', 'muestraGiro']) $(id).value = 0; visor?.pedir(); }
+});
+$('moverMuestra').addEventListener('click', () => { if (muestra) elegirObjeto(objElegido?.tipo === 'muestra' ? null : { tipo: 'muestra' }); });
+
 function elegirPlantilla(px, py) {
   const p = puntoDelClic(px, py);
   // sobre un elemento: el clic es del elemento (ya quedó elegido al agarrarlo)
@@ -2724,8 +2818,12 @@ function elegirPlantilla(px, py) {
     const v = enVista.find(e => e.pie === p.pie), g = v.g; let q0 = 0, dmin = Infinity;
     for (let q = 0; q < g.x.length; q++) { const dd = (g.x[q] - p.x) ** 2 + (g.y[q] - p.y) ** 2; if (dd < dmin) { dmin = dd; q0 = q; } }
     if (g.aportes.some(ap => ap[q0] > 0.3)) { plantillaElegida = null; pintarPanelPlantilla(); return; }
-    activo = -1; refrescarPosiciones();
   }
+  // sobre el escaneo (a la vista): el clic lo elige para correrlo o girarlo (2026-11-19)
+  const pieEsc = escaneoBajo(px, py);
+  if (pieEsc) { elegirObjeto({ tipo: 'escaneo', pie: pieEsc }); return; }
+  if (objElegido) elegirObjeto(null);
+  if (p) { activo = -1; refrescarPosiciones(); }
   plantillaElegida = p ? p.pie : null; pintarPanelPlantilla();
 }
 function reflejarPlantilla(de) {
@@ -3305,6 +3403,7 @@ document.addEventListener('keydown', ev => {
     }
     if (ev.key === 'Enter') { terminarCorte(true); return; }
   }
+  if (objElegido && !enCampo && ev.key === 'Escape') { ev.preventDefault(); elegirObjeto(null); return; }
   // caja del elemento abierta: Esc la termina, Ctrl+Z deshace un paso de la caja
   if (cajaEl && !enCampo) {
     if (ev.key === 'Escape') { ev.preventDefault(); cerrarCajaEl(); return; }
@@ -3347,10 +3446,26 @@ inicio = crearInicio({
   aplicarReceta: (r, nuevo) => {
     clearTimeout(tHistorial); tHistorial = null;   // lo que esperaba era del proyecto anterior (ya se guardó)
     if (lc) terminarCorte(false);
+    if (cajaEl) soltarCajaEl();
+    if (objElegido) { objElegido = null; pintarPanelObjeto(); }
+    // el escaneo y la muestra del proyecto que se deja quedan en memoria (2026-11-19, Ernesto: al volver a Inicio sin
+    // querer y abrir otra vez el proyecto se perdían). Solo mientras la página esté abierta; no se copian a ningún lado.
+    if (claveArchivos && (escaneos.izq || escaneos.der || muestra))
+      archivosAbiertos.set(claveArchivos, { izq: escaneos.izq, der: escaneos.der, muestra, muestrasCarpeta: [...muestrasCarpeta], verEscaneo: $('verEscaneo').checked });
+    const p = inicio?.proyecto?.(); claveArchivos = p ? p.disenador + '/' + p.carpeta : null;
     if (nuevo) limpiarPaciente(); else { escaneos.izq = null; escaneos.der = null; muestra = null; muestrasCarpeta = []; $('datosMuestra').hidden = true; pintarListaMuestras(); pintarEscaneo(); }
     aplicarReceta(r);
+    const guardado = !nuevo && claveArchivos ? archivosAbiertos.get(claveArchivos) : null;
+    if (guardado) {
+      escaneos.izq = guardado.izq; escaneos.der = guardado.der; $('verEscaneo').checked = guardado.verEscaneo;
+      pintarEscaneo(); document.querySelector('[data-herr=ajuste]').hidden = !(escaneos.izq || escaneos.der);
+      muestrasCarpeta = guardado.muestrasCarpeta;
+      if (guardado.muestra) ponerMuestra(guardado.muestra);
+      pintarListaMuestras(); pedir();
+    }
     historial.pila = []; historial.pos = -1; registrarHistorial();
     $('recuperar').hidden = true; autoguardarListo = true;
+    return !!guardado;
   },
   // proyecto nuevo: guía de tallas con su tipo (estándar) y arco neutro
   recetaNueva: paciente => ({ version: 1, producto: 'resina', horma: 'guia_tallas', tipoArco: 'neutro', paciente, elementos: [] }),

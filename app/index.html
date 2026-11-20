@@ -249,6 +249,11 @@
   .pe-pie { color: var(--suave); font-size: 12px; }
   #panelElemento > label { margin-top: 8px; }
   .pe-modos { grid-template-columns: repeat(4, 1fr); }
+  .po-modos { grid-template-columns: 1fr 1fr; }
+  #panelObjeto { border-top: 3px solid #3d8bd9; }
+  #panelObjeto .pp-cab { display: flex; align-items: center; justify-content: space-between; }
+  #panelObjeto .pp-cab button { border: 0; background: none; font-size: 18px; line-height: 1; cursor: pointer; color: #5d6878; padding: 0 2px; height: auto; }
+  #panelObjeto .pp-nota { color: #5d6878; font-size: 12px; margin: 6px 0 0; }
   .pe-modos button { font-size: 12px; padding: 0 4px; }
   .pe-numeros { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px; }
   .pe-numeros label { display: grid; gap: 2px; font-size: 12px; color: var(--suave); }
@@ -358,11 +363,10 @@
           </select>
         </div>
         <button id="contornoMuestra" class="ancho-total primario" style="margin-top:8px">Plantilla con la forma de la muestra</button>
-        <div class="posicion" style="grid-template-columns: 1fr 72px">
-          <label for="muestraX">Correr hacia interno (mm)</label><input type="number" id="muestraX" step="1" value="0">
-          <label for="muestraY">Correr hacia los dedos (mm)</label><input type="number" id="muestraY" step="1" value="0">
-          <label for="muestraGiro">Girar (°, + punta a interno)</label><input type="number" id="muestraGiro" step="1" value="0">
-        </div>
+        <!-- 2026-11-19 (Ernesto): en vez de los campos de correr y girar, se mueve con el ratón en el 3D (como Girar de
+             LutraCAD); los valores quedan guardados en estos campos ocultos -->
+        <input type="hidden" id="muestraX" value="0"><input type="hidden" id="muestraY" value="0"><input type="hidden" id="muestraGiro" value="0">
+        <button id="moverMuestra" class="ancho-total" style="margin-top:8px" title="Correr o girar el dibujo de la muestra con el ratón en la vista Arriba (no cambia la plantilla)">Mover o girar la muestra…</button>
         <button id="aplicarMuestra" class="ancho-total" style="margin-top:8px">Usar solo largo y ancho de la muestra</button>
       </div>
       <div id="estadoContorno" class="nota-contorno" hidden>
@@ -555,6 +559,19 @@
         <button id="peReflejar" title="Copia altura, posición, giro y tamaño de este pie al otro">Reflejar al otro pie</button>
         <button id="peBorrar" title="Quitar el elemento (Supr)">Borrar</button>
         <button id="peBiblioteca" class="primario" title="Guardar este elemento, con su tamaño, giro y posición, como elemento propio">Añadir a la biblioteca</button>
+      </div>
+    </div>
+    <!-- escaneo o muestra elegidos (Ernesto, 2026-11-19, como "Girar" de LutraCAD): se corren o giran con el ratón -->
+    <div class="accion-corte" id="panelObjeto" hidden>
+      <div class="pp-cab"><b id="poNombre"></b><button id="poCerrar" title="Terminar (Esc)" aria-label="Cerrar">×</button></div>
+      <div class="modos-corte po-modos" role="group" aria-label="Qué hace arrastrar">
+        <button data-modo-obj="mover" class="activo" title="Arrastrar lo corre">Mover</button>
+        <button data-modo-obj="girar" title="Arrastrar lo gira alrededor de su centro">Girar</button>
+      </div>
+      <p class="pp-nota" id="poNota"></p>
+      <div class="pe-botones">
+        <button id="poLugar" title="Deshacer lo corrido y girado a mano">Volver a su lugar</button>
+        <button id="poListo" class="primario">Listo</button>
       </div>
     </div>
     <div class="accion-corte" id="accionCorte" hidden>

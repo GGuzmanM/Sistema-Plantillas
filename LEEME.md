@@ -217,6 +217,16 @@ mira de frente se vea claro.
 
 Ocultar la muestra (2026-11-13): botón "👁 Muestra" en la barra de vistas, junto a Izquierdo y Derecho. Aparece
 solo con una muestra abierta y va junto con la casilla "Mostrar debajo (vista Arriba)" de la sección Muestra 2D.
+"👁 Escaneo" (2026-11-19) hace lo mismo con el escaneo, en cualquier módulo.
+
+Correr y girar el escaneo y la muestra con el ratón (2026-11-19, Ernesto, como "Girar" de LutraCAD): clic sobre el
+escaneo lo elige (se pinta verde) y aparece su panel con Mover / Girar; arrastrar sobre él lo corre o lo gira
+alrededor del medio del pie (`escaneos[pie].ajuste` = { dx, dy, giro }, aplicado en `alinearEscaneo`, así el contacto
+total lo sigue; no se guarda en la receta). "Mover o girar la muestra…" (sección Muestra 2D) hace lo mismo con el
+dibujo de la muestra, arrastrando sobre la plantilla en la vista Arriba; reemplaza a los campos "Correr hacia interno",
+"Correr hacia los dedos" y "Girar", que quedan ocultos (`muestraX`, `muestraY`, `muestraGiro`). "Volver a su lugar"
+quita lo corrido y girado; Esc o "Listo" terminan. Con el escaneo a la vista, un clic sobre él lo elige en vez de la
+plantilla (para elegir la plantilla debajo, ocultar el escaneo con "👁 Escaneo").
 
 Valores por pie (2026-11-12, como el candado de LutraCAD): copa, antepié, altura y ubicación del arco y canto
 tienen un candado al lado. Cerrado (por defecto) = el mismo valor en los dos pies. Abierto = el primer casillero es

@@ -281,9 +281,12 @@ export function crearInicio({ aplicarReceta, recetaNueva, mensaje, alAbrir, bibl
     const h = await carpetaEn(raiz, ['Diseños', dis, carpeta]), datos = await leerJSON(h, 'proyecto.json');
     if (!datos?.receta) { alert('Este proyecto no tiene diseño guardado (falta proyecto.json).'); return; }
     proyecto = { disenador: dis, carpeta, dir: h, datos };
-    try { aplicarReceta(datos.receta, false); } catch (e) { alert('No se pudo abrir el diseño: ' + e.message); return; }
+    let repuestos = false;
+    try { repuestos = aplicarReceta(datos.receta, false); } catch (e) { alert('No se pudo abrir el diseño: ' + e.message); return; }
     mostrar(false); alAbrir?.(proyecto, false);
-    mensaje(`Proyecto abierto: ${datos.paciente} (${dis}). ${datos.receta.escaneo ? 'El escaneo y la muestra se vuelven a abrir desde la carpeta del paciente.' : ''}`);
+    // el escaneo y la muestra no se guardan en el proyecto: si ya se habían abierto en esta sesión vuelven solos
+    mensaje(`Proyecto abierto: ${datos.paciente} (${dis}). ` + (repuestos ? 'Se volvieron a poner el escaneo y la muestra que tenía abiertos.'
+      : 'Para ver el escaneo y la muestra, use "Abrir carpeta del paciente…".'));
   }
 
   // ---- Guardado del diseño en su proyecto (solo, al cambiar) ----
