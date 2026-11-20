@@ -511,6 +511,28 @@ for (const lado of ['izq', 'der']) {
   prueba('Margen para pulir', bien, texto.join(' · '));
 }
 
+// 26. Mover ápice (2026-11-19, Ernesto: el arco entero, también su comienzo): con 10 mm la cima y la mitad de la subida
+// (del lado del talón) se corren ~10 mm hacia los dedos; la copa del talón (antes del 12 %) y el antepié (después del
+// 65 %) no cambian; sólido cerrado y sin pliegues nuevos.
+{
+  const L = 250, p0 = { largo: L, antepie: 1.5, copa: 10, arco: 20, lado: 'izq', acabado };
+  const g0 = generar(horma, p0), g = generar(horma, { ...p0, moverApice: 10 });
+  // perfil: lo más alto de la cara de arriba en cada mm del largo
+  const perfil = gg => { const s = new Array(L + 1).fill(0); for (let q = 0; q < gg.y.length; q++) { const k = Math.round(gg.y[q]); if (k >= 0 && k <= L) s[k] = Math.max(s[k], gg.z[q]); } return s; };
+  const lugares = s => {
+    let ap = Math.round(0.25 * L); for (let k = ap; k <= 0.55 * L; k++) if (s[k] > s[ap]) ap = k;
+    let mn = ap; for (let k = Math.round(0.12 * L); k < ap; k++) if (s[k] < s[mn]) mn = k;
+    const mitad = (s[mn] + s[ap]) / 2; let k = ap; while (k > mn && s[k] > mitad) k--;
+    return { ap, sube: k };
+  };
+  const s0 = perfil(g0), s1 = perfil(g), a = lugares(s0), b = lugares(s1);
+  let fuera = 0; for (let k = 0; k <= L; k++) if (k < 0.1 * L || k > 0.67 * L) fuera = Math.max(fuera, Math.abs(s1[k] - s0[k]));
+  const rev = revisarSolido(solido(g)), l = lisura(g), l0 = lisura(g0);
+  const dA = b.ap - a.ap, dS = b.sube - a.sube;
+  const bien = Math.abs(dA - 10) <= 2 && Math.abs(dS - 10) <= 2 && fuera < 0.05 && rev.cerrado && l.pliegueArriba <= l0.pliegueArriba + 1;
+  prueba('Mover ápice: corre todo el arco', bien, `cima ${a.ap} → ${b.ap} mm (${dA}), mitad de la subida ${a.sube} → ${b.sube} mm (${dS}), copa y antepié cambian ${n2(fuera)} mm, ${rev.cerrado ? 'cerrado' : 'abierto'}, pliegues ${n1(l.pliegueArriba)} (antes ${n1(l0.pliegueArriba)})`);
+}
+
 // 25. Caja del elemento en el diseño (Ernesto, 2026-11-19): con conUV el motor dice de qué (u, v) del elemento viene cada
 // punto de la malla (para dibujar y arrastrar la caja). Corrido 10 mm hacia los dedos, u = (y − 10) / largo; pedir los
 // (u, v) no cambia la plantilla; sin conUV no se guardan.

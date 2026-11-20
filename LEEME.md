@@ -386,7 +386,9 @@ de ejemplo el trazo mide 0,25 a 0,57 mm. La foto de una plantilla (sin trazo) no
   Ernesto: **Corrección del arco medial** = campana gaussiana a lo largo (sigma 12 % del largo: del ~10 % al ~59 %)
   centrada en la cima del arco, solo hacia el lado interno (`suave((v−0,3)/0,6)`), sumada después de las alturas
   (motor: `p.arcoMedial`, paso 2c); talón y antepié no cambian. **Mover ápice** = corre la cima esos mm hacia los
-  dedos (motor: `p.moverApice`, en `correrArco`), sin mover el comienzo ni el final del arco. Pendientes, cuando haya
+  dedos (motor: `p.moverApice`, en `correrArco`). Desde 2026-11-19 (Ernesto) corre el arco entero a la par: desde su
+  comienzo (12 % del largo antes de la cima) hasta la cima; entre la copa del talón (12 %) y el comienzo, y entre la
+  cima y el 65 %, se estira o encoge suave. Copa y antepié no cambian. Pendientes, cuando haya
   capturas: ancho de la plantilla, ancho del talón, altura de la cazoleta, elevación del talón, suave.
 - **G-code para la fresadora de EVA** (2026-11-17, `motor/fresado.js`, botón "G-code para la fresadora (EVA)" en
   Exportar, solo con productos sin acabado de resina). Máquina: Sensor Medica VX1R (2021) con EdingCNC 4.03.55, CPU5A,

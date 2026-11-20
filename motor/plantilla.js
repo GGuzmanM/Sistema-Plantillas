@@ -613,20 +613,34 @@ export function generar(h, p) {
   // (copa del talón y antepié) no cambia. Curva de Hermite monótona: sin quiebres ni pliegues.
   const correrArco = (() => {
     const N = h.ref.arcoPos ?? 0.4;
-    // "Mover ápice" como LutraCAD (2026-11-17): p.moverApice mm hacia los dedos, sobre la ubicación pedida o la de la horma
-    const pos = p.arcoPos == null && !p.moverApice ? null : (p.arcoPos ?? N) + (p.moverApice ?? 0) / (p.largo || L);
-    if (pos == null || Math.abs(pos - N) < 1e-4) return y => y;
-    const a = 0.15, b = 0.65, T = Math.min(Math.max(pos, 0.28), 0.52);
-    const s1 = (N - a) / (T - a), s2 = (b - N) / (b - T), mT = 2 / (1 / s1 + 1 / s2);
     const herm = (t, y0, y1, v0, v1, m0, m1) => {
       const d = y1 - y0, u = (t - y0) / d, u2 = u * u, u3 = u2 * u;
       return (2 * u3 - 3 * u2 + 1) * v0 + (u3 - 2 * u2 + u) * d * m0 + (-2 * u3 + 3 * u2) * v1 + (u3 - u2) * d * m1;
     };
-    return y => {
-      const t = y / L;
-      if (t <= a || t >= b) return y;
-      return L * (t < T ? herm(t, a, T, a, N, 1, mT) : herm(t, T, b, N, b, mT, 1));
-    };
+    // ubicación pedida (p.arcoPos): la cima va a T; el comienzo (15 %) y el final (65 %) quedan donde estaban
+    let T = N, ubicar = t => t, cambia = false;
+    if (p.arcoPos != null && Math.abs(p.arcoPos - N) >= 1e-4) {
+      cambia = true;
+      const a = 0.15, b = 0.65; T = Math.min(Math.max(p.arcoPos, 0.28), 0.52);
+      const s1 = (N - a) / (T - a), s2 = (b - N) / (b - T), mT = 2 / (1 / s1 + 1 / s2);
+      ubicar = t => (t <= a || t >= b ? t : t < T ? herm(t, a, T, a, N, 1, mT) : herm(t, T, b, N, b, mT, 1));
+    }
+    // "Mover ápice" como LutraCAD (2026-11-17; 2026-11-19, Ernesto: también el comienzo del arco, "a la par"): el arco
+    // entero, desde su comienzo (12 % del largo antes de la cima) hasta la cima, se corre p.moverApice mm hacia los
+    // dedos sin cambiar su forma. Atrás, entre la copa del talón (12 %) y el comienzo del arco, se estira o se encoge;
+    // adelante, entre la cima y el 65 %, también. La copa y el antepié no cambian. Pendiente 1 en todos los nudos y
+    // tramos con pendiente media entre 0,5 y 2: monótona, sin pliegues.
+    let correr = t => t;
+    const d0 = (p.moverApice ?? 0) / (p.largo || L);
+    if (Math.abs(d0) > 1e-5) {
+      cambia = true;
+      const a = 0.12, b = 0.65, S = Math.max(T - 0.12, a + 0.02);
+      const d = Math.min(Math.max(d0, -0.5 * (S - a)), Math.min(S - a, 0.6 * (b - T)));
+      // de la plantilla nueva (t) a la de antes: nudos (a, a), (S + d, S), (T + d, T), (b, b)
+      correr = t => (t <= a || t >= b ? t : t < S + d ? herm(t, a, S + d, a, S, 1, 1) : t <= T + d ? t - d : herm(t, T + d, b, T, b, 1, 1));
+    }
+    if (!cambia) return y => y;
+    return y => L * ubicar(correr(y / L));
   })();
   const espejo = p.lado === 'der';
   // Ancho del talón propio (Ernesto, 2026-11-16): p.escalaTalon agranda o achica a lo ancho solo el talón, alrededor

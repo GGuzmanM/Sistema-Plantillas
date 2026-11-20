@@ -1054,7 +1054,10 @@ function malla(g, ox, al) {
     col.set(COLOR_PLANTILLA, 3 * q);
   }
   if (g.lamina) for (let q = n; q < nv; q++) col.set(COLOR_LAMINA, 3 * q);
-  if (!modoMapa && g.p.elementos?.length) {
+  // en Imprimir y Exportar la plantilla es un solo cuerpo, como LutraCAD (Ernesto, 2026-11-19): elementos y descargas ya
+  // son parte del sólido y se ven del mismo color que la plantilla
+  let unCuerpo = false; try { unCuerpo = fijoModulo(); } catch { /* al cargar, antes de que existan los módulos */ }
+  if (!modoMapa && g.p.elementos?.length && !unCuerpo) {
     // en cada punto, el elemento que más sube
     const quien = new Int16Array(n).fill(-1);
     for (let q = 0; q < n; q++) {
