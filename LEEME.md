@@ -98,7 +98,9 @@ Inicio, diseñadores y proyectos (2026-11-13, como la pantalla de clientes de Lu
   Los STL, la hoja y la receta se guardan en esa carpeta (ya no en Programa_Plantillas\salida). Sin proyecto abierto
   no se guarda nada: el mensaje lo indica.
 - Diseñadores: tarjetas con "Abrir" y "Nuevo diseñador" (sin clave). Proyectos: búsqueda por paciente, creado,
-  modificado, estado y "Abrir"; "+ Nuevo proyecto" con el nombre del paciente.
+  modificado, estado y "Abrir"; "+ Nuevo proyecto" con el nombre del paciente. "📁 Nuevo desde carpeta…"
+  (2026-11-19, Ernesto) crea el proyecto sin escribir el nombre: sale de la carpeta del paciente (sin el número del
+  final, como al abrir la carpeta) y después se cargan su escaneo y sus muestras.
 - Con un proyecto abierto, "Abrir carpeta del paciente" solo carga el escaneo y las muestras; el diseño se conserva
   (así se retoma un proyecto). Sin proyecto sigue empezando de cero.
 - Eliminar diseño (2026-11-14): botón "Eliminar" en la lista de proyectos del diseñador. Pide confirmar y no borra

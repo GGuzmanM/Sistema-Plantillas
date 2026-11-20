@@ -3356,6 +3356,7 @@ inicio = crearInicio({
   recetaNueva: paciente => ({ version: 1, producto: 'resina', horma: 'guia_tallas', tipoArco: 'neutro', paciente, elementos: [] }),
   mensaje,
   antesDeSalir: () => { if (lc) terminarCorte(true); volcarHistorial(); },
+  abrirCarpeta,   // "Nuevo desde carpeta": carga el escaneo y las muestras de la carpeta del paciente
   biblioteca: { catalogo: () => catalogo, miniatura: miniaturaElemento, recuadro: recuadroElemento, vista3D: vista3DElemento, aplicar: ponerElementosPropios, hormas: listaHormas,
                 aplicarHormas: ponerHormasPropias, editorHorma },
 });

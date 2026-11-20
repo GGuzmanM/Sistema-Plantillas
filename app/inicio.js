@@ -53,7 +53,7 @@ import { pintarBiblioteca } from './biblioteca.js';
 
 // biblioteca: { catalogo(), miniatura(def, canvas), aplicar(datos) } — aplicar suma los propios al programa
 // antesDeSalir(): pasa ya al guardado el último cambio del diseño que todavía esperaba (auditoría 2026-11-16)
-export function crearInicio({ aplicarReceta, recetaNueva, mensaje, alAbrir, biblioteca, antesDeSalir }) {
+export function crearInicio({ aplicarReceta, recetaNueva, mensaje, alAbrir, biblioteca, antesDeSalir, abrirCarpeta }) {
   let datosBib = { elementos: [], favoritos: [] };   // Biblioteca/elementos.json de la carpeta compartida
   let datosHormas = { hormas: [] };                   // Biblioteca/hormas.json (hormas propias y modificadas, 2026-11-17)
   async function cargarBiblioteca() {
@@ -204,6 +204,8 @@ export function crearInicio({ aplicarReceta, recetaNueva, mensaje, alAbrir, bibl
       <div class="nuevo-proyecto">
         <input type="text" id="nuevoPaciente" placeholder="Nombre del paciente" aria-label="Nombre del paciente del nuevo proyecto">
         <button class="primario" id="crearProyecto">+ Nuevo proyecto</button>
+        <button id="crearDesdeCarpeta" title="Elegir la carpeta del paciente: el proyecto toma el nombre de la carpeta y se cargan su escaneo y sus muestras">📁 Nuevo desde carpeta…</button>
+        <input type="file" id="archivoNuevoCarpeta" webkitdirectory multiple hidden>
       </div>
       <table class="proyectos"><thead><tr><th>Paciente</th><th>Creado</th><th>Modificado</th><th>Estado</th><th></th></tr></thead>
       <tbody>${lista.map(p => `<tr data-buscar="${esc(p.paciente.toLowerCase())}"><td>${esc(p.paciente)}</td><td>${fechaCorta(p.creado)}</td>
@@ -221,8 +223,11 @@ export function crearInicio({ aplicarReceta, recetaNueva, mensaje, alAbrir, bibl
       pintar();
     });
     let creando = false;
-    const crear = async () => {
-      const paciente = limpioNombre($('nuevoPaciente').value); if (!paciente) { $('nuevoPaciente').focus(); return; }
+    // archivos = carpeta del paciente (Nuevo desde carpeta): el nombre sale de la carpeta y después se cargan su escaneo y muestras
+    const crear = async (archivos = null) => {
+      const desdeCarpeta = archivos?.length ? (archivos[0].webkitRelativePath || '').split('/')[0].replace(/\s*-\s*\d{6,}\s*$/, '') : null;
+      const paciente = limpioNombre(desdeCarpeta ?? $('nuevoPaciente').value);
+      if (!paciente) { if (archivos) alert('No se pudo leer el nombre de la carpeta.'); else $('nuevoPaciente').focus(); return; }
       if (creando) return; creando = true;   // doble clic o Enter repetido: un solo proyecto
       try {
         antesDeSalir?.(); await guardarYa();   // lo pendiente del proyecto anterior va a su carpeta
@@ -236,6 +241,7 @@ export function crearInicio({ aplicarReceta, recetaNueva, mensaje, alAbrir, bibl
         const datos = { paciente, disenador, creado: ahora.toISOString(), modificado: ahora.toISOString(), estado: 'En diseño', exportes: [], receta: recetaNueva(paciente) };
         await escribir(h, 'proyecto.json', JSON.stringify(datos, null, 2));
         abrirNuevo(h, carpeta, datos, paciente);
+        if (archivos?.length && abrirCarpeta) await abrirCarpeta(archivos);
       } catch (e) { alert('No se pudo crear el proyecto: ' + e.message); }
       finally { creando = false; }
     };
@@ -244,8 +250,11 @@ export function crearInicio({ aplicarReceta, recetaNueva, mensaje, alAbrir, bibl
       aplicarReceta(datos.receta, true); mostrar(false); alAbrir?.(proyecto, true);
       mensaje(`Proyecto nuevo: ${paciente} (${disenador}). Abra la carpeta del paciente para cargar el escaneo y la muestra. El diseño se guarda solo.`);
     };
-    $('crearProyecto').onclick = crear;
+    $('crearProyecto').onclick = () => crear();
     $('nuevoPaciente').onkeydown = e => { if (e.key === 'Enter') crear(); };
+    // Nuevo desde carpeta (Ernesto, 2026-11-19): sin escribir el nombre; sale de la carpeta del paciente
+    $('crearDesdeCarpeta').onclick = () => $('archivoNuevoCarpeta').click();
+    $('archivoNuevoCarpeta').onchange = ev => { const fs = [...ev.target.files]; ev.target.value = ''; if (fs.length) crear(fs); };
   }
   // Eliminar un diseño (Ernesto, 2026-11-14): no se borra de una, se mueve a Papelera/<diseñador>/<proyecto> dentro
   // de la carpeta compartida (copia de todos sus archivos y después se quita la carpeta original).
