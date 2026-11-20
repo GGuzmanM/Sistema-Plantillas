@@ -303,3 +303,44 @@ aside section.cerrada > h2 { margin-bottom: 0; border-bottom: 0; border-radius: 
 /* Módulos siempre a la vista (2026-11-19, Ernesto): al bajar en el panel, las 4 pestañas quedan pegadas arriba.
    La franja del fondo del panel (sombra) tapa lo que pasa por detrás; aside tiene 14 px de margen arriba. */
 aside .modulos { position: sticky; top: 0; z-index: 6; box-shadow: 0 -14px 0 6px var(--fondo), 0 6px 8px -6px rgba(23, 32, 43, .25); }
+
+/* Inicio → Máquinas (2026-11-19): mesas de trabajo de la fresadora e impresoras 3D */
+.maq-intro { color: #9fb2cf; font-size: 13px; max-width: 760px; margin: 0 0 12px; }
+.maq-tipos { display: inline-flex; gap: 2px; background: rgba(255,255,255,.06); border-radius: 8px; padding: 3px; margin-bottom: 14px; }
+.maq-tipos button { height: 32px; border: 0; background: transparent; color: #c9d6ea; font-weight: 600; padding: 0 14px; border-radius: 6px; }
+.maq-tipos button.activo { background: #1f5fbf; color: #fff; }
+.maq-grilla { display: grid; grid-template-columns: minmax(220px, 280px) minmax(0, 1fr); gap: 16px; align-items: start; }
+.maq-lista { display: grid; gap: 8px; }
+.maq-item { height: auto; text-align: left; display: grid; gap: 2px; padding: 10px 12px; background: rgba(10,20,45,.72); border: 1px solid rgba(255,255,255,.1); color: #fff; border-radius: 6px; }
+.maq-item span { color: #9fb2cf; font-size: 12px; font-weight: 400; }
+.maq-item.activo { border-color: #39e07a; box-shadow: inset 3px 0 0 #39e07a; }
+.maq-nueva { height: 36px; background: transparent; color: #fff; border: 1px dashed rgba(255,255,255,.35); border-radius: 6px; }
+.maq-form { background: rgba(10,20,45,.72); border: 1px solid rgba(255,255,255,.1); border-radius: 6px; padding: 14px 18px; display: grid; gap: 8px; color: #fff; }
+.maq-form h4 { margin: 10px 0 0; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: #39e07a; }
+.maq-form input[type=text], .maq-form input[type=number], .maq-form textarea { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.2); color: #fff; border-radius: 6px; height: 32px; padding: 0 8px; font: inherit; }
+.maq-form textarea { height: auto; padding: 6px 8px; resize: vertical; }
+.maq-nombre { display: grid; grid-template-columns: auto minmax(0, 420px); gap: 10px; align-items: center; font-weight: 600; }
+.maq-campo { display: grid; grid-template-columns: 1fr 128px; gap: 8px; align-items: center; font-size: 13px; min-height: 30px; }
+.maq-campo small { display: block; color: #9fb2cf; font-size: 11.5px; }
+.maq-texto { grid-template-columns: 1fr; }
+.maq-valor { display: flex; align-items: center; gap: 6px; }
+.maq-valor input { width: 100%; }
+.maq-valor em { font-style: normal; color: #9fb2cf; font-size: 12px; min-width: 46px; }
+.maq-si { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.maq-botones { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.maq-botones button { height: 34px; background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.35); border-radius: 6px; padding: 0 12px; }
+.maq-botones button.primario { background: #1f5fbf; border-color: #1f5fbf; }
+.maq-botones button.peligro { color: #ff9b93; border-color: rgba(255,120,110,.5); }
+.maq-msg { margin: 0; color: #39e07a; font-size: 12.5px; min-height: 1em; }
+@media (max-width: 760px) { .maq-grilla { grid-template-columns: 1fr; } .maq-campo { grid-template-columns: 1fr 130px; } }
+/* 2026-11-19 (Ernesto: "acomodarlo para el costado"): los grupos en tarjetas, en columnas a lo ancho, sin bajar */
+.maq-grupos { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; align-items: start; }
+.maq-grupo { margin: 0; border: 1px solid rgba(255,255,255,.12); border-radius: 6px; padding: 8px 12px 10px; display: grid; gap: 6px; min-width: 0; }
+.maq-grupo legend { padding: 0 6px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: #39e07a; }
+.maq-ayuda { display: inline-grid; place-items: center; width: 15px; height: 15px; border-radius: 50%; background: rgba(255,255,255,.15); color: #c9d6ea; font-size: 10.5px; font-style: normal; font-weight: 700; cursor: help; vertical-align: 1px; }
+.maq-campo input { height: 30px !important; }
+.maq-form { padding: 12px 16px; }
+.maq-botones { margin-top: 2px; }
+.maq-cab { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
+.maq-cab .maq-tipos, .maq-cab .maq-intro { margin: 0; }
+.maq-cab .maq-intro { flex: 1 1 300px; }

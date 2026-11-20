@@ -6,6 +6,7 @@ import { escalaPNG, analizarMuestra, contornoParaReceta, contornoProlijo } from 
 import { imagenDePDF } from '../motor/pdf.js';
 import { crearInicio } from './inicio.js';
 import { gcodeEVA } from '../motor/fresado.js';
+import { listaMaquinas, opcionesGcode } from './maquinas.js';
 
 const $ = id => document.getElementById(id);
 // texto seguro dentro de HTML (auditoría 2026-11-18: nombres de archivos, de elementos y recetas que vienen de otras PC)
@@ -854,6 +855,8 @@ function diseno() {
     largo: num('largo'),
     // mm de más en la punta para pulir (0 = sin margen); el largo de arriba no los incluye
     margenPulido: margenPunta(), margenLados: margenLados(), margenTalon: margenTalon(),
+    // máquina elegida (Inicio → Máquinas, 2026-11-19)
+    mesa: $('mesaElegida').value, impresora: $('impresoraElegida').value,
     ancho: $('anchoAuto').checked ? null : num('ancho'),
     tipoDiseno: $('tipoDiseno').value,
     escalaTalon,
@@ -3047,15 +3050,39 @@ $('exportar').addEventListener('click', async () => {
 // ---- G-code para la fresadora de EVA (Sensor Medica VX1R con EdingCNC; Ernesto 2026-11-17) ----
 // El par en un bloque de 350 × 260 mm, como los trabajos que ya fresa la máquina (motor/fresado.js). Se guarda como
 // .iso en la carpeta del proyecto, junto a los STL.
+// Mesa de trabajo e impresora (Ernesto, 2026-11-19, como LutraCAD): se eligen aquí (3. EVA / 3. Imprimir) y sus
+// parámetros se editan en Inicio → Máquinas (app/maquinas.js, carpeta compartida Biblioteca/maquinas.json).
+let maquinas = listaMaquinas(null);
+const mesaElegida = () => maquinas.mesas.find(m => m.id === $('mesaElegida').value) ?? maquinas.mesas[0];
+const impresoraElegida = () => maquinas.impresoras.find(m => m.id === $('impresoraElegida').value) ?? maquinas.impresoras[0];
+function pintarMaquinasDiseno() {
+  for (const [id, lista] of [['mesaElegida', maquinas.mesas], ['impresoraElegida', maquinas.impresoras]]) {
+    const sel = $(id), antes = sel.dataset.pedida || sel.value;
+    sel.innerHTML = lista.map(m => `<option value="${esc(m.id)}">${esc(m.nombre)}</option>`).join('');
+    sel.value = lista.some(m => m.id === antes) ? antes : lista[0].id;
+  }
+  const m = mesaElegida(), p = impresoraElegida(), n = v => String(v).replace('.', ',');
+  $('notaMesa').textContent = `Bloque ${m.largo} × ${m.ancho} mm · fresa de punta redonda ${n(m.diametro)} mm a ${m.husillo.toLocaleString('es')} rpm · filas cada ${n(m.pasoY)} mm. Cero en el centro del bloque y Z 0 sobre la mesa. Se cambia en Inicio → Máquinas; el G-code se genera en 4. Exportar.`;
+  $('notaImpresora').textContent = `Área ${p.x} × ${p.y} × ${p.z} mm${p.notas ? ' · ' + p.notas : ''}. Se cambia en Inicio → Máquinas.`;
+}
+function aplicarMaquinas(datos) { maquinas = listaMaquinas(datos); pintarMaquinasDiseno(); pedir(); }
+$('mesaElegida').addEventListener('change', () => {
+  delete $('mesaElegida').dataset.pedida;
+  $('altoBloque').value = mesaElegida().alto;   // el alto por defecto de esa mesa (se puede cambiar)
+  pintarMaquinasDiseno(); pedir();
+});
+$('impresoraElegida').addEventListener('change', () => { delete $('impresoraElegida').dataset.pedida; pintarMaquinasDiseno(); pedir(); });
+pintarMaquinasDiseno();
 $('exportarGcode').addEventListener('click', async () => {
   if (!actual || hayFueraDeRango()) return;
   try {
     // auditoría 2026-11-18: vacío o con letras ya no se toma 26 por su cuenta; se pide el alto real del bloque
     const alto = parseFloat($('altoBloque').value), base = nombreBase(actual.d);
     if (!Number.isFinite(alto) || alto < 10 || alto > 60) { mensaje('No se generó el G-code: escriba el alto real del bloque de EVA (de 10 a 60 mm).', false); $('altoBloque').focus(); return; }
+    const mesa = mesaElegida();
     const destino = await pedirCarpetaDestino();
     if (destino === false) { mensaje('No se generó el G-code: no se eligió la carpeta.', false); return; }
-    const r = gcodeEVA(actual.izq, actual.der, { nombre: base, bloque: { alto } });
+    const r = gcodeEVA(actual.izq, actual.der, { ...opcionesGcode(mesa, alto), nombre: base });
     if (r.avisos.length) { mensaje('No se generó el G-code: ' + r.avisos.join(' '), false); return; }
     const nombre = `${base} fresadora.iso`;
     await guardar(nombre, r.texto);
@@ -3205,6 +3232,8 @@ function limpiarReceta(r) {
   // costados: recetas sin el dato (hechas antes) no llevan margen a los costados
   c.margenLados = numFin(c.margenLados) ? Math.min(Math.max(+c.margenLados, 0), 10) : 0;
   c.margenTalon = numFin(c.margenTalon) ? Math.min(Math.max(+c.margenTalon, 0), 10) : 0;
+  // máquina elegida (2026-11-19): un id de Inicio → Máquinas; si ya no existe, se usa la primera
+  for (const k of ['mesa', 'impresora']) if (typeof c[k] !== 'string' || c[k].length > 80) delete c[k];
   // ancho de la receta (QA-02): fuera de lo posible se rechaza la receta, no se genera una plantilla gigante
   if (c.ancho != null && !(c.ancho >= 40 && c.ancho <= 160)) throw new Error(`ancho fuera de rango en la receta (${c.ancho} mm; de 40 a 160)`);
   return c;
@@ -3241,6 +3270,9 @@ function aplicarRecetaSinRed(r) {
   { const con = r.margenPulido > 0 || r.margenLados > 0 || r.margenTalon > 0;
     $('margenActivo').checked = con; $('margenMm').value = con ? r.margenPulido : 5;
     $('margenLados').value = con ? r.margenLados : 3; $('margenTalon').value = con ? r.margenTalon : 0; pintarMargen(); }
+  // mesa de trabajo e impresora del diseño (si la lista aún no llegó de la carpeta compartida, se elige al llegar)
+  for (const [id, v] of [['mesaElegida', r.mesa], ['impresoraElegida', r.impresora]]) { if (v) $(id).dataset.pedida = v; else delete $(id).dataset.pedida; }
+  try { pintarMaquinasDiseno(); } catch (err) { if (!(err instanceof ReferenceError)) throw err; /* al cargar, antes de la lista */ }
   pintarNotaLargo();
   $('anchoAuto').checked = r.ancho == null; if (r.ancho != null) $('ancho').value = r.ancho;
   $('copa').value = r.copa ?? vH.copa ?? tH?.copa ?? prod.copa; $('antepie').value = r.antepie ?? vH.antepie ?? tH?.antepie ?? prod.antepie; $('canto').value = r.canto ?? prod.canto ?? 1.2;
@@ -3531,7 +3563,7 @@ inicio = crearInicio({
   // "Nuevo desde carpeta": elige la carpeta del paciente (recordándola) y carga el escaneo y las muestras
   abrirCarpeta: abrirCarpetaRecordando, elegirCarpetaPaciente,
   biblioteca: { catalogo: () => catalogo, miniatura: miniaturaElemento, recuadro: recuadroElemento, vista3D: vista3DElemento, aplicar: ponerElementosPropios, hormas: listaHormas,
-                aplicarHormas: ponerHormasPropias, editorHorma },
+                aplicarHormas: ponerHormasPropias, editorHorma, aplicarMaquinas },
 });
 // un cambio que todavía no pasó al historial (0,4 s): al cerrar, recargar o cambiar de ventana se guarda ya
 const cambioSinGuardar = () => tHistorial && inicio.proyecto() && historial.pila[historial.pos] !== JSON.stringify(diseno());

@@ -88,6 +88,8 @@ function contornoFresa(borde, r) {
 export function gcodeEVA(izq, der, op = {}) {
   const r = op.radio ?? 5, bloque = { largo: 350, ancho: 260, alto: 26, ...op.bloque }, pasoY = op.pasoY ?? 0.5, pasoX = op.pasoX ?? 2;
   const sep = op.separacion ?? 7, zSeg = op.zSeguro ?? 55, zCont = op.zContorno ?? [15, 1];
+  // mesa de trabajo (2026-11-19): material que queda de más arriba (para pulir) y corte del contorno más afuera
+  const sobre = op.sobreespesor ?? 0, masAfuera = op.margenContorno ?? 0;
   const F = { trasladar: 14400, bajar: 900, cortar: 1800, ...op.velocidades }, S = op.husillo ?? 24000;
   const avisos = [], L = [];
   const pies = [['izq', izq, sep], ['der', der, -sep]].filter(p => p[1]);
@@ -97,11 +99,11 @@ export function gcodeEVA(izq, der, op = {}) {
   for (const { m, lado } of datos) {
     let X0 = Infinity, X1 = -Infinity, Y0 = Infinity, Y1 = -Infinity;
     for (const [x, y] of m.borde) { X0 = Math.min(X0, x); X1 = Math.max(X1, x); Y0 = Math.min(Y0, y); Y1 = Math.max(Y1, y); }
-    if (X0 - r < -bloque.largo / 2 || X1 + r > bloque.largo / 2) avisos.push(`La plantilla ${lado === 'izq' ? 'izquierda' : 'derecha'} no entra a lo largo del bloque (${Math.round(X1 - X0 + 2 * r)} mm con la fresa; el bloque mide ${bloque.largo}).`);
-    if (Math.min(Math.abs(Y0), Math.abs(Y1)) < 0 || Math.max(Math.abs(Y0), Math.abs(Y1)) + r > bloque.ancho / 2) avisos.push(`La plantilla ${lado === 'izq' ? 'izquierda' : 'derecha'} no entra a lo ancho del bloque.`);
+    if (X0 - r - masAfuera < -bloque.largo / 2 || X1 + r + masAfuera > bloque.largo / 2) avisos.push(`La plantilla ${lado === 'izq' ? 'izquierda' : 'derecha'} no entra a lo largo del bloque (${Math.round(X1 - X0 + 2 * r)} mm con la fresa; el bloque mide ${bloque.largo}).`);
+    if (Math.min(Math.abs(Y0), Math.abs(Y1)) < 0 || Math.max(Math.abs(Y0), Math.abs(Y1)) + r + masAfuera > bloque.ancho / 2) avisos.push(`La plantilla ${lado === 'izq' ? 'izquierda' : 'derecha'} no entra a lo ancho del bloque.`);
     for (const v of m.H) zMax = Math.max(zMax, v);
   }
-  if (zMax > bloque.alto - 0.5) avisos.push(`La plantilla mide ${zMax.toFixed(1)} mm de alto y el bloque ${bloque.alto} mm: no alcanza.`);
+  if (zMax + sobre > bloque.alto - 0.5) avisos.push(`La plantilla mide ${zMax.toFixed(1)} mm de alto y el bloque ${bloque.alto} mm: no alcanza.`);
 
   L.push(`((${(op.nombre ?? 'plantilla').replace(/[()]/g, '')}))`, '%', 'G90', 'G28', `S${S}`, 'M03', 'G64', `F${F.trasladar}`, `G01 Z${f2(zSeg)}`);
   let puntos = 0;
@@ -118,7 +120,7 @@ export function gcodeEVA(izq, der, op = {}) {
       if (!xs.length) continue;
       if (sentido < 0) xs.reverse();
       xs.forEach((X, k) => {
-        const z = alturaBola(m, X, Y, r);
+        const z = Math.min(alturaBola(m, X, Y, r) + sobre, bloque.alto);
         if (primero) { if (ip > 0) L.push(`F${F.trasladar}`, `G01 Z${f2(zSeg)}`); L.push(`G01 X${f2(X)} Y${f2(Y)}`, `F${F.bajar}`, `G01 Z${f2(z)}`, `F${F.cortar}`); primero = false; }
         else L.push(k === 0 ? `G01 X${f2(X)} Y${f2(Y)} Z${f2(z)}` : `G01 X${f2(X)} Z${f2(z)}`);
         puntos++;
@@ -127,8 +129,8 @@ export function gcodeEVA(izq, der, op = {}) {
     }
   });
   // contornos: una vuelta a Z 15 y otra a Z 1
-  for (const { m } of datos) {
-    const P = contornoFresa(m.borde, r);
+  if (zCont.length) for (const { m } of datos) {
+    const P = contornoFresa(m.borde, r + masAfuera);
     L.push(`F${F.trasladar}`, `G01 Z${f2(zSeg)}`, `G01 X${f2(P[0][0])} Y${f2(P[0][1])}`, `F${F.cortar}`);
     for (const zc of zCont) { L.push(`G01 Z${f2(zc)}`); for (const [x, y] of [...P, P[0]]) L.push(`G01 X${f2(x)} Y${f2(y)}`); }
   }

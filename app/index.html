@@ -293,6 +293,7 @@
     <nav class="inicio-nav">
       <button data-inicio-vista="disenadores" class="activo">Diseñadores</button>
       <button data-inicio-vista="biblioteca">Biblioteca</button>
+      <button data-inicio-vista="maquinas">Máquinas</button>
     </nav>
     <span id="inicioCarpeta" class="inicio-carpeta"></span>
     <button id="inicioVolver" class="primario" hidden>Volver al diseño</button>
@@ -471,11 +472,16 @@
     <section data-en="produccion" id="seccionEVA">
       <h2>Fresadora (EVA)</h2>
       <div class="fila" id="filaFresadora"><label for="altoBloque">Alto del bloque de EVA</label><span class="campo"><input type="number" id="altoBloque" min="10" max="60" step="0.5" value="26"><span class="unidad">mm</span></span></div>
-      <p class="nota-modulo">Sensor Medica VX1R con EdingCNC: el par en un bloque de 350 × 260 mm, cero en el centro y Z 0 sobre la mesa; fresa de punta redonda de 10 mm. El G-code se genera en 4. Exportar.</p>
+      <!-- Mesa de trabajo (Ernesto, 2026-11-19, como LutraCAD): los parámetros con que se arma el G-code -->
+      <!-- Mesa de trabajo (Ernesto, 2026-11-19, como LutraCAD): se elige aquí; sus parámetros se editan en Inicio → Máquinas -->
+      <div class="fila"><label for="mesaElegida">Mesa de trabajo</label><select id="mesaElegida"></select></div>
+      <p class="nota-modulo" id="notaMesa"></p>
     </section>
     <section data-en="produccion" id="seccionImprimir">
       <h2>Impresión 3D</h2>
-      <p class="nota-modulo">Plantilla maciza con la base curva y canto fino, para imprimir en resina. El STL se genera en 4. Exportar. (Ajustes de la impresora: más adelante.)</p>
+      <div class="fila"><label for="impresoraElegida">Impresora</label><select id="impresoraElegida"></select></div>
+      <p class="nota-modulo" id="notaImpresora"></p>
+      <p class="nota-modulo">Plantilla maciza con la base curva y canto fino, para imprimir en resina. El STL se genera en 4. Exportar.</p>
     </section>
     <section data-en="base diseno produccion exportar">
       <h2>Revisión</h2>

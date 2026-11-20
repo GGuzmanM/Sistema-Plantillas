@@ -420,6 +420,17 @@ de ejemplo el trazo mide 0,25 a 0,57 mm. La foto de una plantilla (sin trazo) no
   para que la bola no toque la plantilla. Avisa y no genera si no entra en el bloque o si pasa el alto del bloque.
   Se guarda como "… fresadora.iso" en la carpeta del proyecto. Prueba 20. Antes de usarlo de verdad: verlo en la
   vista de EdingCNC, pasarlo en el aire y luego en un bloque de prueba.
+  **Máquinas: mesas de trabajo e impresoras** (2026-11-19, Ernesto, como la mesa de trabajo de LutraCAD): Inicio →
+  Máquinas (`app/maquinas.js`) lista varias mesas de trabajo de la fresadora y perfiles de impresora 3D, guardados en la
+  carpeta compartida (`Biblioteca/maquinas.json`, las ven las tres PC). Mesa: bloque (largo, ancho, alto por defecto),
+  fresa (diámetro de punta redonda, giro rpm), avances (trasladar, bajar, cortar), relieve (paso entre filas, paso entre
+  puntos, dejar de más arriba para pulir), contorno (cortarlo sí/no, 1.ª y 2.ª vuelta, corte más afuera del borde),
+  ubicación (borde interno al centro, altura segura). Impresora: área X × Y × Z y notas. La "Sensor Medica VX1R" y la
+  impresora vienen de fábrica (se editan; "Valores de fábrica" las repone); las propias se crean, duplican y eliminan.
+  En el diseño solo se elige: la mesa en 3. EVA (pone su alto de bloque) y la impresora en 3. Imprimir; la receta guarda
+  `mesa` e `impresora` (id). El G-code toma los valores con `opcionesGcode`. La de fábrica da exactamente el G-code de
+  antes (prueba "Mesa de trabajo del G-code"). El archivo de mesa de LutraCAD (.lrss) viene cifrado: no se pudo leer;
+  un G-code real hecho con LutraCAD (no de paciente) usa los mismos S24000 / F14400 / F900 / F1800.
 - **Chimpunes y Crocs rehechas desde las capturas** (2026-11-17, Ernesto: "se ven tan mal… idénticas a las imágenes").
   Las de antes (base EasyCAD + factores de relieve cada 2,5 %, hasta ×12) tenían arrugas a lo ancho. Ahora cada una es
   una horma raíz propia (`base_chimpunes` / `base_crocs`, datos `hormas/chimpunes_datos.json` / `crocs_datos.json`),

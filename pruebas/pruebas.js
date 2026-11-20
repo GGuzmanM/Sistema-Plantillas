@@ -422,6 +422,17 @@ for (const lado of ['izq', 'der']) {
   const ok = cab && pie && !r.avisos.length && X0 >= -175 && X1 <= 175 && Y0 >= -130 && Y1 <= 130 && zMin >= 0.99 && Math.abs(arcoI[0] - 20) < 0.5 &&
     arcoI[1] > 0 && arcoI[1] < 35 && arcoD[1] < 0 && arcoD[1] > -35 && pen < 0.15 && bajo;
   prueba('G-code fresadora EVA', ok, `${r.lineas} líneas; X ${n1(X0)} a ${n1(X1)}, Y ${n1(Y0)} a ${n1(Y1)} (bloque ±175 × ±130); Z mín ${n2(zMin)}; arco izq ${n1(arcoI[0])} mm en Y ${n1(arcoI[1])}, der en Y ${n1(arcoD[1])}; la bola entra ${n2(Math.max(pen, 0))} mm; avisa bloque bajo: ${bajo ? 'sí' : 'no'}`);
+  // Mesa de trabajo (2026-11-19, Inicio → Máquinas): la de fábrica da el mismo G-code de siempre; giro, dejar de más
+  // arriba, contorno apagado y corte más afuera cambian lo que corresponde
+  const { opcionesGcode, MESAS_FABRICA } = await import('../app/maquinas.js');
+  const fab = gcodeEVA(gi, gd, { ...opcionesGcode(MESAS_FABRICA[0], 26), nombre: 'prueba' });
+  const zMax = t => Math.max(...t.split('\n').filter(l => /^G01 X.* Z/.test(l)).map(l => +l.match(/Z(-?[\d.]+)/)[1]));
+  const otra = gcodeEVA(gi, gd, { ...opcionesGcode({ ...MESAS_FABRICA[0], husillo: 18000, sobreespesor: 0.5, contorno: false }, 26), nombre: 'prueba' });
+  const afuera = gcodeEVA(gi, gd, { ...opcionesGcode({ ...MESAS_FABRICA[0], margenContorno: 3 }, 26), nombre: 'prueba' });
+  const minX = t => Math.min(...t.split('\n').filter(l => /^G01 X/.test(l)).map(l => +l.match(/X(-?[\d.]+)/)[1]));
+  const okMesa = fab.texto === r.texto && otra.texto.includes('S18000') && Math.abs(zMax(otra.texto) - zMax(r.texto) - 0.5) < 0.02 &&
+    !otra.texto.includes('G01 Z15.00') && r.texto.includes('G01 Z15.00') && minX(afuera.texto) < minX(r.texto) - 2.5;
+  prueba('Mesa de trabajo del G-code', okMesa, `la de fábrica da el mismo G-code: ${fab.texto === r.texto ? 'sí' : 'no'}; giro 18000: ${otra.texto.includes('S18000') ? 'sí' : 'no'}; dejar 0,5 mm arriba: +${n2(zMax(otra.texto) - zMax(r.texto))} mm; sin contorno: ${!otra.texto.includes('G01 Z15.00') ? 'sí' : 'no'}; corte 3 mm más afuera: ${n1(minX(r.texto) - minX(afuera.texto))} mm`);
 }
 
 // 22. Copa y arco por capas (Ernesto, 2026-11-19): con cada horma, en delgado (copa 10) y estándar (copa 14), la copa

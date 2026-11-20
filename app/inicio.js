@@ -50,6 +50,7 @@ async function subcarpetas(dir) {
 }
 
 import { pintarBiblioteca } from './biblioteca.js';
+import { pintarMaquinas } from './maquinas.js';
 
 // biblioteca: { catalogo(), miniatura(def, canvas), aplicar(datos) } — aplicar suma los propios al programa
 // antesDeSalir(): pasa ya al guardado el último cambio del diseño que todavía esperaba (auditoría 2026-11-16)
@@ -63,6 +64,16 @@ export function crearInicio({ aplicarReceta, recetaNueva, mensaje, alAbrir, bibl
     biblioteca?.aplicar(datosBib);
     datosHormas = (await leerJSON(dir, 'hormas.json')) ?? { hormas: [] };
     biblioteca?.aplicarHormas?.(datosHormas);
+    datosMaquinas = (await leerJSON(dir, 'maquinas.json')) ?? { mesas: [], impresoras: [] };
+    biblioteca?.aplicarMaquinas?.(datosMaquinas);
+  }
+  // Máquinas (2026-11-19): mesas de trabajo de la fresadora e impresoras 3D, en Biblioteca/maquinas.json
+  let datosMaquinas = { mesas: [], impresoras: [] };
+  async function guardarMaquinas(d) {
+    datosMaquinas = { ...d, modificado: new Date().toISOString() };
+    biblioteca?.aplicarMaquinas?.(datosMaquinas);
+    try { await escribir(await carpetaEn(raiz, ['Biblioteca'], true), 'maquinas.json', JSON.stringify(datosMaquinas, null, 2)); }
+    catch (e) { alert('No se pudo guardar la máquina: ' + e.message); }
   }
   async function guardarHormas(d) {
     datosHormas = { ...d, modificado: new Date().toISOString() };
@@ -163,6 +174,7 @@ export function crearInicio({ aplicarReceta, recetaNueva, mensaje, alAbrir, bibl
         datosHormas: () => datosHormas, guardarHormas, datos: () => datosBib, guardar: guardarBiblioteca });
       return;
     }
+    if (vista === 'maquinas') { pintarMaquinas(cuerpo, { datos: () => datosMaquinas, guardar: guardarMaquinas }); return; }
     if (!disenador) return pintarDisenadores(cuerpo);
     return pintarProyectos(cuerpo);
   }
