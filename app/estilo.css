@@ -286,3 +286,16 @@ table.proyectos tbody tr:hover td { background: rgba(255, 255, 255, .03); }
 .interruptor input:checked + .int-pista { background: var(--acento); }
 .interruptor input:checked + .int-pista::after { left: 18px; }
 .interruptor input:focus-visible + .int-pista { outline: 2px solid var(--foco); outline-offset: 2px; }
+
+/* Submódulos como tarjetas separadas (2026-11-19, Ernesto): cada sección tiene su borde, su cabecera
+   con franja de color y aire entre una y otra, para ver dónde empieza y dónde termina */
+aside { background: var(--fondo); }
+aside section { background: var(--panel); border: 1px solid var(--linea); border-left: 4px solid var(--acento);
+  border-radius: var(--radio); padding: 0 12px 14px; margin-top: 12px; box-shadow: 0 1px 2px rgba(23, 32, 43, .05); }
+aside section:last-child { border-bottom: 1px solid var(--linea); }
+aside section > h2 { margin: 0 -12px 10px; padding: 2px 12px; background: #eef3fa; border-bottom: 1px solid var(--linea);
+  border-radius: 0 calc(var(--radio) - 1px) 0 0; font-size: 14px; }
+aside section > h2 .plegar { margin: 0 -4px; width: calc(100% + 8px); }
+aside section > h2 .plegar:hover { background: #e2eaf6; }
+aside section.cerrada { padding-bottom: 0; }
+aside section.cerrada > h2 { margin-bottom: 0; border-bottom: 0; border-radius: 0 calc(var(--radio) - 1px) calc(var(--radio) - 1px) 0; }
