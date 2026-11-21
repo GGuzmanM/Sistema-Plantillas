@@ -1,0 +1,151 @@
+/* Identidad visual del sistema (Ernesto, 2026-11-19): azul eléctrico + blanco, con tonos medios difuminados.
+   Se carga encima de index.html y estilo.css: quitar el <link> a este archivo vuelve al aspecto anterior.
+   Solo cambia colores, tipografía, sombras y espacios; no quita ni mueve controles.
+
+   Paleta
+     azul marca   #1838D9   (fondo de la referencia que mandó Ernesto)
+     azul hondo   #0E24A6   (hover, texto sobre claro)
+     azul noche   #081774   (fondos oscuros: inicio, editor)
+     azul medio   #4F68EC   (degradados, bordes activos)
+     azul niebla  #A9B8F7   (texto secundario sobre azul)
+     tinte        #E8ECFD · #F3F5FE (fondos claros)
+     blanco       #FFFFFF
+   Los colores de función no cambian: ámbar = aviso, rojo = error, verde = bien/elegido, naranja = descarga. */
+
+:root {
+  --marca: #1838d9; --marca-2: #0e24a6; --marca-noche: #081774; --marca-medio: #4f68ec; --marca-niebla: #a9b8f7;
+  --marca-tinte: #e8ecfd; --marca-tinte-2: #f3f5fe;
+  --tinta: #10183a; --suave: #586189; --linea: #dfe4f7; --linea-2: #c8d0f0; --fondo: #f3f5fe; --panel: #ffffff;
+  --acento: #1838d9; --acento-2: #0e24a6; --acento-claro: #e8ecfd; --foco: #8a9cf3;
+  --radio: 10px; --radio-chico: 7px;
+  --sombra-flota: 0 1px 2px rgba(8, 23, 116, .06), 0 8px 24px rgba(8, 23, 116, .10);
+  --degradado-marca: linear-gradient(135deg, #1838d9 0%, #2f4fe6 55%, #4f68ec 100%);
+  --degradado-noche: radial-gradient(1100px 620px at 88% -15%, rgba(255, 255, 255, .22), transparent 60%),
+                     radial-gradient(900px 560px at -10% 110%, rgba(79, 104, 236, .7), transparent 62%),
+                     linear-gradient(160deg, #1f42e6 0%, #1838d9 45%, #1530c4 100%);
+}
+
+/* tipografía: títulos más gruesos y compactos (la referencia es una letra de exhibición pesada y redondeada) */
+body { font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; color: var(--tinta); background: var(--fondo); }
+h1, h2, .inicio-titulo h2, .marca, .accion-corte > b, .accion-corte .pp-cab b {
+  font-family: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; }
+input[type=text]:focus, input[type=number]:focus, input[type=search]:focus, select:focus { outline-color: rgba(24, 56, 217, .2); }
+
+/* ---------- Barra de arriba del diseño: azul marca ---------- */
+header { background: var(--degradado-marca); color: #fff; box-shadow: 0 2px 12px rgba(8, 23, 116, .25); border: 0; }
+header h1 { color: #fff; font-weight: 800; letter-spacing: -.01em; font-size: 16px; }
+header a { color: #fff; opacity: .9; } header a:hover { opacity: 1; }
+header .estado { color: rgba(255, 255, 255, .85); }
+header button, .ir-inicio { background: rgba(255, 255, 255, .14); border: 1px solid rgba(255, 255, 255, .28); color: #fff; }
+header button:hover:not(:disabled) { background: rgba(255, 255, 255, .24); border-color: rgba(255, 255, 255, .45); }
+header button:active:not(:disabled) { background: rgba(255, 255, 255, .3); }
+header button:disabled { opacity: .4; }
+.proyecto-actual { background: #fff; color: var(--marca-2); border: 0; font-weight: 600; }
+.proyecto-actual.sin-proyecto { background: #fff6dc; color: #8a5a00; }
+
+/* ---------- Panel izquierdo ---------- */
+aside { background: linear-gradient(180deg, #f3f5fe 0%, #eef1fd 100%); border-right: 1px solid var(--linea); }
+aside .modulos { background: #fff; border: 1px solid var(--linea); box-shadow: 0 -14px 0 6px #f3f5fe, 0 6px 14px -8px rgba(8, 23, 116, .3); }
+.modulos button { color: var(--suave); }
+.modulos button:hover:not(.activo) { background: var(--marca-tinte); color: var(--marca-2); }
+.modulos button.activo { background: var(--degradado-marca); color: #fff; box-shadow: 0 2px 8px rgba(24, 56, 217, .35); }
+aside section { border: 1px solid var(--linea); border-left: 4px solid var(--marca); box-shadow: 0 1px 2px rgba(8, 23, 116, .05); }
+aside section > h2 { background: linear-gradient(90deg, #e8ecfd 0%, #f3f5fe 100%); }
+aside section > h2 .plegar:hover { background: rgba(24, 56, 217, .08); }
+h2 { color: var(--tinta); font-weight: 700; }
+.plegar .flecha { color: var(--marca); }
+.nota-modulo { color: var(--suave); }
+
+/* campos y botones */
+input[type=text], input[type=number], input[type=search], select { border-color: var(--linea-2); }
+input[type=text]:hover:not(:disabled), input[type=number]:hover:not(:disabled), select:hover:not(:disabled) { border-color: var(--marca-niebla); }
+button:hover:not(:disabled) { border-color: var(--marca-niebla); background: var(--marca-tinte-2); }
+button:active:not(:disabled) { background: var(--marca-tinte); }
+button.primario { background: var(--degradado-marca); border-color: var(--marca); box-shadow: 0 2px 8px rgba(24, 56, 217, .28); }
+button.primario:hover:not(:disabled) { background: var(--marca-2); border-color: var(--marca-2); }
+.botones-tipo button.activo { background: var(--marca-tinte); border-color: var(--marca); box-shadow: inset 0 0 0 1px var(--marca); }
+.botones-tipo button.activo svg { color: var(--marca); }
+.mas-ajustes > summary, .elemento details.ajustes summary { color: var(--marca); }
+.caja-opcion { background: var(--marca-tinte-2); border-color: var(--linea); }
+.caja-opcion > summary { color: var(--marca-2); }
+.interruptor input:checked + .int-pista { background: var(--marca); }
+.elemento { border-left-color: var(--marca-medio); }
+.nota-contorno, .recuperar { background: var(--marca-tinte); border-color: #cfd8fa; }
+.nota-contorno { border-left-color: var(--marca); }
+.st-lista li[aria-selected="true"] { background: var(--marca-tinte); }
+
+/* ---------- Visor 3D: blanco con un halo azul muy suave ---------- */
+.visor { background: radial-gradient(ellipse at 50% 40%, #ffffff 0%, #f1f4fe 55%, #dfe5fb 100%); }
+.herramientas, .barra { border-color: var(--linea); box-shadow: var(--sombra-flota); }
+.herramientas button:hover:not(.activo), .barra button:hover:not(.activo) { background: var(--marca-tinte-2); }
+.herramientas button.activo, .barra button.activo { background: var(--marca); color: #fff; box-shadow: 0 2px 6px rgba(24, 56, 217, .3); }
+.barra button[data-ver-pie]:not(.activo), .barra #verMuestraBarra:not(.activo), .barra #verEscaneoBarra:not(.activo) { background: transparent; color: #9aa3c4; box-shadow: none; }
+.ayuda { color: var(--suave); }
+.accion-corte { border-color: var(--linea); box-shadow: 0 10px 30px rgba(8, 23, 116, .16); }
+#panelPlantilla, #accionCorte { border-top: 3px solid var(--marca); }
+#panelObjeto { border-top: 3px solid var(--marca-medio); }
+.modos-corte { background: var(--marca-tinte); }
+.modos-corte button.activo { background: #fff; color: var(--marca-2); }
+.visor.soltando::after { border-color: var(--marca); background: rgba(24, 56, 217, .08); color: var(--marca-2); }
+
+/* ---------- Inicio, Biblioteca y Máquinas: fondo azul noche con luces difuminadas ---------- */
+.inicio { background: var(--degradado-noche); background-attachment: fixed; color: #eef1ff; }
+.inicio-barra { background: rgba(255, 255, 255, .06); backdrop-filter: blur(8px); border-bottom: 1px solid rgba(255, 255, 255, .12); }
+.inicio-barra .marca { font-weight: 800; font-size: 17px; letter-spacing: -.01em; color: #fff; }
+.inicio-nav button { color: var(--marca-niebla); }
+.inicio-nav button:hover { color: #fff; background: rgba(255, 255, 255, .06); }
+.inicio-nav button.activo { color: #fff; border-bottom-color: #fff; }
+.inicio-carpeta { color: var(--marca-niebla); }
+.inicio-titulo h2 { color: #fff; font-weight: 800; font-size: 28px; letter-spacing: -.015em; text-transform: none; }
+.tarjeta, .inicio-aviso, .bib-lista, .maq-form, .maq-item, .inicio .bib-item, .bib-vacio, table.proyectos {
+  background: rgba(255, 255, 255, .08); border-color: rgba(255, 255, 255, .16); backdrop-filter: blur(6px); }
+.tarjeta:hover, .maq-item:hover, .inicio .bib-item:hover:not(.activo) { border-color: rgba(255, 255, 255, .4); background: rgba(255, 255, 255, .12); }
+.tarjeta-cab { color: #fff; background: rgba(255, 255, 255, .1); }
+.tarjeta-dato, .bib-nota, .bf-dato, .maq-intro, .maq-item span, .bib-calzados, .inicio-carpeta, table.proyectos .vacio { color: var(--marca-niebla); }
+.inicio-aviso h3 { color: #fff; }
+.inicio input[type=text], .inicio input[type=search], .tarjeta input, .nuevo-proyecto input, .inicio-titulo input, .maq-form input[type=text], .maq-form input[type=number], .maq-form textarea {
+  background: rgba(255, 255, 255, .1); border-color: rgba(255, 255, 255, .28); color: #fff; }
+.inicio input::placeholder { color: #b9c5f8; }
+.inicio input:focus, .maq-form input:focus, .maq-form textarea:focus { border-color: #fff; outline: 3px solid rgba(255, 255, 255, .25); }
+.inicio button.abrir, .inicio button.primario, .maq-botones button.primario, .inicio .editor-botones button.primario, .maq-tipos button.activo {
+  background: #fff; color: var(--marca-2); border-color: #fff; font-weight: 700; box-shadow: 0 4px 14px rgba(8, 23, 116, .35); }
+.inicio button.abrir:hover, .inicio button.primario:hover:not(:disabled), .maq-botones button.primario:hover { background: var(--marca-tinte); color: var(--marca-2); }
+.nuevo-proyecto #crearDesdeCarpeta, .maq-nueva, .maq-botones button:not(.primario):not(.peligro), .inicio .bf-acciones button, table.proyectos td button:not(.peligro),
+.elem-botones button, .inicio button.volver { background: rgba(255, 255, 255, .06); border-color: rgba(255, 255, 255, .35); color: #fff; }
+.nuevo-proyecto #crearDesdeCarpeta:hover, .maq-nueva:hover, .inicio .bf-acciones button:hover, table.proyectos td button:hover:not(.peligro) { background: rgba(255, 255, 255, .16); }
+table.proyectos th { background: rgba(255, 255, 255, .1); color: var(--marca-niebla); }
+table.proyectos td { border-top-color: rgba(255, 255, 255, .1); }
+table.proyectos tbody tr:hover { background: rgba(255, 255, 255, .05); }
+.estado { background: rgba(255, 255, 255, .18); color: #fff; }
+.estado.ok { background: #1f9a57; }
+.inicio .bib-item { color: #eef1ff; }
+.inicio .bib-item.activo, .maq-item.activo { background: #fff; color: var(--marca-2); border-color: #fff; box-shadow: none; }
+.inicio .bib-item.activo .bib-cuenta { background: var(--marca-tinte); color: var(--marca-2); }
+.maq-item.activo span { color: var(--suave); }
+.bib-grupo, .maq-grupo legend, .maq-form h4, .bib-cat { color: #fff; }
+.bib-cuenta { background: rgba(255, 255, 255, .14); color: #e3e8ff; }
+.maq-grupo { border-color: rgba(255, 255, 255, .18); background: rgba(255, 255, 255, .04); }
+.maq-campo small, .maq-valor em { color: var(--marca-niebla); }
+.maq-ayuda { background: rgba(255, 255, 255, .22); color: #fff; }
+.maq-msg { color: #b7f5cf; }
+.maq-tipos { background: rgba(255, 255, 255, .1); }
+.maq-tipos button { color: #dfe5ff; }
+.bib-seccion { border-top-color: rgba(255, 255, 255, .18); }
+
+/* editor de elementos y de hormas (ventanas oscuras) */
+#editorElemento { background: rgba(8, 23, 116, .55); backdrop-filter: blur(4px); }
+.editor-elem { background: var(--degradado-noche); border-color: rgba(255, 255, 255, .18); }
+.editor-elem h3 { color: #fff; font-weight: 800; }
+.editor-campos label { color: #dfe5ff; }
+.editor-vista { color: var(--marca-niebla); }
+.editor-elem .ed-caja-herr button.activo, .ed-caja-botones button.activo, .editor-elem .eh-barra button.primario { background: #fff; color: var(--marca-2); border-color: #fff; }
+.ed-vistas, .eh-barra { background: rgba(8, 23, 116, .85); }
+.editor-3d { background: radial-gradient(ellipse at 50% 40%, #ffffff 0%, #eef1fe 60%, #d9e0fb 100%); }
+
+/* ventana "Agregar elemento" */
+.ventana-elementos::backdrop { background: rgba(8, 23, 116, .45); backdrop-filter: blur(3px); }
+.ve-cab { background: var(--degradado-marca); color: #fff; }
+.ve-cab h2 { color: #fff; }
+.ve-cab button { background: rgba(255, 255, 255, .15); border-color: rgba(255, 255, 255, .35); color: #fff; }
+.ve-tarjeta { background: var(--marca-tinte-2); }
+.ve-tarjeta:hover { border-color: var(--marca); background: var(--marca-tinte); }

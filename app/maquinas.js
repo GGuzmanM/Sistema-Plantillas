@@ -20,7 +20,9 @@ export const CAMPOS_MESA = [
   { g: 'Velocidades de avance' },
   { k: 'trasladar', etq: 'Trasladar (en el aire)', u: 'mm/min', min: 100, max: 30000, paso: 100, def: 14400 },
   { k: 'bajar', etq: 'Bajar (entrar al EVA)', u: 'mm/min', min: 50, max: 10000, paso: 50, def: 900 },
-  { k: 'cortar', etq: 'Cortar (fresar)', u: 'mm/min', min: 100, max: 20000, paso: 100, def: 1800 },
+  { k: 'cortar', etq: 'Cortar (entrada y contorno)', u: 'mm/min', min: 100, max: 20000, paso: 100, def: 1800, ayuda: 'Al entrar en el EVA (primeras filas de cada plantilla) y al cortar el borde.' },
+  { k: 'relieve', etq: 'Fresar el relieve', u: 'mm/min', min: 100, max: 30000, paso: 100, def: 6000, ayuda: 'El resto de la superficie (cada fila solo roza 0,5 mm). 6000 ≈ 14 min el par; LutraCAD usa 14400. Si no se elige material.' },
+  { k: 'entradaLenta', etq: 'Ancho que entra despacio', u: 'mm', min: 0, max: 50, paso: 0.5, def: 3.5, ayuda: 'Primeros mm de cada plantilla a la velocidad de cortar, mientras la fresa entra en el bloque.' },
   { g: 'Relieve (pasadas)' },
   { k: 'pasoY', etq: 'Paso entre filas (a lo ancho)', u: 'mm', min: 0.1, max: 5, paso: 0.1, def: 0.5, ayuda: 'Más chico = más liso y más lento.' },
   { k: 'pasoX', etq: 'Paso entre puntos (a lo largo)', u: 'mm', min: 0.2, max: 10, paso: 0.1, def: 2 },
@@ -37,21 +39,42 @@ export const CAMPOS_MESA = [
 // campos de una impresora 3D: el programa avisa si la plantilla no entra en su área
 export const CAMPOS_IMPRESORA = [
   { g: 'Área de impresión' },
-  { k: 'x', etq: 'Largo (X)', u: 'mm', min: 50, max: 1000, paso: 1, def: 350 },
+  { k: 'x', etq: 'Largo (X)', u: 'mm', min: 50, max: 1000, paso: 1, def: 325 },
   { k: 'y', etq: 'Ancho (Y)', u: 'mm', min: 50, max: 1000, paso: 1, def: 320 },
   { k: 'z', etq: 'Alto (Z)', u: 'mm', min: 20, max: 1000, paso: 1, def: 325 },
   { g: 'Notas' },
   { k: 'notas', etq: 'Material, perfil del laminador…', t: 'texto', def: '' },
 ];
+// materiales EVA (Ernesto, 2026-11-21: fresa tres densidades, Relax S20, Protection S40 y Dynamic S50). Cada uno
+// lleva sus velocidades; en el diseño se elige el material y esas velocidades reemplazan a las de la mesa. De
+// fábrica (punto medio, 2026-11-21): entrada y contorno a 1800 como LutraCAD; relieve 6600 / 6000 / 5400 según la
+// dureza (todo a 1800 eran 40 min; LutraCAD 14400). Se afinan en Inicio → Máquinas tras probar cada uno.
+export const CAMPOS_MATERIAL = [
+  { g: 'Material' },
+  { k: 'shore', etq: 'Dureza (Shore A)', u: 'S', min: 5, max: 90, paso: 1, def: 40 },
+  { g: 'Velocidades con este material' },
+  { k: 'cortar', etq: 'Cortar (entrada y contorno)', u: 'mm/min', min: 100, max: 20000, paso: 100, def: 1800, ayuda: 'Al entrar en el EVA (primeras filas de cada plantilla) y al cortar el borde.' },
+  { k: 'relieve', etq: 'Fresar el relieve', u: 'mm/min', min: 100, max: 30000, paso: 100, def: 6000, ayuda: 'El resto de la superficie. Más duro = más carga en la fresa: un poco más lento. Si el EVA se rasga o queda con pelusa, bajarla.' },
+  { g: 'Notas' },
+  { k: 'notas', etq: 'Color, proveedor, observaciones…', t: 'texto', def: '' },
+];
 const porDefecto = campos => Object.fromEntries(campos.filter(c => c.k).map(c => [c.k, c.def]));
 // las de fábrica: siempre están; si se editan, la versión editada (mismo id) va en maquinas.json
 export const MESAS_FABRICA = [{ id: 'vx1r', nombre: 'Sensor Medica VX1R (EdingCNC)', fabrica: true, ...porDefecto(CAMPOS_MESA) }];
-export const IMPRESORAS_FABRICA = [{ id: 'impresora', nombre: 'Impresora 3D (revise el área)', fabrica: true, ...porDefecto(CAMPOS_IMPRESORA) }];
+// Bambu Lab H2D con los mods oficiales para TPU (Ernesto, 2026-11-21). El TPU va por una sola boquilla: 325 × 320 × 325
+// mm (con las dos boquillas el área común es 300 × 320; 350 de ancho solo sumando las dos con el mismo filamento).
+export const IMPRESORAS_FABRICA = [{ id: 'impresora', nombre: 'Bambu Lab H2D (TPU)', fabrica: true, ...porDefecto(CAMPOS_IMPRESORA),
+  x: 325, y: 320, z: 325, notas: 'TPU con los mods oficiales de Bambu; una sola boquilla (325 × 320 mm)' }];
+export const MATERIALES_FABRICA = [
+  { id: 'relax', nombre: 'Relax S20', fabrica: true, ...porDefecto(CAMPOS_MATERIAL), shore: 20, relieve: 6600 },
+  { id: 'protection', nombre: 'Protection S40', fabrica: true, ...porDefecto(CAMPOS_MATERIAL), shore: 40, relieve: 6000 },
+  { id: 'dynamic', nombre: 'Dynamic S50', fabrica: true, ...porDefecto(CAMPOS_MATERIAL), shore: 50, relieve: 5400 },
+];
 
 // lista completa: las de fábrica (o su versión editada) y las propias
 export function listaMaquinas(datos) {
   const une = (fab, propias = []) => [...fab.map(f => ({ ...f, ...(propias.find(p => p.id === f.id) ?? {}), fabrica: true })), ...propias.filter(p => !fab.some(f => f.id === p.id))];
-  return { mesas: une(MESAS_FABRICA, datos?.mesas), impresoras: une(IMPRESORAS_FABRICA, datos?.impresoras) };
+  return { mesas: une(MESAS_FABRICA, datos?.mesas), impresoras: une(IMPRESORAS_FABRICA, datos?.impresoras), materiales: une(MATERIALES_FABRICA, datos?.materiales) };
 }
 // valores con los límites de cada campo (lo que llegue de un archivo editado a mano no rompe el G-code)
 export function limpiarMaquina(m, campos) {
@@ -63,38 +86,48 @@ export function limpiarMaquina(m, campos) {
   }
   return r;
 }
-// opciones de gcodeEVA (motor/fresado.js) a partir de una mesa
-export function opcionesGcode(mesa, alto) {
+// opciones de gcodeEVA (motor/fresado.js) a partir de una mesa y, si se eligió, el material EVA (sus velocidades de
+// cortar y del relieve reemplazan a las de la mesa)
+export function opcionesGcode(mesa, alto, material = null) {
   return { radio: mesa.diametro / 2, bloque: { largo: mesa.largo, ancho: mesa.ancho, alto }, husillo: mesa.husillo,
-           velocidades: { trasladar: mesa.trasladar, bajar: mesa.bajar, cortar: mesa.cortar }, pasoY: mesa.pasoY, pasoX: mesa.pasoX,
-           separacion: mesa.separacion, zSeguro: mesa.zSeguro, zContorno: mesa.contorno === false ? [] : [mesa.zContorno1, mesa.zContorno2],
+           velocidades: { trasladar: mesa.trasladar, bajar: mesa.bajar, cortar: material?.cortar ?? mesa.cortar, relieve: material?.relieve ?? mesa.relieve ?? 6000 }, entradaLenta: mesa.entradaLenta ?? 3.5, pasoY: mesa.pasoY, pasoX: mesa.pasoX,
+           // auditoría 2026-11-19: si en el archivo la 2.ª vuelta quedó más alta que la 1.ª, se cortaba primero lo más hondo
+           separacion: mesa.separacion, zSeguro: mesa.zSeguro, zContorno: mesa.contorno === false ? [] : [mesa.zContorno1, mesa.zContorno2].sort((a, b) => b - a),
            sobreespesor: mesa.sobreespesor, margenContorno: mesa.margenContorno };
 }
 
 // campos agrupados por título: [[título, [campos]], …] (cada grupo es una tarjeta; van en columnas a lo ancho)
 const grupos = campos => { const r = []; for (const c of campos) { if (c.g) r.push([c.g, []]); else r.at(-1)?.[1].push(c); } return r; };
 
+// los tres tipos de la pantalla: campos, de fábrica, resumen en la lista y nombre de uno nuevo
+const TIPOS = {
+  mesas: { titulo: 'Mesas de trabajo (EVA)', campos: CAMPOS_MESA, fabrica: MESAS_FABRICA, nueva: 'Nueva mesa de trabajo', nombre: 'Mesa nueva',
+           resumen: x => `${x.largo} × ${x.ancho} mm · fresa ${String(x.diametro).replace('.', ',')} mm` },
+  materiales: { titulo: 'Materiales EVA', campos: CAMPOS_MATERIAL, fabrica: MATERIALES_FABRICA, nueva: 'Nuevo material', nombre: 'Material nuevo',
+                resumen: x => `Shore ${x.shore} · relieve F${x.relieve}` },
+  impresoras: { titulo: 'Impresoras 3D', campos: CAMPOS_IMPRESORA, fabrica: IMPRESORAS_FABRICA, nueva: 'Nueva impresora', nombre: 'Impresora nueva',
+                resumen: x => `${x.x} × ${x.y} × ${x.z} mm` },
+};
+
 // ---- Pantalla Inicio → Máquinas ----
-// ctx = { datos() → { mesas, impresoras } (lo guardado), guardar(datos) }
+// ctx = { datos() → { mesas, materiales, impresoras } (lo guardado), guardar(datos) }
 export function pintarMaquinas(cuerpo, ctx) {
   let tipo = 'mesas', elegida = null;
-  const campos = () => (tipo === 'mesas' ? CAMPOS_MESA : CAMPOS_IMPRESORA);
-  const fabrica = () => (tipo === 'mesas' ? MESAS_FABRICA : IMPRESORAS_FABRICA);
+  const campos = () => TIPOS[tipo].campos;
   const pintar = () => {
     const lista = listaMaquinas(ctx.datos())[tipo];
     if (!lista.some(m => m.id === elegida)) elegida = lista[0]?.id ?? null;
     const m = lista.find(x => x.id === elegida);
     cuerpo.innerHTML = `<div class="inicio-titulo maq-cab"><h2>Máquinas</h2>
         <div class="maq-tipos" role="tablist">
-          <button data-maq-tipo="mesas" class="${tipo === 'mesas' ? 'activo' : ''}">Mesas de trabajo (EVA)</button>
-          <button data-maq-tipo="impresoras" class="${tipo === 'impresoras' ? 'activo' : ''}">Impresoras 3D</button>
+          ${Object.entries(TIPOS).map(([id, t]) => `<button data-maq-tipo="${id}" class="${tipo === id ? 'activo' : ''}">${t.titulo}</button>`).join('')}
         </div>
-        <p class="maq-intro">Se guardan en la carpeta compartida (las ven las tres PC). En cada diseño se elige cuál usar: la mesa en 3. EVA, la impresora en 3. Imprimir.</p>
+        <p class="maq-intro">Se guardan en la carpeta compartida (las ven las tres PC). En cada diseño se elige cuál usar: la mesa y el material en 3. EVA, la impresora en 3. Imprimir.</p>
       </div>
       <div class="maq-grilla">
         <div class="maq-lista">
-          ${lista.map(x => `<button class="maq-item${x.id === elegida ? ' activo' : ''}" data-maq="${esc(x.id)}"><b>${esc(x.nombre)}</b><span>${tipo === 'mesas' ? `${x.largo} × ${x.ancho} mm · fresa ${String(x.diametro).replace('.', ',')} mm` : `${x.x} × ${x.y} × ${x.z} mm`}${x.fabrica ? ' · de fábrica' : ''}</span></button>`).join('')}
-          <button class="maq-nueva" id="maqNueva">+ ${tipo === 'mesas' ? 'Nueva mesa de trabajo' : 'Nueva impresora'}</button>
+          ${lista.map(x => `<button class="maq-item${x.id === elegida ? ' activo' : ''}" data-maq="${esc(x.id)}"><b>${esc(x.nombre)}</b><span>${TIPOS[tipo].resumen(x)}${x.fabrica ? ' · de fábrica' : ''}</span></button>`).join('')}
+          <button class="maq-nueva" id="maqNueva">+ ${TIPOS[tipo].nueva}</button>
         </div>
         ${m ? `<form class="maq-form" id="maqForm" autocomplete="off">
           <label class="maq-nombre">Nombre <input type="text" name="nombre" value="${esc(m.nombre)}" maxlength="80"></label>
@@ -112,12 +145,12 @@ export function pintarMaquinas(cuerpo, ctx) {
       </div>`;
     cuerpo.querySelectorAll('[data-maq-tipo]').forEach(b => b.onclick = () => { tipo = b.dataset.maqTipo; elegida = null; pintar(); });
     cuerpo.querySelectorAll('[data-maq]').forEach(b => b.onclick = () => { elegida = b.dataset.maq; pintar(); });
-    const datos = () => { const d = ctx.datos() ?? {}; return { mesas: [...(d.mesas ?? [])], impresoras: [...(d.impresoras ?? [])] }; };
+    const datos = () => { const d = ctx.datos() ?? {}; return { mesas: [...(d.mesas ?? [])], materiales: [...(d.materiales ?? [])], impresoras: [...(d.impresoras ?? [])] }; };
     const poner = async (nueva, aviso) => {
       const d = datos(); d[tipo] = [...d[tipo].filter(x => x.id !== nueva.id), limpiarMaquina(nueva, campos())];
       await ctx.guardar(d); elegida = nueva.id; pintar(); const msg = cuerpo.querySelector('#maqMsg'); if (msg) msg.textContent = aviso;
     };
-    cuerpo.querySelector('#maqNueva').onclick = () => poner({ ...porDefecto(campos()), id: tipo.slice(0, 4) + '_' + Date.now().toString(36), nombre: tipo === 'mesas' ? 'Mesa nueva' : 'Impresora nueva' }, 'Creada con los valores de fábrica: cámbiele el nombre y lo que haga falta, y Guardar.');
+    cuerpo.querySelector('#maqNueva').onclick = () => poner({ ...porDefecto(campos()), id: tipo.slice(0, 4) + '_' + Date.now().toString(36), nombre: TIPOS[tipo].nombre }, 'Creada con los valores de fábrica: cámbiele el nombre y lo que haga falta, y Guardar.');
     if (!m) return;
     const form = cuerpo.querySelector('#maqForm');
     const leerForm = () => {

@@ -431,6 +431,19 @@ de ejemplo el trazo mide 0,25 a 0,57 mm. La foto de una plantilla (sin trazo) no
   `mesa` e `impresora` (id). El G-code toma los valores con `opcionesGcode`. La de fábrica da exactamente el G-code de
   antes (prueba "Mesa de trabajo del G-code"). El archivo de mesa de LutraCAD (.lrss) viene cifrado: no se pudo leer;
   un G-code real hecho con LutraCAD (no de paciente) usa los mismos S24000 / F14400 / F900 / F1800.
+- **Identidad visual azul + blanco** (2026-11-19, Ernesto, referencia de color #1838D9): `app/marca.css` se carga
+  encima de `estilo.css` (quitar su `<link>` vuelve al aspecto anterior). Barra de arriba y módulo activo en degradado
+  azul, panel izquierdo en tinte azul claro, visor blanco con halo azul, Inicio / Biblioteca / Máquinas sobre azul con
+  luces difuminadas y tarjetas translúcidas, botones principales blancos sobre azul. En el 3D, el contorno de la
+  plantilla y los elementos van en azul de la marca; elegido (verde), su par (rojo) y descargas (naranja) no cambian.
+  La Orden del doctor lleva los mismos colores. Ícono azul en la pestaña.
+- **Auditoría 2026-11-19** (después del cambio visual): aviso real si la plantilla no entra en la impresora elegida
+  (la nota lo prometía y no se hacía); la carpeta del paciente se recordaba en el proyecto equivocado si se cambiaba
+  de proyecto mientras cargaba, y al reabrir podía cargarse en otro proyecto; al eliminar un proyecto ahora se olvida
+  el acceso a la carpeta del paciente; carpeta vacía avisa; el escaneo en memoria se limita a los 6 últimos proyectos;
+  el G-code no se genera si la altura segura queda a menos de 10 mm sobre el bloque (seguridad) y las vueltas del
+  contorno siempre van de arriba hacia abajo; el panel del escaneo o la muestra se cierra al pasar a Imprimir o
+  Exportar y al abrir otra carpeta; ícono de la pestaña (error 404 en la consola).
 - **Chimpunes y Crocs rehechas desde las capturas** (2026-11-17, Ernesto: "se ven tan mal… idénticas a las imágenes").
   Las de antes (base EasyCAD + factores de relieve cada 2,5 %, hasta ×12) tenían arrugas a lo ancho. Ahora cada una es
   una horma raíz propia (`base_chimpunes` / `base_crocs`, datos `hormas/chimpunes_datos.json` / `crocs_datos.json`),
@@ -567,3 +580,17 @@ comparar las hormas 43 y 46 de EasyCAD y falta confirmarlas con más tallas.
 - Sobre el antepié, el relieve de la horma se reparte en dos tramos (hasta la copa y de la copa al arco).
   Si no se pide un arco, baja en la misma proporción que la copa: con copa 10 y antepié 1,5 mm el arco
   queda en 15,4 mm (la horma trae copa 14, antepié 2 y arco 21,5 mm).
+- **Fresado EVA, 2026-11-21** (primera prueba real en la VX1R, salió bien): (1) el contorno ahora empieza en la punta
+  de los dedos y baja 3 mm afuera de la plantilla (antes bajaba junto al arco interno y en el pie derecho la fresa
+  mordió ahí); (2) velocidad del relieve como LutraCAD: F1800 solo los primeros 3,5 mm de cada plantilla y el
+  contorno, el resto a F14400 (tardaba 40 min contra 15-20 de LutraCAD; tiempo teórico 52 → 9 min). Los dos valores
+  se cambian en Inicio → Máquinas ("Fresar el relieve", "Ancho que entra despacio"). Prueba nueva: revisa el recorrido
+  cada 0,2 mm también entre puntos.
+- **Velocidad punto medio y materiales EVA, 2026-11-21** (Ernesto: rápido como EasyCAD sin arriesgar la fresa): el
+  relieve va a F6000 de fábrica (≈14 min el par de 255 mm; LutraCAD usa 14400, todo a 1800 eran 40 min). Lo que más
+  carga la fresa sigue lento a F1800: la entrada (primeros 3,5 mm de cada plantilla, corta el bloque a toda su altura)
+  y el contorno. Inicio → Máquinas tiene la pestaña **Materiales EVA**: Relax S20 (relieve F6600), Protection S40
+  (F6000) y Dynamic S50 (F5400; más duro = más carga). En el diseño, 3. EVA → "Material EVA"; sus velocidades
+  reemplazan a las de la mesa, se guarda en la receta (`materialEva`) y el nombre va en el archivo del G-code.
+- **Impresora de fábrica = Bambu Lab H2D (TPU), 2026-11-21**: con los mods oficiales para TPU, que va por una sola
+  boquilla → área 325 × 320 × 325 mm (antes 350 × 320 × 325 de relleno; 350 solo sumando las dos boquillas).

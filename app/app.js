@@ -856,7 +856,7 @@ function diseno() {
     // mm de más en la punta para pulir (0 = sin margen); el largo de arriba no los incluye
     margenPulido: margenPunta(), margenLados: margenLados(), margenTalon: margenTalon(),
     // máquina elegida (Inicio → Máquinas, 2026-11-19)
-    mesa: $('mesaElegida').value, impresora: $('impresoraElegida').value,
+    mesa: $('mesaElegida').value, materialEva: $('materialEva').value, impresora: $('impresoraElegida').value,
     ancho: $('anchoAuto').checked ? null : num('ancho'),
     tipoDiseno: $('tipoDiseno').value,
     escalaTalon,
@@ -1089,7 +1089,7 @@ function malla(g, ox, al) {
   return { pos, nor, idx, col, col2, marca };
 }
 const COLOR_DESCARGA = [0.9, 0.52, 0.18];
-const COLOR_PLANTILLA = [0.95, 0.95, 0.94], COLOR_ELEMENTO = [0.2, 0.6, 0.68], COLOR_ELEGIDO = [0.05, 0.62, 0.12], COLOR_PAR = [0.86, 0.12, 0.1];
+const COLOR_PLANTILLA = [0.95, 0.95, 0.94], COLOR_ELEMENTO = [0.31, 0.41, 0.93], COLOR_ELEGIDO = [0.05, 0.62, 0.12], COLOR_PAR = [0.86, 0.12, 0.1];
 const ELEM_BORDE = 0.12;   // mm: desde ahí se pinta el elemento
 
 // Contorno de la plantilla: una cinta fina verde oscuro por el borde de la cara de arriba (como LutraCAD), apenas
@@ -1110,7 +1110,7 @@ function contornoPlantilla(g, ox) {
     px = x[qa] + (x[qb] - x[qa]) * f; py = y[qa] + (y[qb] - y[qa]) * f;
     zMax = Math.max(zMax, z[qa] + (z[qb] - z[qa]) * f) + ALTO;
     pos.set([x[q0] + ox, y[q0], zMax, px + ox, py, zMax], 6 * i);
-    nor.set([0, 0, 1, 0, 0, 1], 6 * i); col.set([0.05, 0.38, 0.12, 0.05, 0.38, 0.12], 6 * i);
+    nor.set([0, 0, 1, 0, 0, 1], 6 * i); col.set([0.09, 0.22, 0.85, 0.09, 0.22, 0.85], 6 * i);   // azul marca (2026-11-19)
     const j = (i + 1) % ns;
     idx.set([2 * i, 2 * j, 2 * j + 1, 2 * i, 2 * j + 1, 2 * i + 1], 6 * i);
   }
@@ -1237,6 +1237,16 @@ function actualizar() {
     if (m.anchoAntepie < anchoPie - 6) avisos.push(`La plantilla es ${f1(anchoPie - m.anchoAntepie)} mm más angosta que el antepié del escaneo.`);
     if (escaneos.izq && escaneos.der && Math.abs(escaneos.izq.m.largo - escaneos.der.m.largo) > 6)
       avisos.push(`Los pies del escaneo miden distinto: izquierdo ${f1(escaneos.izq.m.largo)} mm, derecho ${f1(escaneos.der.m.largo)} mm.`);
+  }
+  // impresora 3D elegida (auditoría 2026-11-19: la nota decía que se avisaba y no se hacía): ¿entra la plantilla?
+  if (producto().acabado) {
+    try {
+      const imp = impresoraElegida(), ancho = Math.max(m.anchoAntepie, mDer?.anchoAntepie ?? 0), largo = Math.max(m.largo, mDer?.largo ?? 0);
+      let alto = 0; for (const g of [r.izq, r.der]) for (let q = 0; q < g.z.length; q++) alto = Math.max(alto, g.z[q]);
+      const entra = (largo <= imp.x && ancho <= imp.y) || (largo <= imp.y && ancho <= imp.x);
+      if (!entra) avisos.push(`La plantilla (${f1(largo)} × ${f1(ancho)} mm) no entra acostada en el área de "${imp.nombre}" (${imp.x} × ${imp.y} mm).`);
+      if (alto > imp.z) avisos.push(`La plantilla mide ${f1(alto)} mm de alto y "${imp.nombre}" imprime hasta ${imp.z} mm.`);
+    } catch (err) { if (!(err instanceof ReferenceError)) throw err; /* al cargar, antes de la lista de máquinas */ }
   }
   if (!d.paciente) avisos.push('Falta el nombre del paciente (se usa en el nombre de los archivos).');
   resumenSeccion('Revisión', avisos.length ? `${avisos.length} aviso${avisos.length > 1 ? 's' : ''}` : 'sin observaciones');
@@ -1468,6 +1478,8 @@ $('listaMuestras').addEventListener('change', () => {
 // muestras que se puedan leer (PDF del escáner o PNG); los reportes, recetas e incidencias no se miran.
 const NO_ES_MUESTRA = /reporte|incidencia|receta|rmn|lesi[oó]n|orden|factura|boleta|solucion/i;
 async function abrirCarpeta(archivos) {
+  // auditoría 2026-11-19: el escaneo o la muestra elegidos se reemplazan: su panel se cierra
+  if (objElegido) { objElegido = null; pintarPanelObjeto(); }
   const ruta = f => f.webkitRelativePath || f.name, carpeta = ruta(archivos[0]).split('/')[0];
   const directos = archivos.filter(f => ruta(f).split('/').length <= 2);   // sin entrar a subcarpetas
   // sin proyecto: paciente nuevo, se empieza de cero (deshacer lo devuelve). Con un proyecto abierto solo se cargan
@@ -1516,21 +1528,33 @@ async function elegirCarpetaPaciente() {
   catch (e) { if (e.name === 'AbortError') return { cancelado: true }; return null; }
 }
 async function abrirCarpetaRecordando(archivos, handle) {
-  await abrirCarpeta(archivos);
+  // auditoría 2026-11-19: la carpeta vacía no hacía nada y sin aviso
+  if (!archivos?.length) { mensaje('La carpeta elegida está vacía: no hay escaneo ni muestras.', false); return; }
+  // auditoría 2026-11-19: la clave se toma ANTES de cargar (si se cambiaba de proyecto mientras cargaba, quedaba
+  // recordada en el otro proyecto)
   const clave = claveArchivos;
-  if (handle && clave) { await guardarCarpetaPaciente(clave, handle); $('reabrirCarpeta').hidden = true; }
+  await abrirCarpeta(archivos);
+  if (handle && clave) { await guardarCarpetaPaciente(clave, handle); if (claveArchivos === clave) $('reabrirCarpeta').hidden = true; }
+}
+// proyecto eliminado: se olvidan el acceso a la carpeta del paciente y su escaneo en memoria (auditoría 2026-11-19)
+async function olvidarProyecto(clave) {
+  archivosAbiertos.delete(clave);
+  try { const b = await bdPac(); await new Promise(ok => { const t = b.transaction(T_PAC, 'readwrite'); t.objectStore(T_PAC).delete('paciente:' + clave); t.oncomplete = ok; t.onerror = ok; }); } catch { /* sin almacenamiento */ }
 }
 // al abrir un proyecto sin el escaneo en memoria: se vuelve a leer su carpeta (o se ofrece el botón)
 async function reabrirCarpetaGuardada(clave) {
   $('reabrirCarpeta').hidden = true;
   const h = clave && await carpetaPacienteGuardada(clave); if (!h || claveArchivos !== clave) return;
   let permiso = 'denied'; try { permiso = await h.queryPermission({ mode: 'read' }); } catch { /* handle viejo */ }
-  if (permiso === 'granted') { try { await abrirCarpeta(await archivosDeCarpeta(h)); return; } catch { /* la carpeta ya no está */ } }
+  // auditoría 2026-11-19: si mientras se leía la carpeta se abrió otro proyecto, no se carga en ese
+  if (permiso === 'granted') { try { const fs = await archivosDeCarpeta(h); if (claveArchivos !== clave) return; await abrirCarpeta(fs); return; } catch { /* la carpeta ya no está */ } }
+  if (claveArchivos !== clave) return;
   const b = $('reabrirCarpeta'); b.textContent = `Volver a abrir la carpeta "${h.name}"`; b.hidden = false;
   b.onclick = async () => {
     try {
       if ((await h.requestPermission({ mode: 'read' })) !== 'granted') return;
-      b.hidden = true; await abrirCarpeta(await archivosDeCarpeta(h));
+      const fs = await archivosDeCarpeta(h); if (claveArchivos !== clave) return;
+      b.hidden = true; await abrirCarpeta(fs);
     } catch (e) { mensaje('No se pudo abrir la carpeta (¿se movió o se borró?): ' + e.message, false); }
   };
   mensaje(`Para ver el escaneo y la muestra, use "Volver a abrir la carpeta" en Paciente (el navegador pide permiso).`);
@@ -1538,7 +1562,7 @@ async function reabrirCarpetaGuardada(clave) {
 $('abrirCarpeta').addEventListener('click', async () => {
   const r = await elegirCarpetaPaciente();
   if (r?.cancelado) return;
-  if (r?.archivos?.length) await abrirCarpetaRecordando(r.archivos, r.handle); else if (!r) $('archivoCarpeta').click();
+  if (r?.archivos) await abrirCarpetaRecordando(r.archivos, r.handle); else if (!r) $('archivoCarpeta').click();   // vacía: avisa
 });
 $('archivoCarpeta').addEventListener('change', async ev => {
   const fs = [...ev.target.files]; ev.target.value = '';
@@ -1781,7 +1805,7 @@ function puntoDelClicExacto(px, py) {
 // Perfil de la plantilla por el punto elegido: a lo ancho (transversal) y a lo largo (longitudinal). Gris = la
 // plantilla (de la base a la cara de arriba), naranja = lo que suman los elementos, azul punteado = planta del
 // pie del escaneo. La altura se agranda (×k, se indica) para que se lea; las distancias son en mm reales.
-const COLOR_TRANS = '#d9481c', COLOR_LONG = '#1d5fbf';
+const COLOR_TRANS = '#d9481c', COLOR_LONG = '#1838d9';
 function perfilesCorte(v) {
   const G = grillaDe(v.g), al = v.al, trans = [], long = [];
   for (let x = G.x0; x <= G.x1; x += 0.5) { const p = G.leer(x, corte.y); if (p) trans.push({ s: x, ...p, pie: al?.altura(x, corte.y) ?? null }); }
@@ -2924,7 +2948,9 @@ function ponerModulo(m) {
   $('notaModulo').textContent = NOTAS[m];
   // con el diseño fijo: si se estaba editando la línea de corte, se guarda lo hecho y se cierra
   // (auditoría 2026-11-16: quedaba abierta y se podía seguir editando en Exportar)
-  if (fijoModulo()) { if (lc) terminarCorte(true); activo = -1; plantillaElegida = null; refrescarPosiciones(); }
+  if (fijoModulo()) { if (lc) terminarCorte(true); activo = -1; plantillaElegida = null; refrescarPosiciones();
+    // auditoría 2026-11-19: el panel del escaneo o de la muestra elegidos quedaba flotando en Imprimir y Exportar
+    if (objElegido) elegirObjeto(null); }
   pintarPanelElemento(); bloquearMedidas();
   // lámina ↔ sólido: se vuelve a dibujar
   if (antes !== m && (antes === 'base' || antes === 'diseno') !== enLamina()) pedir();
@@ -3055,14 +3081,16 @@ $('exportar').addEventListener('click', async () => {
 let maquinas = listaMaquinas(null);
 const mesaElegida = () => maquinas.mesas.find(m => m.id === $('mesaElegida').value) ?? maquinas.mesas[0];
 const impresoraElegida = () => maquinas.impresoras.find(m => m.id === $('impresoraElegida').value) ?? maquinas.impresoras[0];
+const materialElegido = () => maquinas.materiales.find(m => m.id === $('materialEva').value) ?? maquinas.materiales[0];
 function pintarMaquinasDiseno() {
-  for (const [id, lista] of [['mesaElegida', maquinas.mesas], ['impresoraElegida', maquinas.impresoras]]) {
+  for (const [id, lista] of [['mesaElegida', maquinas.mesas], ['materialEva', maquinas.materiales], ['impresoraElegida', maquinas.impresoras]]) {
     const sel = $(id), antes = sel.dataset.pedida || sel.value;
     sel.innerHTML = lista.map(m => `<option value="${esc(m.id)}">${esc(m.nombre)}</option>`).join('');
     sel.value = lista.some(m => m.id === antes) ? antes : lista[0].id;
   }
   const m = mesaElegida(), p = impresoraElegida(), n = v => String(v).replace('.', ',');
   $('notaMesa').textContent = `Bloque ${m.largo} × ${m.ancho} mm · fresa de punta redonda ${n(m.diametro)} mm a ${m.husillo.toLocaleString('es')} rpm · filas cada ${n(m.pasoY)} mm. Cero en el centro del bloque y Z 0 sobre la mesa. Se cambia en Inicio → Máquinas; el G-code se genera en 4. Exportar.`;
+  { const t = materialElegido(); $('notaMaterial').textContent = `Shore ${t.shore}: entra y corta el borde a F${t.cortar}, el relieve a F${t.relieve} mm/min${t.notas ? ' · ' + t.notas : ''}. Se cambia en Inicio → Máquinas → Materiales EVA.`; }
   $('notaImpresora').textContent = `Área ${p.x} × ${p.y} × ${p.z} mm${p.notas ? ' · ' + p.notas : ''}. Se cambia en Inicio → Máquinas.`;
 }
 function aplicarMaquinas(datos) { maquinas = listaMaquinas(datos); pintarMaquinasDiseno(); pedir(); }
@@ -3072,6 +3100,7 @@ $('mesaElegida').addEventListener('change', () => {
   pintarMaquinasDiseno(); pedir();
 });
 $('impresoraElegida').addEventListener('change', () => { delete $('impresoraElegida').dataset.pedida; pintarMaquinasDiseno(); pedir(); });
+$('materialEva').addEventListener('change', () => { delete $('materialEva').dataset.pedida; pintarMaquinasDiseno(); pedir(); });
 pintarMaquinasDiseno();
 $('exportarGcode').addEventListener('click', async () => {
   if (!actual || hayFueraDeRango()) return;
@@ -3082,9 +3111,11 @@ $('exportarGcode').addEventListener('click', async () => {
     const mesa = mesaElegida();
     const destino = await pedirCarpetaDestino();
     if (destino === false) { mensaje('No se generó el G-code: no se eligió la carpeta.', false); return; }
-    const r = gcodeEVA(actual.izq, actual.der, { ...opcionesGcode(mesa, alto), nombre: base });
+    // material EVA (2026-11-21): sus velocidades, y su nombre en el archivo para poner el bloque correcto
+    const mat = materialElegido();
+    const r = gcodeEVA(actual.izq, actual.der, { ...opcionesGcode(mesa, alto, mat), nombre: `${base} ${mat.nombre}` });
     if (r.avisos.length) { mensaje('No se generó el G-code: ' + r.avisos.join(' '), false); return; }
-    const nombre = `${base} fresadora.iso`;
+    const nombre = `${base} ${mat.nombre} fresadora.iso`;
     await guardar(nombre, r.texto);
     if (destino) await escribirEnCarpeta(destino, nombre, r.texto);
     mensaje(`Guardado en ${destino ? `la carpeta "${destino.name}" (y copia en ${dondeSeGuarda()})` : dondeSeGuarda()}: "${nombre}" (${r.lineas.toLocaleString('es')} líneas, alto máximo ${r.alturaMax.toFixed(1).replace('.', ',')} mm). Antes de fresar: revíselo en la vista de EdingCNC y páselo primero en el aire.`);
@@ -3233,7 +3264,7 @@ function limpiarReceta(r) {
   c.margenLados = numFin(c.margenLados) ? Math.min(Math.max(+c.margenLados, 0), 10) : 0;
   c.margenTalon = numFin(c.margenTalon) ? Math.min(Math.max(+c.margenTalon, 0), 10) : 0;
   // máquina elegida (2026-11-19): un id de Inicio → Máquinas; si ya no existe, se usa la primera
-  for (const k of ['mesa', 'impresora']) if (typeof c[k] !== 'string' || c[k].length > 80) delete c[k];
+  for (const k of ['mesa', 'materialEva', 'impresora']) if (typeof c[k] !== 'string' || c[k].length > 80) delete c[k];
   // ancho de la receta (QA-02): fuera de lo posible se rechaza la receta, no se genera una plantilla gigante
   if (c.ancho != null && !(c.ancho >= 40 && c.ancho <= 160)) throw new Error(`ancho fuera de rango en la receta (${c.ancho} mm; de 40 a 160)`);
   return c;
@@ -3271,7 +3302,7 @@ function aplicarRecetaSinRed(r) {
     $('margenActivo').checked = con; $('margenMm').value = con ? r.margenPulido : 5;
     $('margenLados').value = con ? r.margenLados : 3; $('margenTalon').value = con ? r.margenTalon : 0; pintarMargen(); }
   // mesa de trabajo e impresora del diseño (si la lista aún no llegó de la carpeta compartida, se elige al llegar)
-  for (const [id, v] of [['mesaElegida', r.mesa], ['impresoraElegida', r.impresora]]) { if (v) $(id).dataset.pedida = v; else delete $(id).dataset.pedida; }
+  for (const [id, v] of [['mesaElegida', r.mesa], ['materialEva', r.materialEva], ['impresoraElegida', r.impresora]]) { if (v) $(id).dataset.pedida = v; else delete $(id).dataset.pedida; }
   try { pintarMaquinasDiseno(); } catch (err) { if (!(err instanceof ReferenceError)) throw err; /* al cargar, antes de la lista */ }
   pintarNotaLargo();
   $('anchoAuto').checked = r.ancho == null; if (r.ancho != null) $('ancho').value = r.ancho;
@@ -3538,6 +3569,8 @@ inicio = crearInicio({
     // querer y abrir otra vez el proyecto se perdían). Solo mientras la página esté abierta; no se copian a ningún lado.
     if (claveArchivos && (escaneos.izq || escaneos.der || muestra))
       archivosAbiertos.set(claveArchivos, { izq: escaneos.izq, der: escaneos.der, muestra, muestrasCarpeta: [...muestrasCarpeta], verEscaneo: $('verEscaneo').checked });
+    // auditoría 2026-11-19: en memoria solo los últimos 6 proyectos (antes crecía sin límite con cada paciente)
+    while (archivosAbiertos.size > 6) archivosAbiertos.delete(archivosAbiertos.keys().next().value);
     const p = inicio?.proyecto?.(); claveArchivos = p ? p.disenador + '/' + p.carpeta : null;
     if (nuevo) limpiarPaciente(); else { escaneos.izq = null; escaneos.der = null; muestra = null; muestrasCarpeta = []; $('datosMuestra').hidden = true; pintarListaMuestras(); pintarEscaneo(); }
     aplicarReceta(r);
@@ -3561,7 +3594,7 @@ inicio = crearInicio({
   mensaje,
   antesDeSalir: () => { if (lc) terminarCorte(true); volcarHistorial(); },
   // "Nuevo desde carpeta": elige la carpeta del paciente (recordándola) y carga el escaneo y las muestras
-  abrirCarpeta: abrirCarpetaRecordando, elegirCarpetaPaciente,
+  abrirCarpeta: abrirCarpetaRecordando, elegirCarpetaPaciente, olvidarProyecto,
   biblioteca: { catalogo: () => catalogo, miniatura: miniaturaElemento, recuadro: recuadroElemento, vista3D: vista3DElemento, aplicar: ponerElementosPropios, hormas: listaHormas,
                 aplicarHormas: ponerHormasPropias, editorHorma, aplicarMaquinas },
 });

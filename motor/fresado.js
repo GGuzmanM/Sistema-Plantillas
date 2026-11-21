@@ -5,7 +5,8 @@
 //   la derecha en Y negativo, con el arco mirando al centro
 // · relieve en zigzag: filas a lo largo cada 0,5 mm a lo ancho, un punto cada 2 mm; después el contorno, una vuelta a
 //   Z 15 y otra a Z 1 (queda 1 mm sin cortar para que no se suelten)
-// · S24000 M03, G64, todo con G01: F14400 para trasladar, F900 para bajar, F1800 para cortar; al final Z 55, G28, M5
+// · S24000 M03, G64, todo con G01: F14400 para trasladar, F900 para bajar, F1800 para entrar (primeras filas) y el
+//   contorno, F6000 para el resto del relieve (LutraCAD 14400; punto medio, 2026-11-21); al final Z 55, G28, M5
 // La fresa es de punta redonda (bola): la altura de cada punto se calcula para que la bola no toque la plantilla en
 // ningún lado (no "come" las paredes de la copa ni del arco).
 
@@ -78,8 +79,10 @@ function contornoFresa(borde, r) {
   const ac = [0]; for (let i = 1; i <= n; i++) ac.push(ac[i - 1] + Math.hypot(out[i % n][0] - out[i - 1][0], out[i % n][1] - out[i - 1][1]));
   const tot = ac[n], m = Math.max(50, Math.round(tot / 0.6)), P = [];
   for (let k = 0, i = 0; k < m; k++) { const t = (k / m) * tot; while (i < n - 1 && ac[i + 1] < t) i++; const u = (t - ac[i]) / ((ac[i + 1] - ac[i]) || 1), a = out[i], b = out[(i + 1) % n]; P.push([a[0] + u * (b[0] - a[0]), a[1] + u * (b[1] - a[1])]); }
-  // empezar en el antepié, del lado más cercano al centro (Y = 0)
-  let k0 = 0, mejor = Infinity; P.forEach(([x, y], k) => { if (x > 0) { const v = Math.abs(y) - x * 0.01; if (v < mejor) { mejor = v; k0 = k; } } });
+  // empezar en la punta de los dedos (X máximo). Antes empezaba en el antepié interno, junto al arco, como el ejemplo
+  // de LutraCAD; 2026-11-21, Ernesto: en el pie derecho la fresa mordió ahí, donde bajaba y volvía en cada vuelta.
+  // En la punta la pared es la más baja y lo que sobra es desperdicio.
+  let k0 = 0, mejor = -Infinity; P.forEach(([x], k) => { if (x > mejor) { mejor = x; k0 = k; } });
   return [...P.slice(k0), ...P.slice(0, k0)];
 }
 
@@ -90,7 +93,12 @@ export function gcodeEVA(izq, der, op = {}) {
   const sep = op.separacion ?? 7, zSeg = op.zSeguro ?? 55, zCont = op.zContorno ?? [15, 1];
   // mesa de trabajo (2026-11-19): material que queda de más arriba (para pulir) y corte del contorno más afuera
   const sobre = op.sobreespesor ?? 0, masAfuera = op.margenContorno ?? 0;
-  const F = { trasladar: 14400, bajar: 900, cortar: 1800, ...op.velocidades }, S = op.husillo ?? 24000;
+  const F = { trasladar: 14400, bajar: 900, cortar: 1800, relieve: 6000, ...op.velocidades }, S = op.husillo ?? 24000;
+  // velocidad del relieve (2026-11-21, Ernesto: tardaba 40 min y LutraCAD 15-20): como LutraCAD ("Marketing PLANTILLA
+  // T38.5"), solo las primeras filas de cada plantilla (3,5 mm, mientras la fresa entra en el bloque) van a F1800;
+  // el resto del relieve más rápido: LutraCAD usa F14400; aquí punto medio F6000 (≈14 min el par) para no forzar la
+  // fresa (Ernesto). El contorno sigue a F1800.
+  const entradaLenta = op.entradaLenta ?? 3.5;
   const avisos = [], L = [];
   const pies = [['izq', izq, sep], ['der', der, -sep]].filter(p => p[1]);
   const datos = pies.map(([lado, g, y0]) => { const M = aMaquina(g, lado, y0); return { lado, M, m: mapa(g, M, 0.5) }; });
@@ -99,11 +107,13 @@ export function gcodeEVA(izq, der, op = {}) {
   for (const { m, lado } of datos) {
     let X0 = Infinity, X1 = -Infinity, Y0 = Infinity, Y1 = -Infinity;
     for (const [x, y] of m.borde) { X0 = Math.min(X0, x); X1 = Math.max(X1, x); Y0 = Math.min(Y0, y); Y1 = Math.max(Y1, y); }
-    if (X0 - r - masAfuera < -bloque.largo / 2 || X1 + r + masAfuera > bloque.largo / 2) avisos.push(`La plantilla ${lado === 'izq' ? 'izquierda' : 'derecha'} no entra a lo largo del bloque (${Math.round(X1 - X0 + 2 * r)} mm con la fresa; el bloque mide ${bloque.largo}).`);
+    if (X0 - r - masAfuera < -bloque.largo / 2 || X1 + r + masAfuera + 3 > bloque.largo / 2) avisos.push(`La plantilla ${lado === 'izq' ? 'izquierda' : 'derecha'} no entra a lo largo del bloque (${Math.round(X1 - X0 + 2 * r)} mm con la fresa; el bloque mide ${bloque.largo}).`);
     if (Math.min(Math.abs(Y0), Math.abs(Y1)) < 0 || Math.max(Math.abs(Y0), Math.abs(Y1)) + r + masAfuera > bloque.ancho / 2) avisos.push(`La plantilla ${lado === 'izq' ? 'izquierda' : 'derecha'} no entra a lo ancho del bloque.`);
     for (const v of m.H) zMax = Math.max(zMax, v);
   }
   if (zMax + sobre > bloque.alto - 0.5) avisos.push(`La plantilla mide ${zMax.toFixed(1)} mm de alto y el bloque ${bloque.alto} mm: no alcanza.`);
+  // auditoría 2026-11-19 (seguridad): con la altura segura por debajo del bloque la fresa se trasladaría a través del EVA
+  if (zSeg < bloque.alto + 10) avisos.push(`La altura segura (${zSeg} mm) debe quedar al menos 10 mm sobre el bloque (${bloque.alto} mm): cámbiela en Inicio → Máquinas.`);
 
   L.push(`((${(op.nombre ?? 'plantilla').replace(/[()]/g, '')}))`, '%', 'G90', 'G28', `S${S}`, 'M03', 'G64', `F${F.trasladar}`, `G01 Z${f2(zSeg)}`);
   let puntos = 0;
@@ -113,12 +123,14 @@ export function gcodeEVA(izq, der, op = {}) {
     const filas = [];
     if (lado === 'izq') for (let Y = Math.floor(Y1 / pasoY) * pasoY; Y >= Y0; Y -= pasoY) filas.push(Y);
     else for (let Y = Math.ceil(Y1 / pasoY) * pasoY; Y >= Y0; Y -= pasoY) filas.push(Y);
-    let primero = true, sentido = 1;
+    let primero = true, sentido = 1, yInicio = null, rapido = false;
     for (const Y of filas) {
       const t = tramo(m.borde, Y); if (!t) continue;
       const xs = []; for (let X = Math.ceil((t[0] + 1) / pasoX) * pasoX - 1; X <= t[1]; X += pasoX) xs.push(X);
       if (!xs.length) continue;
       if (sentido < 0) xs.reverse();
+      if (yInicio === null) yInicio = Y;
+      else if (!rapido && Math.abs(Y - yInicio) > entradaLenta && F.relieve !== F.cortar) { L.push(`F${F.relieve}`); rapido = true; }
       xs.forEach((X, k) => {
         const z = Math.min(alturaBola(m, X, Y, r) + sobre, bloque.alto);
         if (primero) { if (ip > 0) L.push(`F${F.trasladar}`, `G01 Z${f2(zSeg)}`); L.push(`G01 X${f2(X)} Y${f2(Y)}`, `F${F.bajar}`, `G01 Z${f2(z)}`, `F${F.cortar}`); primero = false; }
@@ -128,12 +140,43 @@ export function gcodeEVA(izq, der, op = {}) {
       sentido = -sentido;
     }
   });
+  const inicioContorno = L.length;
   // contornos: una vuelta a Z 15 y otra a Z 1
   if (zCont.length) for (const { m } of datos) {
     const P = contornoFresa(m.borde, r + masAfuera);
-    L.push(`F${F.trasladar}`, `G01 Z${f2(zSeg)}`, `G01 X${f2(P[0][0])} Y${f2(P[0][1])}`, `F${F.cortar}`);
-    for (const zc of zCont) { L.push(`G01 Z${f2(zc)}`); for (const [x, y] of [...P, P[0]]) L.push(`G01 X${f2(x)} Y${f2(y)}`); }
+    // entrada (2026-11-21): baja ENTRE 3 mm más afuera de la punta, en el EVA que sobra, y de ahí entra al contorno;
+    // al terminar cada vuelta sale otra vez ahí. Así la fresa nunca baja ni se detiene pegada a la plantilla.
+    const n = P.length, tx = P[1][0] - P[n - 1][0], ty = P[1][1] - P[n - 1][1], tl = Math.hypot(tx, ty) || 1;
+    let cx = 0, cy = 0; for (const [x, y] of P) { cx += x / n; cy += y / n; }
+    let nx = ty / tl, ny = -tx / tl; if (nx * (P[0][0] - cx) + ny * (P[0][1] - cy) < 0) { nx = -nx; ny = -ny; }
+    const E = [P[0][0] + 3 * nx, P[0][1] + 3 * ny];
+    L.push(`F${F.trasladar}`, `G01 Z${f2(zSeg)}`, `G01 X${f2(E[0])} Y${f2(E[1])}`);
+    for (const zc of zCont) {
+      L.push(`F${F.bajar}`, `G01 Z${f2(zc)}`, `F${F.cortar}`);
+      for (const [x, y] of [...P, P[0], E]) L.push(`G01 X${f2(x)} Y${f2(y)}`);
+    }
   }
   L.push(`G01 Z${f2(zSeg)}`, 'G28', 'M5', '%');
-  return { texto: L.join('\n') + '\n', avisos, lineas: L.length, puntos, alturaMax: zMax };
+  return { texto: L.join('\n') + '\n', avisos, lineas: L.length, puntos, alturaMax: zMax, inicioContorno };
+}
+
+// Revisión (2026-11-21, Ernesto: en el pie derecho la fresa tocó el arco): recorre el G-code cada 0,2 mm, también
+// ENTRE los puntos, y devuelve cuánto entraría la bola como máximo en cada plantilla (mm) y dónde.
+export function revisarTrayecto(izq, der, texto, op = {}) {
+  const r = op.radio ?? 5, sep = op.separacion ?? 7;
+  const mapas = [['izq', izq, sep], ['der', der, -sep]].filter(p => p[1]).map(([lado, g, y0]) => ({ lado, m: mapa(g, aMaquina(g, lado, y0), 0.5) }));
+  const peor = Object.fromEntries(mapas.map(({ lado }) => [lado, { mm: 0, X: 0, Y: 0 }]));
+  let x = 0, y = 0, z = 0;
+  for (const l of texto.split('\n').slice(0, op.hasta ?? Infinity)) {
+    if (!l.startsWith('G01')) continue;
+    const a = l.match(/X(-?[\d.]+)/), b = l.match(/Y(-?[\d.]+)/), c = l.match(/Z(-?[\d.]+)/);
+    const nx = a ? +a[1] : x, ny = b ? +b[1] : y, nz = c ? +c[1] : z;
+    const d = Math.hypot(nx - x, ny - y), n = Math.max(1, Math.ceil(d / 0.2));
+    if (Math.min(z, nz) < 40) for (let k = 0; k <= n; k++) {
+      const t = k / n, X = x + t * (nx - x), Y = y + t * (ny - y), Z = z + t * (nz - z);
+      for (const { lado, m } of mapas) { const e = alturaBola(m, X, Y, r) - Z; if (e > peor[lado].mm) peor[lado] = { mm: e, X, Y }; }
+    }
+    x = nx; y = ny; z = nz;
+  }
+  return peor;
 }

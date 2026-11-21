@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- ícono de la pestaña (auditoría 2026-11-19: sin él la consola mostraba un error 404) -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%231838d9%22/%3E%3Cpath d=%22M12 6c-4 0-6 4-6 10s2 10 6 10c2 0 3-2 3-5V11c0-3-1-5-3-5zm8 0c4 0 6 4 6 10s-2 10-6 10c-2 0-3-2-3-5V11c0-3 1-5 3-5z%22 fill=%22white%22/%3E%3C/svg%3E">
 <title>Orden del doctor</title>
 <style>
   :root { --tinta: #1c2430; --suave: #5d6878; --linea: #d7dde5; --fondo: #eef1f5; --acento: #1d5fbf; --acento-2: #174d9c; --naranja: #e08a2e; }
@@ -29,6 +31,15 @@
   .mensaje { margin-top: 8px; font-size: 13px; color: #17753c; min-height: 18px; }
   @media print { body { background: #fff; } .botones, .nota-pantalla { display: none; } section { border: 0; padding: 6px 0; } }
   @media (max-width: 600px) { td input[type=number] { width: 64px; } }
+  /* identidad azul + blanco (2026-11-19) */
+  :root { --tinta: #10183a; --suave: #586189; --linea: #dfe4f7; --fondo: #f3f5fe; --acento: #1838d9; --acento-2: #0e24a6; }
+  body { background: radial-gradient(900px 400px at 100% -10%, rgba(79,104,236,.18), transparent 60%), #f3f5fe; }
+  h1 { font-family: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; font-weight: 800; color: #0e24a6; letter-spacing: -.01em; }
+  section { border-left: 4px solid var(--acento); }
+  h2 { color: var(--acento); }
+  button.primario { background: linear-gradient(135deg, #1838d9, #4f68ec); }
+  input:focus, select:focus, textarea:focus { outline-color: rgba(24,56,217,.25); }
+  @media print { body { background: #fff; } section { border: 0; } }
 </style>
 </head>
 <body>

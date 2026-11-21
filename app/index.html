@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- ícono de la pestaña (auditoría 2026-11-19: sin él la consola mostraba un error 404) -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%231838d9%22/%3E%3Cpath d=%22M12 6c-4 0-6 4-6 10s2 10 6 10c2 0 3-2 3-5V11c0-3-1-5-3-5zm8 0c4 0 6 4 6 10s-2 10-6 10c-2 0-3-2-3-5V11c0-3 1-5 3-5z%22 fill=%22white%22/%3E%3C/svg%3E">
 <title>Plantillas Lima Blue</title>
 <style>
   :root {
@@ -284,6 +286,8 @@
 </style>
 <!-- estética (2026-11-16): quitar esta línea vuelve al aspecto anterior -->
 <link rel="stylesheet" href="estilo.css">
+<!-- identidad visual azul + blanco (2026-11-19): quitar esta línea vuelve al aspecto anterior -->
+<link rel="stylesheet" href="marca.css">
 </head>
 <body>
 <!-- Pantalla de inicio (como la de LutraCAD): diseñadores, sus proyectos y la biblioteca -->
@@ -476,6 +480,9 @@
       <!-- Mesa de trabajo (Ernesto, 2026-11-19, como LutraCAD): se elige aquí; sus parámetros se editan en Inicio → Máquinas -->
       <div class="fila"><label for="mesaElegida">Mesa de trabajo</label><select id="mesaElegida"></select></div>
       <p class="nota-modulo" id="notaMesa"></p>
+      <!-- material EVA (Ernesto, 2026-11-21): Relax S20, Protection S40, Dynamic S50; cada uno con sus velocidades -->
+      <div class="fila"><label for="materialEva">Material EVA</label><select id="materialEva"></select></div>
+      <p class="nota-modulo" id="notaMaterial"></p>
     </section>
     <section data-en="produccion" id="seccionImprimir">
       <h2>Impresión 3D</h2>

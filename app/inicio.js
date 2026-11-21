@@ -54,7 +54,7 @@ import { pintarMaquinas } from './maquinas.js';
 
 // biblioteca: { catalogo(), miniatura(def, canvas), aplicar(datos) } — aplicar suma los propios al programa
 // antesDeSalir(): pasa ya al guardado el último cambio del diseño que todavía esperaba (auditoría 2026-11-16)
-export function crearInicio({ aplicarReceta, recetaNueva, mensaje, alAbrir, biblioteca, antesDeSalir, abrirCarpeta, elegirCarpetaPaciente }) {
+export function crearInicio({ aplicarReceta, recetaNueva, mensaje, alAbrir, biblioteca, antesDeSalir, abrirCarpeta, elegirCarpetaPaciente, olvidarProyecto }) {
   let datosBib = { elementos: [], favoritos: [] };   // Biblioteca/elementos.json de la carpeta compartida
   let datosHormas = { hormas: [] };                   // Biblioteca/hormas.json (hormas propias y modificadas, 2026-11-17)
   async function cargarBiblioteca() {
@@ -269,7 +269,7 @@ export function crearInicio({ aplicarReceta, recetaNueva, mensaje, alAbrir, bibl
     $('crearDesdeCarpeta').onclick = async () => {
       const r = await elegirCarpetaPaciente?.();
       if (r?.cancelado) return;
-      if (r?.archivos?.length) crear(r.archivos, r.handle); else if (!r) $('archivoNuevoCarpeta').click();
+      if (r?.archivos?.length) crear(r.archivos, r.handle); else if (r?.archivos) alert('La carpeta elegida está vacía.'); else if (!r) $('archivoNuevoCarpeta').click();
     };
     $('archivoNuevoCarpeta').onchange = ev => { const fs = [...ev.target.files]; ev.target.value = ''; if (fs.length) crear(fs); };
   }
@@ -288,6 +288,8 @@ export function crearInicio({ aplicarReceta, recetaNueva, mensaje, alAbrir, bibl
     try { await papelera.getDirectoryHandle(destino); destino += ' (eliminado ' + new Date().toISOString().slice(0, 16).replace('T', ' ').replace(':', '') + ')'; } catch { /* no existe */ }
     await copiarCarpeta(h, await papelera.getDirectoryHandle(destino, { create: true }));
     await padre.removeEntry(carpeta, { recursive: true });
+    // auditoría 2026-11-19: también se olvida el acceso recordado a la carpeta del paciente y su escaneo en memoria
+    olvidarProyecto?.(dis + '/' + carpeta);
     // si era el proyecto abierto, deja de guardarse ahí
     const esEse = p => p?.disenador === dis && p?.carpeta === carpeta;
     if (esEse(pendiente?.p)) { pendiente = null; clearTimeout(tGuardar); }

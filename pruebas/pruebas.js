@@ -431,7 +431,28 @@ for (const lado of ['izq', 'der']) {
   const afuera = gcodeEVA(gi, gd, { ...opcionesGcode({ ...MESAS_FABRICA[0], margenContorno: 3 }, 26), nombre: 'prueba' });
   const minX = t => Math.min(...t.split('\n').filter(l => /^G01 X/.test(l)).map(l => +l.match(/X(-?[\d.]+)/)[1]));
   const okMesa = fab.texto === r.texto && otra.texto.includes('S18000') && Math.abs(zMax(otra.texto) - zMax(r.texto) - 0.5) < 0.02 &&
-    !otra.texto.includes('G01 Z15.00') && r.texto.includes('G01 Z15.00') && minX(afuera.texto) < minX(r.texto) - 2.5;
+    !otra.texto.includes('G01 Z15.00') && r.texto.includes('G01 Z15.00') && minX(afuera.texto) < minX(r.texto) - 2.5 &&
+    // seguridad (auditoría 2026-11-19): altura segura de 30 mm con un bloque de 26 → no se genera
+    gcodeEVA(gi, gd, { ...opcionesGcode({ ...MESAS_FABRICA[0], zSeguro: 30 }, 26) }).avisos.some(a => /altura segura/.test(a));
+  // 2026-11-21 (Ernesto: en el pie derecho la fresa mordió el arco): también ENTRE los puntos la bola no entra, en los
+  // dos pies, y el contorno baja fuera de la plantilla, en la punta de los dedos, no junto al arco
+  const { revisarTrayecto } = await import('../motor/fresado.js');
+  const tray = revisarTrayecto(gi, gd, r.texto, { hasta: r.inicioContorno });
+  const Lc = r.texto.split('\n').slice(r.inicioContorno), bajadas = [];
+  Lc.forEach((l, i) => { if (/^G01 Z(1|15)\.00$/.test(l)) { const p = Lc.slice(0, i).reverse().find(q => /X/.test(q)); bajadas.push(+p.match(/X(-?[\d.]+)/)[1]); } });
+  const okTray = tray.izq.mm < 0.2 && tray.der.mm < 0.2 && bajadas.length === 4 && bajadas.every(x => x > X1 - 1);
+  prueba('G-code: sin mordidas entre puntos', okTray, `la bola entra ${n2(tray.izq.mm)} mm (izq) y ${n2(tray.der.mm)} mm (der) revisando cada 0,2 mm; el contorno baja en X ${bajadas.map(n1).join(' / ')} (punta de los dedos, X máx ${n1(X1)})`);
+  // 2026-11-21 (Ernesto: 40 min contra 15-20 de LutraCAD): F1800 solo al entrar (≈3,5 mm por plantilla) y en el contorno;
+  // el relieve a F6000 (punto medio, LutraCAD 14400). Con material: Dynamic S50 a F5400, Relax S20 a F6600.
+  // Tiempo teórico (sin aceleraciones) por lo menos 2,5 veces menor que todo a F1800.
+  const minutos = t => { let x = 0, y = 0, z = 0, f = 1, s = 0; for (const l of t.split('\n')) { const a = l.match(/X(-?[\d.]+)/), b = l.match(/Y(-?[\d.]+)/), c = l.match(/Z(-?[\d.]+)/), g = l.match(/^F([\d.]+)/);
+    if (g) { f = +g[1]; continue; } if (!l.startsWith('G01')) continue; const nx = a ? +a[1] : x, ny = b ? +b[1] : y, nz = c ? +c[1] : z; s += Math.hypot(nx - x, ny - y, nz - z) / f; x = nx; y = ny; z = nz; } return s; };
+  const lento = gcodeEVA(gi, gd, { bloque: { alto: 26 }, velocidades: { relieve: 1800 } });
+  const filasLentas = r.texto.split('\n').slice(0, r.inicioContorno).reduce((a, l) => { if (/^F/.test(l)) a.f = l; else if (a.f === 'F1800' && /Y/.test(l) && /Z/.test(l)) a.n++; return a; }, { f: '', n: 0 }).n;
+  const { MATERIALES_FABRICA } = await import('../app/maquinas.js'), mat = id => MATERIALES_FABRICA.find(x => x.id === id);
+  const dyn = gcodeEVA(gi, gd, { ...opcionesGcode(MESAS_FABRICA[0], 26, mat('dynamic')) }).texto, rel = gcodeEVA(gi, gd, { ...opcionesGcode(MESAS_FABRICA[0], 26, mat('relax')) }).texto;
+  const okVel = (r.texto.match(/^F6000$/gm) || []).length === 2 && minutos(lento.texto) > 2.5 * minutos(r.texto) && /^F5400$/m.test(dyn) && /^F6600$/m.test(rel) && minutos(dyn) > minutos(r.texto) && minutos(rel) < minutos(r.texto) && filasLentas >= 10 && filasLentas <= 20 && fab.texto === r.texto;
+  prueba('G-code: relieve más rápido (punto medio) y por material', okVel, `tiempo teórico ${n1(minutos(r.texto))} min a F6000 (todo a F1800 serían ${n1(minutos(lento.texto))}); Relax S20 ${n1(minutos(rel))}, Dynamic S50 ${n1(minutos(dyn))} min; ${filasLentas} filas a F1800 al entrar`);
   prueba('Mesa de trabajo del G-code', okMesa, `la de fábrica da el mismo G-code: ${fab.texto === r.texto ? 'sí' : 'no'}; giro 18000: ${otra.texto.includes('S18000') ? 'sí' : 'no'}; dejar 0,5 mm arriba: +${n2(zMax(otra.texto) - zMax(r.texto))} mm; sin contorno: ${!otra.texto.includes('G01 Z15.00') ? 'sí' : 'no'}; corte 3 mm más afuera: ${n1(minX(r.texto) - minX(afuera.texto))} mm`);
 }
 
