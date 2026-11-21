@@ -448,7 +448,8 @@ for (const lado of ['izq', 'der']) {
   const minutos = t => { let x = 0, y = 0, z = 0, f = 1, s = 0; for (const l of t.split('\n')) { const a = l.match(/X(-?[\d.]+)/), b = l.match(/Y(-?[\d.]+)/), c = l.match(/Z(-?[\d.]+)/), g = l.match(/^F([\d.]+)/);
     if (g) { f = +g[1]; continue; } if (!l.startsWith('G01')) continue; const nx = a ? +a[1] : x, ny = b ? +b[1] : y, nz = c ? +c[1] : z; s += Math.hypot(nx - x, ny - y, nz - z) / f; x = nx; y = ny; z = nz; } return s; };
   const lento = gcodeEVA(gi, gd, { bloque: { alto: 26 }, velocidades: { relieve: 1800 } });
-  const filasLentas = r.texto.split('\n').slice(0, r.inicioContorno).reduce((a, l) => { if (/^F/.test(l)) a.f = l; else if (a.f === 'F1800' && /Y/.test(l) && /Z/.test(l)) a.n++; return a; }, { f: '', n: 0 }).n;
+  // filas distintas (Y) cortadas a F1800 en el relieve (los puntos intermedios no cuentan como filas)
+  const filasLentas = new Set(r.texto.split('\n').slice(0, r.inicioContorno).reduce((a, l) => { if (/^F/.test(l)) a.f = l; else if (a.f === 'F1800' && /Y/.test(l) && /Z/.test(l)) a.y.push(Math.round(+l.match(/Y(-?[\d.]+)/)[1] * 2)); return a; }, { f: '', y: [] }).y).size;
   const { MATERIALES_FABRICA } = await import('../app/maquinas.js'), mat = id => MATERIALES_FABRICA.find(x => x.id === id);
   const dyn = gcodeEVA(gi, gd, { ...opcionesGcode(MESAS_FABRICA[0], 26, mat('dynamic')) }).texto, rel = gcodeEVA(gi, gd, { ...opcionesGcode(MESAS_FABRICA[0], 26, mat('relax')) }).texto;
   const okVel = (r.texto.match(/^F6000$/gm) || []).length === 2 && minutos(lento.texto) > 2.5 * minutos(r.texto) && /^F5400$/m.test(dyn) && /^F6600$/m.test(rel) && minutos(dyn) > minutos(r.texto) && minutos(rel) < minutos(r.texto) && filasLentas >= 10 && filasLentas <= 20 && fab.texto === r.texto;

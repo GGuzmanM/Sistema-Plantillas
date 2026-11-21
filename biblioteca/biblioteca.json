@@ -31,7 +31,8 @@
       "pie": "izq",
       "origen": "STL de referencia de Ernesto (2026-11-17): referencias/guia_de_talla_L_optimizada_v2.stl, pie izquierdo de 268 mm (copa 13, espesor 2, arco 20,1 al 40 %). Se tomó la cara de arriba cada 0,5 mm; poco suavizado porque el STL ya viene limpio.",
       "ref": { "antepie": 2, "copa": 13 },
-      "op": { "recorteBorde": 0.01, "suaveAncho": 0.03, "suaveLargo": 0.002, "suaveContorno": 1 }
+      "op": { "recorteBorde": 0.01, "suaveAncho": 0.03, "suaveLargo": 0.002, "suaveContorno": 3 },
+      "notaSuave": "suaveContorno 1 → 3 (2026-11-21, Ernesto: el acabado de Chimpunes se veía más limpio): el borde del STL zigzagueaba (170 cambios de giro, quiebres de 8°); con 3 quedan 22 y 3,9°, y el borde se mueve 0,03 mm en promedio (0,14 máx)."
     },
     {
       "id": "guia_tallas",

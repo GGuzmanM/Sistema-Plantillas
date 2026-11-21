@@ -208,7 +208,11 @@ const conGuia = () => $('medidaDesde').value === 'guia';
 // del navegador no deja poner negrita, así que se muestra una lista propia; el <select> oculto sigue siendo el
 // que guarda la talla (y el que lee el resto del programa).
 const textoTalla = t => `EU ${t.eu} · ${t.largo} mm${t.us ? ' · US ' + t.us : ''}`;
-const htmlTalla = t => `<b>EU ${t.eu}</b><span class="tl-mm">${t.largo} mm</span>${t.us ? `<span class="tl-us">US ${t.us}</span>` : ''}`;
+// 2026-11-21 (Ernesto): sin fila "Cuadro de tallas"; la US dice si es de hombre (H) o dama (D) y el cuadro se cambia
+// con los botones de arriba de la lista
+const sexoCuadro = () => ({ hombre: ' H', dama: ' D' })[$('cuadro').value] ?? '';
+const htmlTalla = t => `<b>EU ${t.eu}</b><span class="tl-mm">${t.largo} mm</span>${t.us ? `<span class="tl-us">US ${t.us}${sexoCuadro()}</span>` : ''}`;
+const CUADRO_CORTO = { hombre: 'Hombre', dama: 'Dama', eu: 'EU' };
 function pintarCuadro() {
   const s = $('talla'), v = s.value; s.innerHTML = '';
   for (const t of tallas) s.add(new Option(textoTalla(t), t.talla));
@@ -225,7 +229,10 @@ function pintarSelTalla() {
 }
 function pintarListaTallas() {
   const lista = $('selTalla').querySelector('.st-lista'), v = $('talla').value;
-  lista.innerHTML = [...tallas.map(t => `<li role="option" data-talla="${t.talla}" aria-selected="${t.talla === v}">${htmlTalla(t)}</li>`),
+  const cu = $('cuadro').value;
+  lista.innerHTML = [`<li class="st-cuadros" role="presentation">${Object.keys(CUADROS).map(id =>
+      `<button type="button" data-cuadro="${id}" class="${id === cu ? 'activo' : ''}" aria-pressed="${id === cu}" title="${esc(CUADROS[id].nombre)}">${CUADRO_CORTO[id] ?? CUADROS[id].nombre}</button>`).join('')}</li>`,
+    ...tallas.map(t =>`<li role="option" data-talla="${t.talla}" aria-selected="${t.talla === v}">${htmlTalla(t)}</li>`),
     `<li role="option" data-talla="otra" aria-selected="${v === 'otra'}"><span class="tl-otra">Personalizada</span></li>`].join('');
 }
 function abrirListaTallas(si) {
@@ -243,7 +250,12 @@ function elegirTalla(v) {
 {
   const caja = $('selTalla'), boton = caja.querySelector('.st-boton'), lista = caja.querySelector('.st-lista');
   boton.addEventListener('click', () => abrirListaTallas());
-  lista.addEventListener('click', ev => { const li = ev.target.closest('[data-talla]'); if (li) elegirTalla(li.dataset.talla); });
+  lista.addEventListener('click', ev => {
+    // cambiar de cuadro deja la lista abierta, con la talla más cercana al largo de ahora
+    const cu = ev.target.closest('[data-cuadro]');
+    if (cu) { if ($('cuadro').value !== cu.dataset.cuadro) { $('cuadro').value = cu.dataset.cuadro; $('cuadro').dispatchEvent(new Event('change')); } pintarListaTallas(); lista.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'center' }); return; }
+    const li = ev.target.closest('[data-talla]'); if (li) elegirTalla(li.dataset.talla);
+  });
   // teclado: flechas cambian de talla, Enter o espacio abren, Esc cierra
   caja.addEventListener('keydown', ev => {
     const opciones = [...tallas.map(t => t.talla), 'otra'], i = opciones.indexOf($('talla').value);
@@ -1200,8 +1212,8 @@ function actualizar() {
   resumenSeccion('Paciente', d.paciente);
   resumenSeccion('Plantilla', `${conGuia() ? (tallaElegida?.corta ?? 'guía') : 'muestra/escaneo'} · ${nombreTipo(d.tipoDiseno)}`);
   resumenSeccion('Medidas y alturas', `${f1(m.largo)} mm · copa ${dos(f1, 'copa')} · arco ${dos(f1, 'arco')}`);
-  resumenSeccion('Escaneo del pie', [escaneos.izq && 'izq', escaneos.der && 'der'].filter(Boolean).join(' y ') || 'sin escaneo');
-  resumenSeccion('Muestra 2D', muestra ? muestra.nombre : 'sin muestra');
+  // escaneo y muestra en un módulo (2026-11-21)
+  resumenSeccion('Escaneo y muestra', [[escaneos.izq && 'izq', escaneos.der && 'der'].filter(Boolean).join(' y ') && 'escaneo ' + [escaneos.izq && 'izq', escaneos.der && 'der'].filter(Boolean).join(' y '), muestra && 'muestra'].filter(Boolean).join(' · ') || 'sin escaneo ni muestra');
   resumenSeccion('Elementos', d.elementos.length ? `${d.elementos.length} elemento${d.elementos.length > 1 ? 's' : ''}` : 'sin elementos');
   actual = { d, ...r, m, mDer };
 
@@ -1403,7 +1415,7 @@ async function cargarEscaneos(archivos, aplicar = true) {
   }
   pintarEscaneo();
   document.querySelector('[data-herr=ajuste]').hidden = !(escaneos.izq || escaneos.der);
-  abrirSeccion('Escaneo del pie');
+  abrirSeccion('Escaneo y muestra');
   if (avisos.length) { mensaje(avisos.join(' '), false); pedir(); }
   // con guía de tallas el escaneo no cambia el largo ni el ancho (sirve para el arco y para comparar)
   else if (aplicar && conGuia()) {
@@ -1442,7 +1454,7 @@ async function leerMuestra(f) {
 }
 function ponerMuestra(m) {
   muestra = m; const a = m.a;
-  abrirSeccion('Muestra 2D');
+  abrirSeccion('Escaneo y muestra');
   for (const id of ['muestraX', 'muestraY', 'muestraGiro']) $(id).value = 0;
   $('muestraLado').value = a.lado;
   $('datosMuestra').hidden = false;
@@ -1498,7 +1510,7 @@ async function abrirCarpeta(archivos) {
   const partes = [`${$('paciente').value}`,
     stl.length ? `escaneo ${stl.map(f => f.name).join(' y ')}` : 'sin escaneo del Podoscan',
     muestrasCarpeta.length ? `${muestrasCarpeta.length} muestra${muestrasCarpeta.length > 1 ? 's' : ''} (${muestrasCarpeta.map(m => m.nombre).join(', ')})` : 'sin muestras escaneadas'];
-  mensaje(partes.join(' · ') + '.' + (muestrasCarpeta.length > 1 ? ' Elija la muestra en "Muestra 2D".' : ''), true);
+  mensaje(partes.join(' · ') + '.' + (muestrasCarpeta.length > 1 ? ' Elija la muestra en "Escaneo y muestra".' : ''), true);
 }
 // ---- Carpeta del paciente recordada por proyecto (Ernesto, 2026-11-19: al cerrar o recargar y volver a abrir el
 // proyecto desaparecían el escaneo y la muestra) ----

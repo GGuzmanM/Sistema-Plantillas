@@ -594,3 +594,15 @@ comparar las hormas 43 y 46 de EasyCAD y falta confirmarlas con más tallas.
   reemplazan a las de la mesa, se guarda en la receta (`materialEva`) y el nombre va en el archivo del G-code.
 - **Impresora de fábrica = Bambu Lab H2D (TPU), 2026-11-21**: con los mods oficiales para TPU, que va por una sola
   boquilla → área 325 × 320 × 325 mm (antes 350 × 320 × 325 de relleno; 350 solo sumando las dos boquillas).
+- **Acabado de la Guía de tallas, 2026-11-21** (Ernesto: Chimpunes se veía más limpia): el contorno que viene del STL
+  zigzagueaba (170 cambios de giro, quiebres de 8,3°; Chimpunes 82 y 4,5°). `suaveContorno` 1 → 3 en
+  base_guia_stl: quedan 22 y 3,9°, el borde se mueve 0,03 mm en promedio (0,14 máx) y las medidas no cambian.
+  La superficie de arriba ya era igual de lisa en las tres hormas (rugosidad 0,008-0,010 mm).
+- **G-code más preciso, 2026-11-21**: el mapa de alturas también lleva cada vértice (la cresta del borde quedaba entre
+  nodos) y donde la recta entre dos puntos tocaría la plantilla se agregan puntos intermedios. La bola entra como
+  mucho 0,04 mm (antes 0,15-0,4 en paredes empinadas).
+- **Escaneo y muestra en un módulo, 2026-11-21** (Ernesto): en 1. Base, "Escaneo del pie" y "Muestra 2D" son ahora un
+  solo módulo "Escaneo y muestra", con dos subtítulos; el resumen dice qué hay cargado (p. ej. "escaneo izq y der ·
+  muestra"). Nada se quitó.
+- **Sin fila "Cuadro de tallas", 2026-11-21** (Ernesto): el cuadro (Hombre, Dama, EU Baroflex) se cambia con los
+  botones de arriba de la lista de tallas, que queda abierta con la talla más cercana; la US dice H o D.

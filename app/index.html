@@ -338,7 +338,9 @@
       <input type="text" id="paciente" class="ancho-total" placeholder="Nombre del paciente" style="margin-top:8px">
     </section>
     <section data-en="base">
-      <h2>Escaneo del pie</h2>
+      <!-- 2026-11-21 (Ernesto): escaneo y muestra en un mismo módulo -->
+      <h2>Escaneo y muestra</h2>
+      <h3 class="subtitulo">Escaneo del pie (3D)</h3>
       <div class="botones">
         <button id="abrirEscaneo">Abrir escaneo (STL)…</button>
         <input type="file" id="archivoEscaneo" accept=".stl" multiple hidden>
@@ -346,9 +348,7 @@
       <label class="auto" style="margin-top:8px"><input type="checkbox" id="verEscaneo" checked> Mostrar sobre la plantilla</label>
       <!-- 2026-11-19 (Ernesto): solo abrir el escaneo; sin las medidas del pie ni "Usar las medidas del escaneo" -->
       <table class="medidas"><tbody id="medidasEscaneo"></tbody></table>
-    </section>
-    <section data-en="base">
-      <h2>Muestra 2D</h2>
+      <h3 class="subtitulo separado">Muestra 2D</h3>
       <div class="botones">
         <button id="abrirMuestra">Abrir muestra (PDF o PNG)…</button>
         <input type="file" id="archivoMuestra" accept=".png,image/png,.pdf,application/pdf" hidden>
@@ -391,9 +391,10 @@
         <div class="botones-tipo" role="radiogroup" aria-labelledby="etTipoDiseno" id="botonesTipo"></div>
         <select id="tipoDiseno" hidden aria-hidden="true" tabindex="-1"></select></div>
       <div class="fila ancha"><label for="horma">Horma</label><select id="horma" title="Forma de la plantilla según el calzado. Una horma delgada o estándar pone ese tipo de diseño."></select></div>
-      <div class="fila ancha"><label for="cuadro">Cuadro de tallas</label><select id="cuadro"></select></div>
+      <!-- 2026-11-21 (Ernesto): sin la fila "Cuadro de tallas"; el cuadro (Hombre, Dama, EU) se elige arriba de la lista de tallas -->
       <div class="fila ancha"><span class="etiqueta" id="etTalla">Talla</span>
         <select id="talla" hidden aria-hidden="true" tabindex="-1"></select>
+        <select id="cuadro" hidden aria-hidden="true" tabindex="-1"></select>
         <div class="sel-talla" id="selTalla">
           <button type="button" class="st-boton" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="etTalla"><span class="st-actual"></span><span class="st-flecha" aria-hidden="true">▾</span></button>
           <ul class="st-lista" role="listbox" aria-labelledby="etTalla" hidden></ul>

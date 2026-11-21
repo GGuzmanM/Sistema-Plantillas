@@ -39,6 +39,9 @@ function mapa(g, M, R) {
       }
   };
   for (let i = 0; i < ns; i++) { const j = (i + 1) % ns; for (let k = 0; k < nr - 1; k++) { const a = i * nr + k, b = j * nr + k, c = j * nr + k + 1, d = i * nr + k + 1; tri(a, b, c); tri(a, c, d); } }
+  // 2026-11-21: también cada vértice en el nodo más cercano (la cresta del borde puede quedar entre dos nodos y la
+  // fresa bajaba hasta 0,4 mm de más en las paredes empinadas); queda del lado seguro
+  for (let q = 0; q < z.length; q++) { const i = Math.round((M.X(q) - X0) / R), j = Math.round((M.Y(q) - Y0) / R), k = j * NX + i; if (i >= 0 && j >= 0 && i < NX && j < NY && z[q] > H[k]) H[k] = z[q]; }
   // borde de la plantilla en coordenadas de la máquina (para las filas y el contorno)
   const borde = []; for (let i = 0; i < ns; i++) borde.push([M.X(i * nr), M.Y(i * nr)]);
   return { H, NX, NY, X0, Y0, R, borde };
@@ -116,7 +119,17 @@ export function gcodeEVA(izq, der, op = {}) {
   if (zSeg < bloque.alto + 10) avisos.push(`La altura segura (${zSeg} mm) debe quedar al menos 10 mm sobre el bloque (${bloque.alto} mm): cámbiela en Inicio → Máquinas.`);
 
   L.push(`((${(op.nombre ?? 'plantilla').replace(/[()]/g, '')}))`, '%', 'G90', 'G28', `S${S}`, 'M03', 'G64', `F${F.trasladar}`, `G01 Z${f2(zSeg)}`);
-  let puntos = 0;
+  let puntos = 0, ant = null;
+  const altura = (m, X, Y) => Math.min(alturaBola(m, X, Y, r) + sobre, bloque.alto);
+  // 2026-11-21: entre dos puntos la fresa va en recta; si a 1/4, 1/2 o 3/4 del tramo la bola tocaría la plantilla
+  // (más de 0,03 mm), se agrega el punto del medio con su altura y se revisan las dos mitades (hasta 6 veces)
+  const intermedios = (m, a, b, n) => {
+    if (n >= 6 || Math.hypot(b[0] - a[0], b[1] - a[1]) < 0.1) return [];
+    const en = t => [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1]), a[2] + t * (b[2] - a[2])];
+    if (![0.25, 0.5, 0.75].some(t => { const p = en(t); return altura(m, p[0], p[1]) - p[2] > 0.03; })) return [];
+    const c = en(0.5); c[2] = Math.max(altura(m, c[0], c[1]), c[2]);
+    return [...intermedios(m, a, c, n + 1), c, ...intermedios(m, c, b, n + 1)];
+  };
   // relieve, una plantilla y después la otra; filas desde el borde externo del bloque hacia el centro
   datos.forEach(({ lado, m }, ip) => {
     let Y0 = Infinity, Y1 = -Infinity; for (const [, y] of m.borde) { Y0 = Math.min(Y0, y); Y1 = Math.max(Y1, y); }
@@ -132,9 +145,14 @@ export function gcodeEVA(izq, der, op = {}) {
       if (yInicio === null) yInicio = Y;
       else if (!rapido && Math.abs(Y - yInicio) > entradaLenta && F.relieve !== F.cortar) { L.push(`F${F.relieve}`); rapido = true; }
       xs.forEach((X, k) => {
-        const z = Math.min(alturaBola(m, X, Y, r) + sobre, bloque.alto);
+        const z = altura(m, X, Y);
         if (primero) { if (ip > 0) L.push(`F${F.trasladar}`, `G01 Z${f2(zSeg)}`); L.push(`G01 X${f2(X)} Y${f2(Y)}`, `F${F.bajar}`, `G01 Z${f2(z)}`, `F${F.cortar}`); primero = false; }
-        else L.push(k === 0 ? `G01 X${f2(X)} Y${f2(Y)} Z${f2(z)}` : `G01 X${f2(X)} Z${f2(z)}`);
+        else {
+          // puntos intermedios donde la recta desde el punto anterior pasaría por dentro de la plantilla
+          for (const p of intermedios(m, ant, [X, Y, z], 0)) L.push(`G01 X${f2(p[0])} Y${f2(p[1])} Z${f2(p[2])}`);
+          L.push(k === 0 ? `G01 X${f2(X)} Y${f2(Y)} Z${f2(z)}` : `G01 X${f2(X)} Z${f2(z)}`);
+        }
+        ant = [X, Y, z];
         puntos++;
       });
       sentido = -sentido;

@@ -344,3 +344,12 @@ aside .modulos { position: sticky; top: 0; z-index: 6; box-shadow: 0 -14px 0 6px
 .maq-cab { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
 .maq-cab .maq-tipos, .maq-cab .maq-intro { margin: 0; }
 .maq-cab .maq-intro { flex: 1 1 300px; }
+/* subtítulos dentro de un módulo (escaneo y muestra juntos, 2026-11-21) */
+aside section h3.subtitulo { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--suave, #5b6478); margin: 2px 0 8px; }
+aside section h3.subtitulo.separado { margin-top: 16px; padding-top: 12px; border-top: 1px solid rgba(24, 56, 217, .14); }
+/* cuadro de tallas arriba de la lista de tallas (2026-11-21: sin fila "Cuadro de tallas") */
+.st-lista li.st-cuadros { position: sticky; top: -4px; z-index: 1; display: flex; gap: 4px; padding: 6px 4px; margin: -4px -4px 4px; background: #fff;
+  border-bottom: 1px solid var(--linea-2); cursor: default; }
+.st-lista li.st-cuadros:hover { background: #fff; }
+.st-cuadros button { flex: 1; padding: 4px 6px; font-size: 12px; border-radius: 999px; border: 1px solid var(--linea-2); background: #fff; cursor: pointer; }
+.st-cuadros button.activo { background: var(--marca, #1838d9); border-color: var(--marca, #1838d9); color: #fff; font-weight: 600; }
