@@ -606,3 +606,9 @@ comparar las hormas 43 y 46 de EasyCAD y falta confirmarlas con más tallas.
   muestra"). Nada se quitó.
 - **Sin fila "Cuadro de tallas", 2026-11-21** (Ernesto): el cuadro (Hombre, Dama, EU Baroflex) se cambia con los
   botones de arriba de la lista de tallas, que queda abierta con la talla más cercana; la US dice H o D.
+
+**2026-11-22 — Corte y margen para pulir en el 3D.** El panel de Corte muestra un solo perfil a la vez, con todo el ancho:
+botones "A lo ancho / A lo largo" (se recuerda la elección) y en el 3D solo la línea elegida. Con el margen para pulir
+prendido, una línea punteada naranja sobre la plantilla marca dónde queda el borde una vez pulida (propuesta C de
+Ernesto; la plantilla sigue de un solo color). El motor devuelve `margen` (mm afuera del contorno sin margen) y
+`lineaPulido()` en app.js busca dónde pasa por 0.

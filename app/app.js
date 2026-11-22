@@ -277,7 +277,7 @@ const tallaCercana = largo => tallas.reduce((a, b) => (Math.abs(b.largo - largo)
 function pintarNotaLargo() {
   const t = tallas.find(x => x.talla === $('talla').value), m = margenPunta();
   $('notaLargo').textContent = !t ? '' : m ? `${t.largo} mm del cuadro + ${String(m).replace('.', ',')} mm para pulir en la punta` : `${t.largo} mm del cuadro`;
-  $('notaLargo').hidden = !t;
+  $('notaLargo').hidden = true;   // 2026-11-21 (Ernesto): la nota "… mm del cuadro" no hace falta (el margen se ve en "Margen para pulir")
   pintarSelTalla();   // la lista propia de tallas sigue a la talla elegida
 }
 function ponerMedidaDesde(modo, aplicar = true) {
@@ -1101,6 +1101,49 @@ function malla(g, ox, al) {
   return { pos, nor, idx, col, col2, marca };
 }
 const COLOR_DESCARGA = [0.9, 0.52, 0.18];
+const COLOR_PULIDO = [0.85, 0.28, 0.11];   // línea punteada del borde final (ya pulido), naranja
+
+// Línea de pulido (Ernesto, 2026-11-22, propuesta C): con margen para pulir, una línea punteada naranja sobre la cara
+// de arriba marca dónde queda el borde de la plantilla una vez pulida (el contorno sin margen). La plantilla queda
+// de un solo color. En cada rayo de la malla se busca dónde g.margen pasa por 0 (sale del motor: mm afuera del
+// contorno sin margen); donde no hay margen, la línea va por el borde.
+function lineaPulido(g, ox) {
+  const { ns, nr, x, y, z, margen } = g;
+  if (!margen) return null;
+  const P = [];
+  for (let i = 0; i < ns; i++) {
+    const q0 = i * nr; let p = [x[q0], y[q0], z[q0]];
+    if (margen[q0] > 0.05) for (let k = 0; k < nr - 1; k++) {
+      const a = q0 + k, b = a + 1;
+      if (margen[a] > 0 && margen[b] <= 0) {
+        const t = margen[a] / (margen[a] - margen[b]);
+        p = [x[a] + t * (x[b] - x[a]), y[a] + t * (y[b] - y[a]), z[a] + t * (z[b] - z[a])]; break;
+      }
+    }
+    P.push(p);
+  }
+  // remuestreo cada 0,5 mm y trazos de 6 mm con 4 mm de espacio; cinta de 1,2 mm apenas sobre la superficie
+  const RAYA = 6, HUECO = 4, PASO = 0.5, MEDIO = 0.6, SOBRE = 0.15, pos = [], idx = [];
+  let s = 0;
+  for (let i = 0; i < ns; i++) {
+    const a = P[i], b = P[(i + 1) % ns], L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 1e-6) continue;
+    const nx = -(b[1] - a[1]) / L * MEDIO, ny = (b[0] - a[0]) / L * MEDIO, n = Math.max(1, Math.ceil(L / PASO));
+    for (let k = 0; k < n; k++) {
+      const t0 = k / n, t1 = (k + 1) / n, sm = s + ((t0 + t1) / 2) * L;
+      if (sm % (RAYA + HUECO) < RAYA) {
+        const e = t => [a[0] + t * (b[0] - a[0]) + ox, a[1] + t * (b[1] - a[1]), a[2] + t * (b[2] - a[2]) + SOBRE];
+        const [p0, p1] = [e(t0), e(t1)], v = pos.length / 3;
+        pos.push(p0[0] - nx, p0[1] - ny, p0[2], p0[0] + nx, p0[1] + ny, p0[2], p1[0] + nx, p1[1] + ny, p1[2], p1[0] - nx, p1[1] - ny, p1[2]);
+        idx.push(v, v + 1, v + 2, v, v + 2, v + 3);
+      }
+    }
+    s += L;
+  }
+  if (!idx.length) return null;
+  const nv = pos.length / 3, nor = new Float32Array(nv * 3), col = new Float32Array(nv * 3);
+  for (let v = 0; v < nv; v++) { nor[3 * v + 2] = 1; col.set(COLOR_PULIDO, 3 * v); }
+  return { pos: new Float32Array(pos), nor, idx: new Uint32Array(idx), col };
+}
 const COLOR_PLANTILLA = [0.95, 0.95, 0.94], COLOR_ELEMENTO = [0.31, 0.41, 0.93], COLOR_ELEGIDO = [0.05, 0.62, 0.12], COLOR_PAR = [0.86, 0.12, 0.1];
 const ELEM_BORDE = 0.12;   // mm: desde ahí se pinta el elemento
 
@@ -1275,6 +1318,7 @@ function actualizar() {
       // en Base y Diseño, lámina de espesor parejo (como LutraCAD); en EVA/Imprimir y Exportar, el sólido real
       let lam = false; try { lam = enLamina(); } catch { /* al cargar, antes de que existan los módulos */ }
       lista.push(malla(lam ? lamina(v.g) : v.g, v.ox, v.al), contornoPlantilla(v.g, v.ox));
+      { const lp = lineaPulido(v.g, v.ox); if (lp) lista.push(lp); }
       if (lam) lista.push(huellaEnPiso(v.g, v.ox));
       // con el mapa de ajuste el escaneo no se dibuja: taparía los colores
       if (v.al && $('verEscaneo').checked && modoMapa !== 'ajuste') lista.push(escaneoSobre(v.al, v.ox, objElegido?.tipo === 'escaneo' && objElegido.pie === v.pie));
@@ -1835,12 +1879,16 @@ function dibujarCorte() {
   const lado = v.pie === 'izq' ? 'izquierdo' : 'derecho';
   const graf = (datos, x0, ancho, titulo, color, marca, extremos) => {
     if (datos.length < 2) return;
-    const m = { l: 34, r: 12, t: 26, b: 22 }, gw = ancho - m.l - m.r, gh = H - m.t - m.b;
+    // si el título choca con los botones "A lo ancho / A lo largo" (pantalla angosta), va en la línea de abajo
+    c.font = '600 12px system-ui, sans-serif';
+    const yTit = 34 + c.measureText(titulo).width + 110 > ancho - 240 ? 44 : 16;
+    const m = { l: 34, r: 12, t: yTit + 10, b: 22 }, gw = ancho - m.l - m.r, gh = H - m.t - m.b;
     const s0 = datos[0].s, s1 = datos[datos.length - 1].s, zMax = Math.max(...datos.map(d => Math.max(d.z, d.pie ?? 0))) + 1;
     const pxmm = gw / (s1 - s0), k = Math.max(1, Math.min(8, Math.floor(gh / (zMax * pxmm))));
     const X = s => x0 + m.l + (s - s0) * pxmm, Y = z => m.t + gh - z * pxmm * k;
-    c.font = '600 12px system-ui, sans-serif'; c.fillStyle = '#1c2430'; c.fillText(titulo, x0 + m.l, 16);
-    c.font = '11px system-ui, sans-serif'; c.fillStyle = '#5d6878'; c.fillText(`alto ×${k}`, x0 + ancho - m.r - 40, 16);
+    c.font = '600 12px system-ui, sans-serif'; c.fillStyle = '#1c2430'; c.fillText(titulo, x0 + m.l, yTit);
+    const finTitulo = x0 + m.l + c.measureText(titulo).width;
+    c.font = '11px system-ui, sans-serif'; c.fillStyle = '#5d6878'; c.fillText(k > 1 ? `· alto ×${k}` : '· proporción real', finTitulo + 8, yTit);
     // rejilla de alturas cada 5 mm
     c.strokeStyle = '#e3e7ec'; c.lineWidth = 1;
     for (let z = 0; z <= zMax; z += 5) { c.beginPath(); c.moveTo(X(s0), Y(z)); c.lineTo(X(s1), Y(z)); c.stroke(); c.fillText(`${z}`, x0 + 8, Y(z) + 4); }
@@ -1868,11 +1916,20 @@ function dibujarCorte() {
     c.font = '11px system-ui, sans-serif'; c.fillStyle = '#5d6878';
     c.fillText(extremos[0], X(s0), H - 6); const t1 = extremos[1]; c.fillText(t1, X(s1) - c.measureText(t1).width, H - 6);
   };
-  const mitad = W / 2;
-  graf(trans, 0, mitad, `A lo ancho (pie ${lado}), a ${Math.round(corte.y)} mm del talón`, COLOR_TRANS, corte.x,
-       medialDerecha ? ['externo', 'interno'] : ['interno', 'externo']);
-  graf(long, mitad, mitad - 30, `A lo largo, por el punto elegido`, COLOR_LONG, corte.y, ['talón', 'dedos']);
+  // un solo perfil a la vez, con todo el ancho del panel (Ernesto, 2026-11-22)
+  if (vistaCorte === 'largo') graf(long, 0, W, `A lo largo (pie ${lado}), por el punto elegido`, COLOR_LONG, corte.y, ['talón', 'dedos']);
+  else graf(trans, 0, W, `A lo ancho (pie ${lado}), a ${Math.round(corte.y)} mm del talón`, COLOR_TRANS, corte.x,
+            medialDerecha ? ['externo', 'interno'] : ['interno', 'externo']);
 }
+let vistaCorte = 'ancho';
+try { if (localStorage.getItem('vistaCorte') === 'largo') vistaCorte = 'largo'; } catch {}
+const marcarVistaCorte = () => $('vistaCorte').querySelectorAll('button').forEach(b => b.classList.toggle('activo', b.dataset.vista === vistaCorte));
+marcarVistaCorte();
+$('vistaCorte').addEventListener('click', e => {
+  const b = e.target.closest('button[data-vista]'); if (!b) return;
+  vistaCorte = b.dataset.vista; try { localStorage.setItem('vistaCorte', vistaCorte); } catch {}
+  marcarVistaCorte(); dibujarCorte(); visor?.pedir();
+});
 $('cerrarCorte').addEventListener('click', () => { corte = null; $('panelCorte').hidden = true; visor?.pedir(); });
 
 const capa = $('capa');
@@ -1884,7 +1941,7 @@ function dibujarCapa() {
   const vc = corte && enVista.find(e => e.pie === corte.pie);
   if (vc) {
     const G = grillaDe(vc.g);
-    for (const [color, puntos] of [[COLOR_TRANS, s => [s, corte.y]], [COLOR_LONG, s => [corte.x, s]]]) {
+    for (const [color, puntos] of [vistaCorte === 'largo' ? [COLOR_LONG, s => [corte.x, s]] : [COLOR_TRANS, s => [s, corte.y]]]) {
       const [a, b] = color === COLOR_TRANS ? [G.x0, G.x1] : [G.y0, G.y1];
       c.strokeStyle = color; c.lineWidth = 2; c.beginPath(); let abierto = false;
       for (let s = a; s <= b; s += 1.5) {

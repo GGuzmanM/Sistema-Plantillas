@@ -695,9 +695,12 @@ export function generar(h, p) {
     return c + (xa - c) * (1 + m / (medio * sW));
   };
   // 1) cara de arriba de la horma
+  // contorno sin el margen para pulir (anillo k = 0), para pintar el margen en el 3D (Ernesto, 2026-11-22)
+  const sinMargen = [];
   for (let i = 0; i < ns; i++) for (let k = 0; k < nr; k++) {
     const px = cx[i] + rk[k] * (ex[i] - cx[i]), py = cy[i] + rk[k] * (ey[i] - cy[i]), q = i * nr + k;
     let xa = anchoX(px, py);
+    if (k === 0) sinMargen.push([(espejo ? -xa : xa) * sW, py * sL]);
     if (abreLados) xa = abreLados(px, py, xa);
     x[q] = (espejo ? -xa : xa) * sW; y[q] = py * sL; z[q] = alturaEn(px, py);
   }
@@ -815,8 +818,26 @@ export function generar(h, p) {
   // atrás del talón (p.margenTalon): la punta del talón se corre esos mm hacia atrás sin cambiar su forma (queda en
   // Y negativo); del 3 % al 23 % se estira suave y desde ahí nada se mueve
   if (mT) for (let q = 0; q < y.length; q++) { const t = y[q] / p.largo; if (t < 0.23) y[q] -= mT * (1 - suave((t - 0.03) / 0.2)); }
+  // margen[q] (2026-11-22): mm que el punto queda afuera del contorno sin margen (negativo = adentro); null sin margen.
+  // El visor pinta el margen para pulir de otro tono donde pasa de 0.
+  let margen = null;
+  if (mL || mT || mP) {
+    margen = new Float32Array(y.length);
+    const S = sinMargen, nS = S.length;
+    for (let q = 0; q < y.length; q++) {
+      const X = x[q], Y = y[q]; let d2 = Infinity, dentro = false;
+      for (let i = 0, j = nS - 1; i < nS; j = i++) {
+        const [ax, ay] = S[j], [bx, by] = S[i];
+        if ((ay > Y) !== (by > Y) && X < ax + ((Y - ay) * (bx - ax)) / (by - ay)) dentro = !dentro;
+        const ux = bx - ax, uy = by - ay, l2 = ux * ux + uy * uy || 1;
+        const t = Math.min(Math.max(((X - ax) * ux + (Y - ay) * uy) / l2, 0), 1), dx = X - ax - t * ux, dy = Y - ay - t * uy;
+        d2 = Math.min(d2, dx * dx + dy * dy);
+      }
+      margen[q] = dentro ? -Math.sqrt(d2) : Math.sqrt(d2);
+    }
+  }
   // aportes: cuánto sube cada elemento en cada punto (en el orden de p.elementos), para saber cuál se toca con el ratón
-  return { ns, nr, x, y, z, zb, he, rk, aportes: elementos.map(e => e.aporte), uvs: elementos.map(e => e.uv), p: { ...p, arco: f.arco, arcoMin: f.arcoMin ?? null, copaLado: h.ref.copaLado } };
+  return { ns, nr, x, y, z, zb, he, rk, margen, aportes: elementos.map(e => e.aporte), uvs: elementos.map(e => e.uv), p: { ...p, arco: f.arco, arcoMin: f.arcoMin ?? null, copaLado: h.ref.copaLado } };
 }
 
 // Contacto total en el arco (como el "Full Contact" de LutraCAD). c = { altura(x, y) → z de la planta del pie o null,

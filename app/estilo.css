@@ -168,6 +168,9 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 #panelPlantilla .pp-cab button:hover { background: #f1f4f8; }
 #panelElemento { border-top: 3px solid var(--verde); }
 .panel-corte { border-radius: 10px; box-shadow: var(--sombra-flota); }
+.panel-corte .vista-corte { position: absolute; top: 6px; right: 40px; margin: 0; display: grid; grid-template-columns: 1fr 1fr; }
+.panel-corte .vista-corte button { position: static; width: auto; height: 26px; padding: 0 12px; font-size: 12px; color: var(--tinta); }
+.panel-corte .vista-corte button.activo { color: var(--acento-2); }
 
 /* ---------- Pantalla de inicio y Biblioteca ---------- */
 /* fondo azul oscuro parejo (sin degradé ni brillos); un solo color de acento */

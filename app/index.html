@@ -430,7 +430,7 @@
       <div class="fila"><label for="antepie">Antepié (espesor)</label><span class="campo"><input type="number" id="antepie" min="0.8" max="6" step="0.1"><span class="unidad">mm</span></span></div>
       <details class="mas-ajustes" id="masAjustes"><summary>Más ajustes</summary>
         <div class="fila"><label for="arcoPos">Ubicación del arco</label><span class="campo"><input type="number" id="arcoPos" min="28" max="52" step="1"><span class="unidad">%</span></span>
-          <label class="auto"><input type="checkbox" id="arcoPosAuto" checked> Como la horma (guía de tallas: 35 % del largo desde el talón, como LutraCAD)</label></div>
+          <label class="auto"><input type="checkbox" id="arcoPosAuto" checked> Como la horma (% del largo desde el talón)</label></div>
         <div class="fila"><label for="canto">Canto del borde</label><span class="campo"><input type="number" id="canto" min="0.8" max="4" step="0.1"><span class="unidad">mm</span></span></div>
       </details>
       <div class="fila" id="filaContacto" hidden><label for="contactoPct">Contacto con el pie</label><span class="campo"><input type="number" id="contactoPct" min="0" max="100" step="5" value="100"><span class="unidad">%</span></span>
@@ -610,6 +610,11 @@
     <canvas id="cuboVistas" class="cubo-vistas" title="Clic en una cara o esquina para mirar desde ahí; arrastrar para girar" aria-label="Cubo de vistas"></canvas>
     <div class="panel-corte" id="panelCorte" hidden>
       <canvas id="graficoCorte" aria-label="Perfil de la plantilla en el corte"></canvas>
+      <!-- un solo perfil a la vez, usando todo el ancho (Ernesto, 2026-11-22) -->
+      <div class="modos-corte vista-corte" id="vistaCorte" role="group" aria-label="Qué perfil ver">
+        <button data-vista="ancho" class="activo">A lo ancho</button>
+        <button data-vista="largo">A lo largo</button>
+      </div>
       <button id="cerrarCorte" title="Cerrar el corte" aria-label="Cerrar el corte">×</button>
     </div>
     <div class="ayuda">Arrastrar: mover · Clic derecho + arrastrar: girar · Rueda: acercar · Ctrl+arrastrar elemento: girarlo · Teclas: 1–5 vistas, M medir, R regla, A alturas, Ctrl+Z deshacer</div>
