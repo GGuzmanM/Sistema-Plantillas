@@ -4,10 +4,13 @@
 // compartidos"). Antes de guardar, cada PC indica una vez cuál es esa carpeta; el navegador la recuerda.
 //
 // Dentro de la carpeta:
-//   Diseños/<Diseñador>/<Paciente - fecha>/proyecto.json   ← el diseño (se guarda solo) y sus datos
-//   Diseños/<Diseñador>/<Paciente - fecha>/*.stl, hoja, receta ← lo que se exporta de ese paciente
-//   Biblioteca/                                            ← elementos propios (siguiente paso)
-// Cada diseñador es una carpeta dentro de Diseños; cada proyecto, una carpeta dentro del diseñador.
+//   Diseños/<Diseñador>/<Paciente>/<Paciente - fecha>/proyecto.json   ← cada diseño (se guarda solo) y sus datos
+//   Diseños/<Diseñador>/<Paciente>/<Paciente - fecha>/*.stl, hoja, receta ← lo que se exporta de ese diseño
+//   Biblioteca/                                                       ← elementos, hormas y máquinas propias
+// 2026-11-22 (Ernesto): cada paciente es una carpeta dentro del diseñador, con uno o varios diseños (a veces lleva
+// tres pares distintos). Cada diseño lleva su material y su tipo de calzado (escrito a mano).
+// Los proyectos de antes (Diseños/<Diseñador>/<Paciente - fecha>/proyecto.json, sin carpeta del paciente) se siguen
+// viendo: se juntan con los del mismo paciente y no se mueven.
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -50,11 +53,31 @@ async function subcarpetas(dir) {
 }
 
 import { pintarBiblioteca } from './biblioteca.js';
-import { pintarMaquinas } from './maquinas.js';
+import { pintarMaquinas, listaMaquinas } from './maquinas.js';
+
+// Pacientes de un diseñador: { nombre, carpeta (la del paciente, o null si solo tiene diseños de antes), disenos: [{
+// ruta ("Paciente/Diseño" o, los de antes, "Paciente - fecha"), dir, datos }] }. Mismo paciente = mismo nombre.
+async function leerPacientes(dirDis) {
+  const mapa = new Map(), de = n => { const k = n.toLocaleLowerCase('es'); if (!mapa.has(k)) mapa.set(k, { nombre: n, carpeta: null, disenos: [] }); return mapa.get(k); };
+  for (const [n, h] of await subcarpetas(dirDis)) {
+    const p = await leerJSON(h, 'proyecto.json');
+    if (p) { de(p.paciente || n).disenos.push({ ruta: n, dir: h, datos: p }); continue; }   // diseño de antes
+    const pac = de(n); pac.carpeta = n; pac.nombre = n;
+    for (const [m, hd] of await subcarpetas(h)) {
+      const d = await leerJSON(hd, 'proyecto.json');
+      if (d) pac.disenos.push({ ruta: n + '/' + m, dir: hd, datos: d });
+    }
+  }
+  const lista = [...mapa.values()];
+  for (const p of lista) p.disenos.sort((a, b) => String(a.datos.creado ?? '').localeCompare(String(b.datos.creado ?? '')));
+  const ultimo = p => p.disenos.reduce((m, d) => (String(d.datos.modificado ?? '') > m ? String(d.datos.modificado) : m), '');
+  return lista.sort((a, b) => ultimo(b).localeCompare(ultimo(a)) || a.nombre.localeCompare(b.nombre, 'es'));
+}
 
 // biblioteca: { catalogo(), miniatura(def, canvas), aplicar(datos) } — aplicar suma los propios al programa
 // antesDeSalir(): pasa ya al guardado el último cambio del diseño que todavía esperaba (auditoría 2026-11-16)
-export function crearInicio({ aplicarReceta, recetaNueva, mensaje, alAbrir, biblioteca, antesDeSalir, abrirCarpeta, elegirCarpetaPaciente, olvidarProyecto }) {
+// ponerMaterial(id): el material se cambió desde Inicio en el diseño que está abierto (para que la pantalla lo tome)
+export function crearInicio({ aplicarReceta, recetaNueva, mensaje, alAbrir, biblioteca, antesDeSalir, abrirCarpeta, elegirCarpetaPaciente, olvidarProyecto, ponerMaterial }) {
   let datosBib = { elementos: [], favoritos: [] };   // Biblioteca/elementos.json de la carpeta compartida
   let datosHormas = { hormas: [] };                   // Biblioteca/hormas.json (hormas propias y modificadas, 2026-11-17)
   async function cargarBiblioteca() {
@@ -64,7 +87,7 @@ export function crearInicio({ aplicarReceta, recetaNueva, mensaje, alAbrir, bibl
     biblioteca?.aplicar(datosBib);
     datosHormas = (await leerJSON(dir, 'hormas.json')) ?? { hormas: [] };
     biblioteca?.aplicarHormas?.(datosHormas);
-    datosMaquinas = (await leerJSON(dir, 'maquinas.json')) ?? { mesas: [], impresoras: [] };
+    datosMaquinas = (await leerJSON(dir, 'maquinas.json')) ?? { mesas: [], materiales: [], resinas: [], impresoras: [] };
     biblioteca?.aplicarMaquinas?.(datosMaquinas);
   }
   // Máquinas (2026-11-19): mesas de trabajo de la fresadora e impresoras 3D, en Biblioteca/maquinas.json
@@ -90,7 +113,8 @@ export function crearInicio({ aplicarReceta, recetaNueva, mensaje, alAbrir, bibl
   let raiz = null;          // carpeta de trabajo (con permiso)
   let guardada = null;      // la recordada, aunque falte confirmar el permiso
   let disenador = null;     // nombre del diseñador abierto en la pantalla de inicio
-  let proyecto = null;      // { disenador, carpeta, dir, datos } del diseño abierto
+  let paciente = null;      // nombre del paciente abierto en la pantalla de inicio (sus diseños)
+  let proyecto = null;      // { disenador, carpeta (ruta dentro del diseñador), dir, datos } del diseño abierto
   let vista = 'disenadores';
 
   // en pruebas (sin ventana para elegir carpeta) se usa el almacenamiento propio del navegador
@@ -176,91 +200,68 @@ export function crearInicio({ aplicarReceta, recetaNueva, mensaje, alAbrir, bibl
     }
     if (vista === 'maquinas') { pintarMaquinas(cuerpo, { datos: () => datosMaquinas, guardar: guardarMaquinas }); return; }
     if (!disenador) return pintarDisenadores(cuerpo);
-    return pintarProyectos(cuerpo);
+    if (paciente) return pintarDisenos(cuerpo);
+    return pintarPacientes(cuerpo);
   }
   async function pintarDisenadores(cuerpo) {
     const dis = await carpetaEn(raiz, ['Diseños'], true), lista = await subcarpetas(dis);
-    const tarjetas = await Promise.all(lista.map(async ([n, h]) => [n, (await subcarpetas(h)).length]));
+    const tarjetas = await Promise.all(lista.map(async ([n, h]) => [n, (await leerPacientes(h)).length]));
     cuerpo.innerHTML = `<div class="inicio-titulo"><h2>Diseñadores</h2></div>
       <div class="tarjetas">
         ${tarjetas.map(([n, k]) => `<div class="tarjeta">
           <div class="tarjeta-cab">● Activo</div>
           <div class="tarjeta-nombre">${esc(n)}</div>
-          <div class="tarjeta-dato">Proyectos: ${k}</div>
+          <div class="tarjeta-dato">Pacientes: ${k}</div>
           <button class="abrir" data-disenador="${esc(n)}">Abrir</button></div>`).join('')}
         <div class="tarjeta nueva">
           <div class="tarjeta-nombre">Nuevo diseñador</div>
           <input type="text" id="nuevoDisenador" placeholder="Nombre" aria-label="Nombre del nuevo diseñador">
           <button class="abrir" id="crearDisenador">Crear</button></div>
       </div>`;
-    cuerpo.querySelectorAll('[data-disenador]').forEach(b => b.onclick = () => { disenador = b.dataset.disenador; pintar(); });
+    cuerpo.querySelectorAll('[data-disenador]').forEach(b => b.onclick = () => { disenador = b.dataset.disenador; paciente = null; pintar(); });
     const crear = async () => {
       const n = limpioNombre($('nuevoDisenador').value); if (!n) { $('nuevoDisenador').focus(); return; }
       try { await carpetaEn(raiz, ['Diseños', n], true); } catch (e) { alert(`No se pudo crear el diseñador "${n}": ${e.message}`); return; }
-      disenador = n; pintar();
+      disenador = n; paciente = null; pintar();
     };
     $('crearDisenador').onclick = crear;
     $('nuevoDisenador').onkeydown = e => { if (e.key === 'Enter') crear(); };
   }
-  async function pintarProyectos(cuerpo) {
-    const dir = await carpetaEn(raiz, ['Diseños', disenador], true), lista = [];
-    for (const [n, h] of await subcarpetas(dir)) {
-      const p = await leerJSON(h, 'proyecto.json');
-      lista.push({ carpeta: n, paciente: p?.paciente || n, creado: p?.creado, modificado: p?.modificado, estado: p?.estado || 'En diseño' });
-    }
-    lista.sort((a, b) => String(b.modificado ?? '').localeCompare(String(a.modificado ?? '')));
+  const mismoNombre = (a, b) => a.toLocaleLowerCase('es') === b.toLocaleLowerCase('es');
+  // ---- Pacientes del diseñador (2026-11-22) ----
+  async function pintarPacientes(cuerpo) {
+    const dir = await carpetaEn(raiz, ['Diseños', disenador], true), lista = await leerPacientes(dir);
+    const ultimo = p => p.disenos.reduce((m, d) => (String(d.datos.modificado ?? '') > m ? String(d.datos.modificado) : m), '');
     cuerpo.innerHTML = `<div class="inicio-titulo">
         <button class="volver" id="inicioDisenadores">‹ Diseñadores</button><h2>${esc(disenador)}</h2>
         <input type="search" id="buscarProyecto" placeholder="Buscar paciente…" aria-label="Buscar paciente">
       </div>
       <div class="nuevo-proyecto">
-        <input type="text" id="nuevoPaciente" placeholder="Nombre del paciente" aria-label="Nombre del paciente del nuevo proyecto">
-        <button class="primario" id="crearProyecto">+ Nuevo proyecto</button>
-        <button id="crearDesdeCarpeta" title="Elegir la carpeta del paciente: el proyecto toma el nombre de la carpeta y se cargan su escaneo y sus muestras">📁 Nuevo desde carpeta…</button>
+        <input type="text" id="nuevoPaciente" placeholder="Nombre del paciente" aria-label="Nombre del nuevo paciente">
+        <button class="primario" id="crearProyecto">+ Nuevo paciente</button>
+        <button id="crearDesdeCarpeta" title="Elegir la carpeta del paciente: toma el nombre de la carpeta y se cargan su escaneo y sus muestras. Si el paciente ya existe, se le suma un diseño">📁 Nuevo desde carpeta…</button>
         <input type="file" id="archivoNuevoCarpeta" webkitdirectory multiple hidden>
       </div>
-      <table class="proyectos"><thead><tr><th>Paciente</th><th>Creado</th><th>Modificado</th><th>Estado</th><th></th></tr></thead>
-      <tbody>${lista.map(p => `<tr data-buscar="${esc(p.paciente.toLowerCase())}"><td>${esc(p.paciente)}</td><td>${fechaCorta(p.creado)}</td>
-        <td>${fechaCorta(p.modificado)}</td><td><span class="estado ${p.estado === 'Exportado' ? 'ok' : ''}">${esc(p.estado)}</span></td>
-        <td class="acciones-proyecto"><button data-proyecto="${esc(p.carpeta)}">Abrir</button><button class="peligro" data-eliminar="${esc(p.carpeta)}" title="Mover este diseño a la Papelera">Eliminar</button></td></tr>`).join('') || '<tr><td colspan="5" class="vacio">Todavía no hay proyectos.</td></tr>'}</tbody></table>`;
-    $('inicioDisenadores').onclick = () => { disenador = null; pintar(); };
+      <table class="proyectos"><thead><tr><th>Paciente</th><th>Diseños</th><th>Creado</th><th>Modificado</th><th></th></tr></thead>
+      <tbody>${lista.map((p, i) => `<tr data-buscar="${esc(p.nombre.toLowerCase())}"><td>📁 ${esc(p.nombre)}</td><td>${p.disenos.length}</td>
+        <td>${fechaCorta(p.disenos[0]?.datos.creado)}</td><td>${fechaCorta(ultimo(p))}</td>
+        <td class="acciones-proyecto"><button data-paciente="${i}">Abrir</button>${p.disenos.length ? '' : `<button class="peligro" data-quitar="${i}" title="Quitar la carpeta vacía de este paciente">Eliminar</button>`}</td></tr>`).join('')
+        || '<tr><td colspan="5" class="vacio">Todavía no hay pacientes.</td></tr>'}</tbody></table>`;
+    $('inicioDisenadores').onclick = () => { disenador = null; paciente = null; pintar(); };
     $('buscarProyecto').oninput = e => { const q = e.target.value.trim().toLowerCase(); cuerpo.querySelectorAll('[data-buscar]').forEach(tr => { tr.hidden = q && !tr.dataset.buscar.includes(q); }); };
-    cuerpo.querySelectorAll('[data-proyecto]').forEach(b => b.onclick = () => abrirProyecto(disenador, b.dataset.proyecto));
-    cuerpo.querySelectorAll('[data-eliminar]').forEach(b => b.onclick = async () => {
-      const p = lista.find(x => x.carpeta === b.dataset.eliminar); if (!p) return;
-      if (!confirm(`¿Eliminar el diseño de "${p.paciente}" (creado ${fechaCorta(p.creado)})?\n\nSe mueve a la carpeta "Papelera" de la carpeta compartida, con su STL, hoja y receta. De ahí se puede recuperar.`)) return;
-      b.disabled = true;
-      try { await eliminarProyecto(disenador, p.carpeta); mensaje(`Diseño de ${p.paciente} movido a la Papelera.`); }
-      catch (e) { alert('No se pudo eliminar: ' + e.message); }
+    cuerpo.querySelectorAll('[data-paciente]').forEach(b => b.onclick = () => { paciente = lista[+b.dataset.paciente].nombre; pintar(); });
+    // un paciente sin diseños (se eliminaron todos): se puede quitar su carpeta, que está vacía
+    cuerpo.querySelectorAll('[data-quitar]').forEach(b => b.onclick = async () => {
+      const p = lista[+b.dataset.quitar]; if (!p?.carpeta || !confirm(`¿Quitar la carpeta de "${p.nombre}"? No tiene diseños.`)) return;
+      try { await dir.removeEntry(p.carpeta); } catch (e) { alert('No se pudo quitar (¿tiene otros archivos?): ' + e.message); }
       pintar();
     });
-    let creando = false;
     // archivos = carpeta del paciente (Nuevo desde carpeta): el nombre sale de la carpeta y después se cargan su escaneo y muestras
-    const crear = async (archivos = null, handle = null) => {
+    const crear = (archivos = null, handle = null) => {
       const desdeCarpeta = archivos?.length ? (archivos[0].webkitRelativePath || '').split('/')[0].replace(/\s*-\s*\d{6,}\s*$/, '') : null;
-      const paciente = limpioNombre(desdeCarpeta ?? $('nuevoPaciente').value);
-      if (!paciente) { if (archivos) alert('No se pudo leer el nombre de la carpeta.'); else $('nuevoPaciente').focus(); return; }
-      if (creando) return; creando = true;   // doble clic o Enter repetido: un solo proyecto
-      try {
-        antesDeSalir?.(); await guardarYa();   // lo pendiente del proyecto anterior va a su carpeta
-        const ahora = new Date(), sello = ahora.toISOString().slice(0, 16).replace('T', ' ').replace(':', '');
-        // mismo paciente en el mismo minuto (auditoría 2026-11-16): antes caía en la misma carpeta y pisaba el
-        // diseño del primero; ahora lleva (2), (3)…
-        const padre = await carpetaEn(raiz, ['Diseños', disenador], true);
-        let carpeta = `${paciente} - ${sello}`;
-        for (let k = 2; await tieneSub(padre, carpeta); k++) carpeta = `${paciente} - ${sello} (${k})`;
-        const h = await padre.getDirectoryHandle(carpeta, { create: true });
-        const datos = { paciente, disenador, creado: ahora.toISOString(), modificado: ahora.toISOString(), estado: 'En diseño', exportes: [], receta: recetaNueva(paciente) };
-        await escribir(h, 'proyecto.json', JSON.stringify(datos, null, 2));
-        abrirNuevo(h, carpeta, datos, paciente);
-        if (archivos?.length && abrirCarpeta) await abrirCarpeta(archivos, handle);
-      } catch (e) { alert('No se pudo crear el proyecto: ' + e.message); }
-      finally { creando = false; }
-    };
-    const abrirNuevo = (h, carpeta, datos, paciente) => {
-      proyecto = { disenador, carpeta, dir: h, datos };
-      aplicarReceta(datos.receta, true); mostrar(false); alAbrir?.(proyecto, true);
-      mensaje(`Proyecto nuevo: ${paciente} (${disenador}). Abra la carpeta del paciente para cargar el escaneo y la muestra. El diseño se guarda solo.`);
+      const nombre = limpioNombre(desdeCarpeta ?? $('nuevoPaciente').value);
+      if (!nombre) { if (archivos) alert('No se pudo leer el nombre de la carpeta.'); else $('nuevoPaciente').focus(); return; }
+      return nuevoDiseno(nombre, { archivos, handle });
     };
     $('crearProyecto').onclick = () => crear();
     $('nuevoPaciente').onkeydown = e => { if (e.key === 'Enter') crear(); };
@@ -273,6 +274,98 @@ export function crearInicio({ aplicarReceta, recetaNueva, mensaje, alAbrir, bibl
     };
     $('archivoNuevoCarpeta').onchange = ev => { const fs = [...ev.target.files]; ev.target.value = ''; if (fs.length) crear(fs); };
   }
+
+  // ---- Diseños de un paciente: material y tipo de calzado de cada uno (2026-11-22) ----
+  async function pintarDisenos(cuerpo) {
+    const dirDis = await carpetaEn(raiz, ['Diseños', disenador], true);
+    const pac = (await leerPacientes(dirDis)).find(p => mismoNombre(p.nombre, paciente));
+    if (!pac) { paciente = null; return pintar(); }
+    // EVA (fresado) y resinas (impresión 3D, 2026-11-22), en dos grupos
+    const { materiales: eva, resinas } = listaMaquinas(datosMaquinas);
+    const grupo = (etq, lista, sel) => `<optgroup label="${etq}">${lista.map(m => `<option value="${esc(m.id)}"${m.id === sel ? ' selected' : ''}>${esc(m.nombre)}</option>`).join('')}</optgroup>`;
+    const opciones = sel => '<option value="">—</option>' + grupo('EVA', eva, sel) + grupo('Impresión 3D', resinas, sel);
+    // el material del diseño: el elegido (receta.material); en los de antes, el EVA si lo tenían
+    const materialDe = r => r?.material ?? r?.materialEva ?? '';
+    cuerpo.innerHTML = `<div class="inicio-titulo">
+        <button class="volver" id="inicioPacientes">‹ ${esc(disenador)}</button><h2>${esc(pac.nombre)}</h2>
+      </div>
+      <div class="nuevo-proyecto"><button class="primario" id="crearDiseno">+ Nuevo diseño</button></div>
+      <div class="tabla-ancha"><table class="proyectos disenos"><thead><tr><th>Diseño</th><th>Paciente</th><th>Material</th><th>Tipo de calzado</th><th>Creado</th><th>Modificado</th><th>Estado</th><th></th></tr></thead>
+      <tbody>${pac.disenos.map((d, i) => `<tr><td>Diseño ${i + 1}</td><td>${esc(d.datos.paciente || pac.nombre)}</td>
+        <td><select data-material="${i}" aria-label="Material del diseño ${i + 1}">${opciones(materialDe(d.datos.receta))}</select></td>
+        <td><input type="text" data-calzado="${i}" value="${esc(d.datos.tipoCalzado ?? '')}" maxlength="60" placeholder="Zapatilla, botín, escolar…" aria-label="Tipo de calzado del diseño ${i + 1}"></td>
+        <td>${fechaCorta(d.datos.creado)}</td><td>${fechaCorta(d.datos.modificado)}</td>
+        <td><span class="estado ${d.datos.estado === 'Exportado' ? 'ok' : ''}">${esc(d.datos.estado || 'En diseño')}</span></td>
+        <td class="acciones-proyecto"><button data-abrir="${i}">Abrir</button><button data-duplicar="${i}" title="Nuevo diseño de este paciente que empieza igual a este (material y calzado incluidos)">Duplicar</button><button class="peligro" data-eliminar="${i}" title="Mover este diseño a la Papelera">Eliminar</button></td></tr>`).join('')
+        || '<tr><td colspan="8" class="vacio">Este paciente todavía no tiene diseños.</td></tr>'}</tbody></table></div>`;
+    $('inicioPacientes').onclick = () => { paciente = null; pintar(); };
+    $('crearDiseno').onclick = () => nuevoDiseno(pac.nombre);
+    // guarda en el proyecto.json del diseño; si es el que está abierto, también en sus datos en memoria (si no, el
+    // guardado siguiente del diseño pisaría el cambio)
+    const guardarDatos = async (d, cambios, receta = null) => {
+      const abierto = proyecto && proyecto.disenador === disenador && proyecto.carpeta === d.ruta;
+      for (const x of abierto ? [d.datos, proyecto.datos] : [d.datos]) { Object.assign(x, cambios); if (receta) x.receta = { ...x.receta, ...receta }; }
+      await escribir(d.dir, 'proyecto.json', JSON.stringify(abierto ? proyecto.datos : d.datos, null, 2));
+      return abierto;
+    };
+    cuerpo.querySelectorAll('[data-material]').forEach(s => s.onchange = async () => {
+      const d = pac.disenos[+s.dataset.material];
+      // también en el campo de su tipo, así el G-code (EVA) o la impresión usan el elegido
+      const v = s.value, cambio = { material: v };
+      if (eva.some(m => m.id === v)) cambio.materialEva = v; else if (resinas.some(m => m.id === v)) cambio.materialResina = v;
+      try { if (await guardarDatos(d, {}, cambio)) ponerMaterial?.(v); }
+      catch (e) { alert('No se pudo guardar el material: ' + e.message); }
+    });
+    cuerpo.querySelectorAll('[data-calzado]').forEach(inp => inp.onchange = async () => {
+      const d = pac.disenos[+inp.dataset.calzado], v = inp.value.replace(/\s+/g, ' ').trim().slice(0, 60);
+      inp.value = v;
+      try { await guardarDatos(d, { tipoCalzado: v }); } catch (e) { alert('No se pudo guardar el tipo de calzado: ' + e.message); }
+    });
+    cuerpo.querySelectorAll('[data-abrir]').forEach(b => b.onclick = () => abrirProyecto(disenador, pac.disenos[+b.dataset.abrir].ruta));
+    cuerpo.querySelectorAll('[data-duplicar]').forEach(b => b.onclick = () => {
+      const d = pac.disenos[+b.dataset.duplicar];
+      nuevoDiseno(pac.nombre, { receta: JSON.parse(JSON.stringify(d.datos.receta)), tipoCalzado: d.datos.tipoCalzado ?? '' });
+    });
+    cuerpo.querySelectorAll('[data-eliminar]').forEach(b => b.onclick = async () => {
+      const i = +b.dataset.eliminar, d = pac.disenos[i];
+      if (!confirm(`¿Eliminar el diseño ${i + 1} de "${pac.nombre}" (creado ${fechaCorta(d.datos.creado)})?\n\nSe mueve a la carpeta "Papelera" de la carpeta compartida, con su STL, hoja y receta. De ahí se puede recuperar.`)) return;
+      b.disabled = true;
+      try { await eliminarProyecto(disenador, d.ruta); mensaje(`Diseño ${i + 1} de ${pac.nombre} movido a la Papelera.`); }
+      catch (e) { alert('No se pudo eliminar: ' + e.message); }
+      pintar();
+    });
+  }
+
+  // Nuevo diseño de un paciente: va a su carpeta (la que ya existe con ese nombre, o una nueva) y se abre.
+  // op = { archivos, handle } (desde la carpeta del paciente) o { receta, tipoCalzado } (Duplicar)
+  let creando = false;
+  async function nuevoDiseno(nombre, op = {}) {
+    if (creando) return; creando = true;   // doble clic o Enter repetido: un solo diseño
+    try {
+      antesDeSalir?.(); await guardarYa();   // lo pendiente del proyecto anterior va a su carpeta
+      const dirDis = await carpetaEn(raiz, ['Diseños', disenador], true);
+      const pac = (await leerPacientes(dirDis)).find(p => mismoNombre(p.nombre, nombre));
+      const nombrePac = pac?.nombre ?? nombre, carpPac = pac?.carpeta ?? nombrePac;
+      const dirPac = await dirDis.getDirectoryHandle(carpPac, { create: true });
+      const ahora = new Date(), sello = ahora.toISOString().slice(0, 16).replace('T', ' ').replace(':', '');
+      // mismo paciente en el mismo minuto (auditoría 2026-11-16): lleva (2), (3)… y no pisa al primero
+      let carpeta = `${nombrePac} - ${sello}`;
+      for (let k = 2; await tieneSub(dirPac, carpeta); k++) carpeta = `${nombrePac} - ${sello} (${k})`;
+      const h = await dirPac.getDirectoryHandle(carpeta, { create: true });
+      const receta = op.receta ? { ...op.receta, paciente: nombrePac } : recetaNueva(nombrePac);
+      const datos = { paciente: nombrePac, disenador, creado: ahora.toISOString(), modificado: ahora.toISOString(), estado: 'En diseño',
+                      tipoCalzado: op.tipoCalzado ?? '', exportes: [], receta };
+      await escribir(h, 'proyecto.json', JSON.stringify(datos, null, 2));
+      paciente = nombrePac;
+      proyecto = { disenador, carpeta: carpPac + '/' + carpeta, dir: h, datos };
+      aplicarReceta(datos.receta, !op.receta); mostrar(false); alAbrir?.(proyecto, true);
+      const n = (pac?.disenos.length ?? 0) + 1;
+      mensaje(`${op.receta ? 'Copia lista' : 'Diseño nuevo'}: ${nombrePac}, diseño ${n} (${disenador}). ` +
+        (op.archivos?.length ? 'Se cargan el escaneo y la muestra de la carpeta del paciente.' : 'Abra la carpeta del paciente para cargar el escaneo y la muestra. El diseño se guarda solo.'));
+      if (op.archivos?.length && abrirCarpeta) await abrirCarpeta(op.archivos, op.handle);
+    } catch (e) { alert('No se pudo crear el diseño: ' + e.message); }
+    finally { creando = false; }
+  }
   // Eliminar un diseño (Ernesto, 2026-11-14): no se borra de una, se mueve a Papelera/<diseñador>/<proyecto> dentro
   // de la carpeta compartida (copia de todos sus archivos y después se quita la carpeta original).
   async function copiarCarpeta(de, a) {
@@ -281,13 +374,15 @@ export function crearInicio({ aplicarReceta, recetaNueva, mensaje, alAbrir, bibl
       else { const f = await h.getFile(), w = await (await a.getFileHandle(n, { create: true })).createWritable(); await w.write(f); await w.close(); }
     }
   }
+  // carpeta = ruta dentro del diseñador ("Paciente/Diseño", o "Paciente - fecha" en los de antes)
   async function eliminarProyecto(dis, carpeta) {
-    const padre = await carpetaEn(raiz, ['Diseños', dis]), h = await padre.getDirectoryHandle(carpeta);
-    let destino = carpeta, papelera = await carpetaEn(raiz, ['Papelera', dis], true);
+    const partes = carpeta.split('/'), nombre = partes.pop();
+    const padre = await carpetaEn(raiz, ['Diseños', dis, ...partes]), h = await padre.getDirectoryHandle(nombre);
+    let destino = nombre, papelera = await carpetaEn(raiz, ['Papelera', dis, ...partes], true);
     // si ya hay uno con ese nombre en la Papelera, se le suma la hora
     try { await papelera.getDirectoryHandle(destino); destino += ' (eliminado ' + new Date().toISOString().slice(0, 16).replace('T', ' ').replace(':', '') + ')'; } catch { /* no existe */ }
     await copiarCarpeta(h, await papelera.getDirectoryHandle(destino, { create: true }));
-    await padre.removeEntry(carpeta, { recursive: true });
+    await padre.removeEntry(nombre, { recursive: true });
     // auditoría 2026-11-19: también se olvida el acceso recordado a la carpeta del paciente y su escaneo en memoria
     olvidarProyecto?.(dis + '/' + carpeta);
     // si era el proyecto abierto, deja de guardarse ahí
@@ -297,7 +392,7 @@ export function crearInicio({ aplicarReceta, recetaNueva, mensaje, alAbrir, bibl
   }
   async function abrirProyecto(dis, carpeta) {
     antesDeSalir?.(); await guardarYa();   // lo pendiente del proyecto anterior va a su carpeta, no a este
-    const h = await carpetaEn(raiz, ['Diseños', dis, carpeta]), datos = await leerJSON(h, 'proyecto.json');
+    const h = await carpetaEn(raiz, ['Diseños', dis, ...carpeta.split('/')]), datos = await leerJSON(h, 'proyecto.json');
     if (!datos?.receta) { alert('Este proyecto no tiene diseño guardado (falta proyecto.json).'); return; }
     proyecto = { disenador: dis, carpeta, dir: h, datos };
     let repuestos = false;
@@ -343,9 +438,10 @@ export function crearInicio({ aplicarReceta, recetaNueva, mensaje, alAbrir, bibl
     await escribir(proyecto.dir, 'proyecto.json', JSON.stringify(d, null, 2));
   }
 
-  $('irInicio').onclick = async () => { antesDeSalir?.(); await guardarYa(); vista = 'disenadores'; if (proyecto) disenador = proyecto.disenador; mostrar(true); };
+  // al volver a Inicio desde un diseño se ven los diseños de ese paciente
+  $('irInicio').onclick = async () => { antesDeSalir?.(); await guardarYa(); vista = 'disenadores'; if (proyecto) { disenador = proyecto.disenador; paciente = proyecto.carpeta.includes('/') ? proyecto.carpeta.split('/')[0] : proyecto.datos.paciente || null; } mostrar(true); };
   $('inicioVolver').onclick = () => mostrar(false);
-  document.querySelectorAll('[data-inicio-vista]').forEach(b => b.onclick = () => { vista = b.dataset.inicioVista; if (vista === 'disenadores') disenador = null; pintar(); });
+  document.querySelectorAll('[data-inicio-vista]').forEach(b => b.onclick = () => { vista = b.dataset.inicioVista; if (vista === 'disenadores') { disenador = null; paciente = null; } pintar(); });
   iniciar();
 
   return {
@@ -356,6 +452,6 @@ export function crearInicio({ aplicarReceta, recetaNueva, mensaje, alAbrir, bibl
       await guardarBiblioteca({ ...datosBib, elementos: [...(datosBib.elementos ?? []).filter(e => e.id !== def.id), def] });
     },
     proyecto: () => proyecto,
-    carpetaProyecto: () => proyecto ? `${raiz?.name ?? ''}\\Diseños\\${proyecto.disenador}\\${proyecto.carpeta}` : null,
+    carpetaProyecto: () => proyecto ? `${raiz?.name ?? ''}\\Diseños\\${proyecto.disenador}\\${proyecto.carpeta.replace(/\//g, '\\')}` : null,
   };
 }

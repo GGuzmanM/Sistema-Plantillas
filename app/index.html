@@ -286,8 +286,9 @@
 </style>
 <!-- estética (2026-11-16): quitar esta línea vuelve al aspecto anterior -->
 <link rel="stylesheet" href="estilo.css">
-<!-- identidad visual azul + blanco (2026-11-19): quitar esta línea vuelve al aspecto anterior -->
-<link rel="stylesheet" href="marca.css">
+<!-- tema "Blanco grafito" (2026-11-23, propuesta D). El azul de antes está en marca.css: para volver a él, cambiar
+     tema.css por marca.css en esta línea -->
+<link rel="stylesheet" href="tema.css">
 </head>
 <body>
 <!-- Pantalla de inicio (como la de LutraCAD): diseñadores, sus proyectos y la biblioteca -->
@@ -489,6 +490,8 @@
       <h2>Impresión 3D</h2>
       <div class="fila"><label for="impresoraElegida">Impresora</label><select id="impresoraElegida"></select></div>
       <p class="nota-modulo" id="notaImpresora"></p>
+      <!-- material de impresión (Ernesto, 2026-11-22): Class TPU, Glam TPU, 3D -->
+      <div class="fila"><label for="materialResina">Material</label><select id="materialResina"></select></div>
       <p class="nota-modulo">Plantilla maciza con la base curva y canto fino, para imprimir en resina. El STL se genera en 4. Exportar.</p>
     </section>
     <section data-en="base diseno produccion exportar">
@@ -521,6 +524,7 @@
       <button data-herr="regla" title="Regla: clic en un punto y clic en otro para ver la distancia en mm (tecla R). Con Mayús la línea queda recta en la vista; Esc cancela.">Regla</button>
       <button id="lineaCorte" hidden title="Editar la línea de corte (el contorno de la plantilla), como en LutraCAD">Línea de corte</button>
       <button data-herr="corte" title="Clic en la plantilla para ver su perfil a lo ancho y a lo largo por ese punto">Corte</button>
+      <button data-herr="zona" title="Dibujar una zona a mano: relleno (prótesis de dedos) o descarga hueca. Clic para poner puntos; clic en el primero o Enter para cerrar, Retroceso borra el último, Esc cancela (tecla Z)">Dibujar zona</button>
       <button data-herr="mapa" title="Pintar la plantilla según su altura">Mapa de alturas</button>
       <button data-herr="ajuste" title="Pintar dónde la plantilla toca, deja hueco o presiona el pie del escaneo" hidden>Ajuste al pie</button>
       <button id="borrarMedidas" hidden>Borrar medidas</button>
@@ -542,6 +546,29 @@
         <button id="ppReflejar" class="ancho primario"></button>
       </div>
       <p class="pp-nota" id="ppNota"></p>
+    </div>
+    <!-- zona dibujada a mano (Ernesto, 2026-11-22): relleno de dedos (prótesis) o descarga hueca -->
+    <div class="accion-corte" id="panelZona" hidden>
+      <div class="pp-cab"><b id="pzNombre">Zona</b><button id="pzCerrar" title="Dejar de elegir la zona (Esc)" aria-label="Cerrar">×</button></div>
+      <div class="modos-corte pz-tipos" role="group" aria-label="Tipo de zona">
+        <button data-tipo-zona="relleno" title="Sube la plantilla en la zona: relleno de dedos que faltan (prótesis)">Relleno</button>
+        <button data-tipo-zona="descarga" title="Hunde la plantilla en la zona (descarga hueca), sin pasar del espesor mínimo">Descarga hueca</button>
+      </div>
+      <p id="pzAyuda"></p>
+      <div id="pzValores">
+        <!-- fondo de la descarga (2026-11-22): copia la forma (cada punto baja lo mismo) o queda plano -->
+        <div class="modos-corte pz-fondo" id="pzFondo" role="group" aria-label="Fondo de la descarga">
+          <button data-fondo-zona="forma" title="Cada punto baja la profundidad desde donde estaba: el fondo copia la forma del arco">Sigue la forma</button>
+          <button data-fondo-zona="plano" title="El fondo queda horizontal, la profundidad debajo del punto más alto de la zona; lo que ya está más bajo no se toca">Fondo plano</button>
+        </div>
+        <label><span id="pzEtqAltura">Altura</span> <input type="number" id="pzAltura" min="0.5" max="40" step="0.5"> mm</label>
+        <label title="Cuánto tarda en llegar a la altura desde el contorno dibujado: poco = pared casi recta; mucho = rampa suave">Borde suave <input type="number" id="pzBorde" min="0.5" max="30" step="0.5"> mm</label>
+        <div class="pe-botones">
+          <button id="pzReflejar" title="Copia esta zona al otro pie, en espejo">Copiar al otro pie</button>
+          <button id="pzRedibujar" title="Volver a dibujar el contorno de esta zona">Redibujar</button>
+          <button id="pzBorrar" class="peligro" title="Quitar esta zona (Supr)">Eliminar</button>
+        </div>
+      </div>
     </div>
     <!-- panel del elemento elegido (como "Configuración de recursos" de LutraCAD) -->
     <div class="accion-corte" id="panelElemento" hidden>

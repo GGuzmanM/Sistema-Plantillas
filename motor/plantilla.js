@@ -574,7 +574,9 @@ export function prepararElemento(def) {
 // 'der' la espeja. Con `acabado` (de prepararAcabado) la cara de abajo sube cerca del borde y deja un canto de al
 // menos `canto` mm (1,2 por defecto) de espesor; sin acabado, la base es plana.
 export function generar(h, p) {
-  const ny = p.lados ?? 300, na = p.arcos ?? 72, nr = p.anillos ?? 44, canto = p.canto ?? 1.2;
+  // con zonas dibujadas (2026-11-22) la malla lleva más anillos: a lo ancho, en el medio de la plantilla, los anillos
+  // quedan a ~1,8 mm y la pared de una descarga angosta salía en escalones (foto de Ernesto)
+  const ny = p.lados ?? 300, na = p.arcos ?? 72, nr = p.anillos ?? (p.zonas?.length ? 80 : 44), canto = p.canto ?? 1.2;
   const sL = p.largo / h.largo, sW = p.ancho ? p.ancho / h.ancho : sL, W = h.ancho * sW;
   const L = h.largo, C = h.cont;
   // por capas si la horma las trae (todas las de la biblioteca); curvaAlturas queda para hormas sin capas
@@ -818,6 +820,63 @@ export function generar(h, p) {
   // atrás del talón (p.margenTalon): la punta del talón se corre esos mm hacia atrás sin cambiar su forma (queda en
   // Y negativo); del 3 % al 23 % se estira suave y desde ahí nada se mueve
   if (mT) for (let q = 0; q < y.length; q++) { const t = y[q] / p.largo; if (t < 0.23) y[q] -= mT * (1 - suave((t - 0.03) / 0.2)); }
+  // 5) Zonas dibujadas a mano (Ernesto, 2026-11-22): p.zonas = [{ tipo: 'relleno' | 'descarga', puntos: [[x, y], …]
+  // en mm de esta plantilla (como se ve, después del margen), altura (mm), borde (mm de bajada suave hacia adentro) }].
+  // Relleno = prótesis de dedos (sube la cara de arriba); descarga hueca = la hunde, sin pasar del piso (cara de abajo
+  // + espesorDescarga). distZonas[k][q] = mm adentro del contorno dibujado (negativo = afuera), para pintarla.
+  const distZonas = [];
+  // las esquinas del dibujo se redondean un poco (hasta 2,5 mm), así la pared no sale en punta
+  const redondear = P => {
+    for (let it = 0; it < 3; it++) {
+      const R = [];
+      for (let i = 0; i < P.length; i++) {
+        const a = P[(i + P.length - 1) % P.length], b = P[i], c = P[(i + 1) % P.length];
+        const la = Math.hypot(a[0] - b[0], a[1] - b[1]) || 1, lc = Math.hypot(c[0] - b[0], c[1] - b[1]) || 1;
+        const ra = Math.min(2.5 / (it + 1), la / 3) / la, rc = Math.min(2.5 / (it + 1), lc / 3) / lc;
+        R.push([b[0] + (a[0] - b[0]) * ra, b[1] + (a[1] - b[1]) * ra], [b[0] + (c[0] - b[0]) * rc, b[1] + (c[1] - b[1]) * rc]);
+      }
+      P = R;
+    }
+    return P;
+  };
+  for (const zn of p.zonas ?? []) {
+    const P = zn.puntos?.length >= 3 ? redondear(zn.puntos) : zn.puntos, nP = P?.length ?? 0, dist = new Float32Array(y.length).fill(-99);
+    distZonas.push(dist);
+    if (nP < 3 || !(zn.altura > 0)) continue;
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const [a, b] of P) { x0 = Math.min(x0, a); x1 = Math.max(x1, a); y0 = Math.min(y0, b); y1 = Math.max(y1, b); }
+    const borde = Math.max(zn.borde ?? 4, 0.5), s5 = t => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * t * (t * (6 * t - 15) + 10));
+    for (let q = 0; q < y.length; q++) {
+      const X = x[q], Y = y[q];
+      if (X < x0 - 3 || X > x1 + 3 || Y < y0 - 3 || Y > y1 + 3) continue;
+      let d2 = Infinity, dentro = false;
+      for (let i = 0, j = nP - 1; i < nP; j = i++) {
+        const [ax, ay] = P[j], [bx, by] = P[i];
+        if ((ay > Y) !== (by > Y) && X < ax + ((Y - ay) * (bx - ax)) / (by - ay)) dentro = !dentro;
+        const ux = bx - ax, uy = by - ay, l2 = ux * ux + uy * uy || 1;
+        const t = Math.min(Math.max(((X - ax) * ux + (Y - ay) * uy) / l2, 0), 1), dx = X - ax - t * ux, dy = Y - ay - t * uy;
+        d2 = Math.min(d2, dx * dx + dy * dy);
+      }
+      dist[q] = dentro ? Math.sqrt(d2) : -Math.sqrt(d2);
+    }
+    // descarga con fondo plano (Ernesto, 2026-11-22): el fondo queda horizontal, `altura` mm debajo del punto más alto de
+    // la zona; lo que ya está más bajo que ese fondo no se toca. Sin esto ("sigue la forma"), cada punto baja `altura`
+    // mm desde donde estaba (el fondo copia la forma del arco)
+    const plano = zn.tipo === 'descarga' && zn.fondo === 'plano';
+    let zFondo = -Infinity;
+    if (plano) { for (let q = 0; q < y.length; q++) if (dist[q] > 0) zFondo = Math.max(zFondo, z[q]); zFondo -= zn.altura; }
+    for (let q = 0; q < y.length; q++) {
+      const d = dist[q];
+      if (d <= 0) continue;
+      const w = s5(d / borde), a = plano ? w * Math.max(z[q] - zFondo, 0) : zn.altura * w;
+      if (zn.tipo === 'descarga') {
+        if (a <= 0) continue;
+        const piso = Math.min(z[q], zb[q] + (p.espesorDescarga ?? 1)), obj = z[q] - a, r = 0.25;
+        let zt = obj >= piso + 4 * r ? obj : piso + r * Math.log(1 + Math.exp((obj - piso) / r));
+        zt = Math.max(zt, piso); he[q] += zt - z[q]; z[q] = zt;
+      } else { z[q] += a; he[q] += a; }
+    }
+  }
   // margen[q] (2026-11-22): mm que el punto queda afuera del contorno sin margen (negativo = adentro); null sin margen.
   // El visor pinta el margen para pulir de otro tono donde pasa de 0.
   let margen = null;
@@ -837,7 +896,7 @@ export function generar(h, p) {
     }
   }
   // aportes: cuánto sube cada elemento en cada punto (en el orden de p.elementos), para saber cuál se toca con el ratón
-  return { ns, nr, x, y, z, zb, he, rk, margen, aportes: elementos.map(e => e.aporte), uvs: elementos.map(e => e.uv), p: { ...p, arco: f.arco, arcoMin: f.arcoMin ?? null, copaLado: h.ref.copaLado } };
+  return { ns, nr, x, y, z, zb, he, rk, margen, distZonas, aportes: elementos.map(e => e.aporte), uvs: elementos.map(e => e.uv), p: { ...p, arco: f.arco, arcoMin: f.arcoMin ?? null, copaLado: h.ref.copaLado } };
 }
 
 // Contacto total en el arco (como el "Full Contact" de LutraCAD). c = { altura(x, y) → z de la planta del pie o null,

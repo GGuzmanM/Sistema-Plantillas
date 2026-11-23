@@ -1,0 +1,193 @@
+/* Tema "Blanco grafito" (Ernesto, 2026-11-23, propuesta D, limpio como Apple).
+   Se carga después de estilo.css y reemplaza a marca.css (el azul de antes): para volver al azul, en index.html cambiar
+   el <link> de tema.css por el de marca.css.
+   Idea: casi todo blanco y gris muy claro, líneas finas, un solo acento gris grafito para lo elegido y lo activo. Lo
+   único con color fuerte es lo que se diseña: descargas y zonas en azul, elementos en índigo, relleno en rojo.
+
+   Paleta
+     blanco        #FFFFFF   paneles, tarjetas, visor
+     gris claro    #F5F5F7   fondo, barra lateral
+     gris 2        #EDEDF0   controles segmentados, campos
+     línea         #E5E5E7   · línea 2 #D2D2D7
+     tinta         #1D1D1F   texto y acento (grafito)
+     secundario    #6E6E73   · terciario #86868B
+     azul          #007AFF   descargas, zonas, enlaces, foco
+     verde #34C759 (bien) · ámbar #FF9F0A (aviso) · rojo #FF3B30 (error) */
+
+:root {
+  --tinta: #1d1d1f; --suave: #6e6e73; --tercero: #86868b; --linea: #e5e5e7; --linea-2: #d2d2d7; --fondo: #f5f5f7; --panel: #ffffff;
+  --gris-2: #ededf0; --gris-3: #e3e3e8;
+  --acento: #1d1d1f; --acento-2: #1d1d1f; --acento-claro: #ededf0; --foco: #007aff; --azul: #007aff;
+  --verde: #248a3d; --verde-claro: #eaf7ee; --ambar: #c27c00; --aviso: #fff8eb; --aviso-borde: #ffd48a; --mal: #d70015; --ok: #248a3d;
+  --radio: 10px; --radio-chico: 7px;
+  --sombra-flota: 0 0 0 0.5px rgba(0, 0, 0, .08), 0 4px 16px rgba(0, 0, 0, .06);
+  /* lo que todavía nombre los colores de marca, en grafito */
+  --marca: #1d1d1f; --marca-2: #1d1d1f; --marca-tinte: #ededf0; --marca-tinte-2: #f5f5f7;
+}
+
+body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+       color: var(--tinta); background: var(--fondo); letter-spacing: -.003em; }
+h1, h2, .inicio-titulo h2 { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; }
+
+/* foco: anillo azul fino, como macOS */
+button:focus-visible, summary:focus-visible, input[type=checkbox]:focus-visible, a:focus-visible, .plegar:focus-visible { outline: 2px solid rgba(0, 122, 255, .55); }
+input[type=text]:focus, input[type=number]:focus, input[type=search]:focus, select:focus { outline: 3px solid rgba(0, 122, 255, .22); border-color: #7fb7ff; }
+input[type=checkbox] { accent-color: var(--tinta); }
+
+/* ---------- Barra de arriba: blanca, línea fina abajo ---------- */
+header { background: rgba(250, 250, 250, .96); color: var(--tinta); box-shadow: none; border-bottom: 0.5px solid var(--linea-2); }
+header h1 { color: var(--tinta); font-weight: 600; font-size: 15px; }
+header .estado { color: var(--tercero); }
+header button, .ir-inicio { background: #fff; border: 0.5px solid var(--linea-2); color: var(--tinta); box-shadow: 0 0.5px 1px rgba(0, 0, 0, .06); }
+header button:hover:not(:disabled) { background: var(--fondo); border-color: var(--linea-2); }
+header button:disabled { opacity: .4; }
+.proyecto-actual { background: var(--gris-2); color: var(--tinta); border: 0; font-weight: 500; }
+.proyecto-actual.sin-proyecto { background: var(--aviso); color: #8a5a00; }
+
+/* ---------- Panel izquierdo: lista simple sobre gris claro ---------- */
+aside { background: var(--fondo); border-right: 0.5px solid var(--linea-2); }
+aside .modulos, .modulos { background: var(--gris-2); border: 0; border-radius: 9px; padding: 2px; box-shadow: 0 -14px 0 6px var(--fondo); }
+.modulos button { color: var(--suave); font-weight: 500; height: 30px; border-radius: 7px; }
+.modulos button:hover:not(.activo) { background: rgba(255, 255, 255, .55); color: var(--tinta); }
+.modulos button.activo { background: #fff; color: var(--tinta); box-shadow: 0 0 0 0.5px rgba(0, 0, 0, .06), 0 1px 3px rgba(0, 0, 0, .1); }
+aside section { background: #fff; border: 0.5px solid var(--linea); border-left: 0.5px solid var(--linea); border-radius: 12px; box-shadow: none; }
+aside section:last-child { border-bottom: 0.5px solid var(--linea); }
+aside section > h2 { background: transparent; border-bottom: 0.5px solid var(--linea); font-weight: 600; }
+aside section.cerrada > h2 { border-bottom: 0; }
+aside section > h2 .plegar:hover, .plegar:hover { background: var(--fondo); }
+h2 { color: var(--tinta); font-weight: 600; }
+.plegar .flecha { color: var(--tercero); }
+.plegar .resumen, .nota-modulo, .nota-largo, .unidad { color: var(--tercero); }
+aside section h3.subtitulo { color: var(--tercero); font-weight: 600; letter-spacing: .03em; }
+aside section h3.subtitulo.separado { border-top: 0.5px solid var(--linea); }
+
+/* campos */
+input[type=text], input[type=number], input[type=search], select { background: #fff; border: 0.5px solid var(--linea-2); border-radius: var(--radio-chico); }
+input[type=text]:hover:not(:disabled), input[type=number]:hover:not(:disabled), select:hover:not(:disabled) { border-color: #b8b8bd; }
+input:disabled, select:disabled, input.bloqueado { background: var(--fondo); color: var(--tercero); border-color: var(--linea); }
+input.bloqueado:hover:not(:disabled) { border-color: var(--linea-2); background: var(--gris-2); }
+.sel-talla .st-boton { border: 0.5px solid var(--linea-2); }
+.sel-talla.abierta .st-boton { border-color: #7fb7ff; outline: 3px solid rgba(0, 122, 255, .22); }
+.st-lista { border: 0.5px solid var(--linea-2); box-shadow: 0 8px 28px rgba(0, 0, 0, .12); }
+.st-lista li:hover { background: var(--fondo); }
+.st-lista li[aria-selected="true"] { background: var(--gris-2); }
+.st-lista li[aria-selected="true"] b { color: var(--tinta); }
+.st-cuadros button { border: 0.5px solid var(--linea-2); }
+.st-cuadros button.activo { background: var(--tinta); border-color: var(--tinta); color: #fff; }
+
+/* botones: blancos con línea fina; el principal, grafito */
+button { border: 0.5px solid var(--linea-2); background: #fff; color: var(--tinta); }
+button:hover:not(:disabled) { border-color: var(--linea-2); background: var(--fondo); }
+button:active:not(:disabled) { background: var(--gris-2); }
+button.primario { background: var(--tinta); border-color: var(--tinta); color: #fff; box-shadow: none; }
+button.primario:hover:not(:disabled) { background: #3a3a3c; border-color: #3a3a3c; }
+button.peligro { color: var(--mal); }
+.botones-tipo button { border: 0.5px solid var(--linea-2); }
+.botones-tipo button svg { color: #aeaeb2; }
+.botones-tipo button:hover:not(.activo):not(:disabled) { background: var(--fondo); border-color: var(--linea-2); }
+.botones-tipo button.activo { border-color: var(--tinta); background: var(--fondo); box-shadow: inset 0 0 0 1px var(--tinta); }
+.botones-tipo button.activo svg, .botones-tipo button.activo .bt-nombre { color: var(--tinta); }
+.mas-ajustes > summary, .elemento details.ajustes summary { color: var(--azul); }
+.caja-opcion { background: var(--fondo); border: 0.5px solid var(--linea); }
+.caja-opcion > summary { color: var(--tinta); }
+.caja-opcion .co-estado.si { color: var(--azul); }
+.interruptor input:checked + .int-pista { background: #34c759; }
+.elemento { border: 0.5px solid var(--linea); border-left: 3px solid #5e5ce6; border-radius: 10px; }
+.elemento.descarga { border-left-color: var(--azul); }
+.elemento.activo { border-color: #34c759; border-left-color: #34c759; background: var(--verde-claro); }
+.nota-contorno, .recuperar { background: var(--fondo); border: 0.5px solid var(--linea); }
+.nota-contorno { border-left: 3px solid var(--tinta); }
+.avisos li { background: var(--aviso); border: 0.5px solid var(--aviso-borde); border-left: 3px solid #ff9f0a; }
+
+/* ---------- Visor 3D: blanco casi plano; herramientas flotantes con línea finísima ---------- */
+.visor { background: radial-gradient(ellipse at 50% 40%, #ffffff 0%, #f7f7f9 60%, #efeff2 100%); }
+.herramientas, .barra { background: rgba(255, 255, 255, .92); border: 0; border-radius: 10px; box-shadow: var(--sombra-flota); backdrop-filter: blur(12px); }
+.herramientas button, .barra button { border: 0; color: var(--tinta); font-weight: 500; }
+.herramientas button:hover:not(.activo), .barra button:hover:not(.activo) { background: var(--fondo); }
+.herramientas button.activo, .barra button.activo { background: var(--tinta); color: #fff; box-shadow: none; }
+.barra button[data-ver-pie]:not(.activo), .barra #verMuestraBarra:not(.activo), .barra #verEscaneoBarra:not(.activo) { background: transparent; color: #aeaeb2; }
+.ayuda { background: rgba(255, 255, 255, .9); color: var(--tercero); box-shadow: var(--sombra-flota); }
+.leyenda { box-shadow: var(--sombra-flota); }
+/* paneles flotantes (inspector): blancos, esquinas redondeadas, sin franjas de color */
+.accion-corte { background: rgba(255, 255, 255, .97); border: 0; border-radius: 14px; box-shadow: 0 0 0 0.5px rgba(0, 0, 0, .1), 0 12px 32px rgba(0, 0, 0, .12); backdrop-filter: blur(14px); }
+#panelPlantilla, #accionCorte, #panelObjeto, #panelElemento { border-top: 0; }
+.accion-corte p { color: var(--suave); }
+.modos-corte { background: var(--gris-2); border-radius: 8px; }
+.modos-corte button { border: 0; color: var(--suave); }
+.modos-corte button.activo { background: #fff; color: var(--tinta); box-shadow: 0 0 0 0.5px rgba(0, 0, 0, .06), 0 1px 3px rgba(0, 0, 0, .1); }
+.panel-corte { background: rgba(255, 255, 255, .97); border: 0; box-shadow: 0 0 0 0.5px rgba(0, 0, 0, .1), 0 8px 24px rgba(0, 0, 0, .1); }
+.panel-corte .vista-corte button.activo { color: var(--tinta); }
+.visor.soltando::after { border-color: var(--azul); background: rgba(0, 122, 255, .06); color: var(--azul); }
+
+/* ---------- Inicio, Biblioteca y Máquinas: claros, como el resto ---------- */
+.inicio { background: var(--fondo); color: var(--tinta); }
+.inicio-barra { background: rgba(250, 250, 250, .96); border-bottom: 0.5px solid var(--linea-2); backdrop-filter: blur(12px); }
+.inicio-barra .marca { color: var(--tinta); font-weight: 600; font-size: 15px; }
+.inicio-nav button { color: var(--suave); border-bottom: 2px solid transparent; }
+.inicio-nav button:hover { color: var(--tinta); background: transparent; }
+.inicio-nav button.activo { color: var(--tinta); border-bottom-color: var(--tinta); }
+.inicio-carpeta { color: var(--tercero); }
+.inicio-titulo h2 { color: var(--tinta); font-weight: 700; font-size: 26px; letter-spacing: -.02em; }
+.tarjeta, .inicio-aviso, .bib-lista, .maq-form, .maq-item, .inicio .bib-item, .bib-vacio, table.proyectos {
+  background: #fff; border: 0.5px solid var(--linea); color: var(--tinta); backdrop-filter: none; box-shadow: none; }
+.tarjeta:hover, .maq-item:hover, .inicio .bib-item:hover:not(.activo) { border-color: var(--linea-2); background: #fff; box-shadow: 0 2px 10px rgba(0, 0, 0, .05); }
+.tarjeta.nueva { background: transparent; border: 1px dashed var(--linea-2); }
+.tarjeta-cab { color: var(--verde); background: var(--fondo); }
+.tarjeta-dato, .bib-nota, .bf-dato, .maq-intro, .maq-item span, .bib-calzados, table.proyectos .vacio, .maq-campo small, .maq-valor em { color: var(--tercero); }
+.inicio-aviso h3, .bf-nombre, .bib-grupo, .maq-grupo legend, .maq-form h4, .bib-cat { color: var(--tinta); }
+.bib-grupo, .maq-grupo legend, .maq-form h4 { color: var(--tercero); }
+.inicio input[type=text], .inicio input[type=search], .tarjeta input, .nuevo-proyecto input, .inicio-titulo input,
+.maq-form input[type=text], .maq-form input[type=number], .maq-form textarea, table.disenos select, table.disenos input[type=text] {
+  background: #fff; border: 0.5px solid var(--linea-2); color: var(--tinta); }
+.inicio input::placeholder, .maq-form textarea::placeholder { color: #aeaeb2; }
+.inicio input:focus, .maq-form input:focus, .maq-form textarea:focus, table.disenos select:focus { border-color: #7fb7ff; outline: 3px solid rgba(0, 122, 255, .22); }
+table.disenos select option { color: var(--tinta); background: #fff; }
+/* botones de Inicio: el principal en grafito, los demás blancos con línea fina */
+.inicio button.abrir, .inicio button.primario, .maq-botones button.primario, .inicio .editor-botones button.primario {
+  background: var(--tinta); color: #fff; border: 0.5px solid var(--tinta); font-weight: 500; box-shadow: none; }
+.inicio button.abrir:hover, .inicio button.primario:hover:not(:disabled), .maq-botones button.primario:hover { background: #3a3a3c; color: #fff; }
+.nuevo-proyecto #crearDesdeCarpeta, .maq-nueva, .maq-botones button:not(.primario):not(.peligro), .inicio .bf-acciones button, table.proyectos td button:not(.peligro),
+.elem-botones button, .inicio button.volver {
+  background: #fff; border: 0.5px solid var(--linea-2); color: var(--tinta); }
+.nuevo-proyecto #crearDesdeCarpeta:hover, .maq-nueva:hover, .inicio .bf-acciones button:hover, table.proyectos td button:hover:not(.peligro), .inicio button.volver:hover { background: var(--fondo); }
+.maq-nueva { border-style: dashed; }
+.inicio button.peligro, .maq-botones button.peligro { background: #fff; color: var(--mal); border: 0.5px solid var(--linea-2); }
+table.proyectos { border-radius: 12px; overflow: hidden; }
+table.proyectos th { background: var(--fondo); color: var(--tercero); font-weight: 500; }
+table.proyectos td { border-top: 0.5px solid var(--linea); }
+table.proyectos tbody tr:hover td, table.proyectos tbody tr:hover { background: #fafafa; }
+.estado { background: var(--gris-2); color: var(--suave); }
+.estado.ok { background: #e3f6e8; color: var(--verde); }
+/* Biblioteca */
+.inicio .bib-item { color: var(--tinta); }
+.inicio .bib-item.activo, .maq-item.activo { background: var(--tinta); color: #fff; border-color: var(--tinta); box-shadow: none; }
+.inicio .bib-item.activo .bib-cuenta { background: rgba(255, 255, 255, .2); color: #fff; }
+.maq-item.activo span { color: #c7c7cc; }
+.bib-cuenta { background: var(--gris-2); color: var(--suave); }
+.bib-fila + .bib-fila { border-top: 0.5px solid var(--linea); }
+.bib-fila:hover { background: #fafafa; }
+.inicio .bf-acciones .estrella { background: var(--gris-2); color: #aeaeb2; }
+.inicio .bf-acciones .estrella.si { color: #ff9f0a; }
+.bib-seccion { border-top-color: var(--linea); }
+/* Máquinas */
+.maq-tipos { background: var(--gris-2); }
+.maq-tipos button { color: var(--suave); }
+.maq-tipos button.activo { background: #fff; color: var(--tinta); box-shadow: 0 0 0 0.5px rgba(0, 0, 0, .06), 0 1px 3px rgba(0, 0, 0, .1); }
+.maq-grupo { border: 0.5px solid var(--linea); background: var(--fondo); }
+.maq-ayuda { background: var(--gris-2); color: var(--suave); }
+.maq-msg { color: var(--verde); }
+
+/* editores (elemento y horma) y ventana "Agregar elemento": claros */
+#editorElemento { background: rgba(0, 0, 0, .25); backdrop-filter: blur(4px); }
+.editor-elem { background: #fff; color: var(--tinta); border: 0.5px solid var(--linea-2); }
+.editor-elem h3 { color: var(--tinta); font-weight: 600; }
+.editor-campos label, .editor-vista { color: var(--suave); }
+.editor-elem .ed-caja-herr button.activo, .ed-caja-botones button.activo, .editor-elem .eh-barra button.primario { background: var(--tinta); color: #fff; border-color: var(--tinta); }
+.ed-vistas, .eh-barra { background: rgba(255, 255, 255, .94); color: var(--tinta); box-shadow: var(--sombra-flota); }
+.editor-3d { background: radial-gradient(ellipse at 50% 40%, #ffffff 0%, #f7f7f9 60%, #efeff2 100%); }
+.ventana-elementos { border: 0.5px solid var(--linea-2); border-radius: 14px; }
+.ventana-elementos::backdrop { background: rgba(0, 0, 0, .25); backdrop-filter: blur(3px); }
+.ve-cab { background: #fff; color: var(--tinta); border-bottom: 0.5px solid var(--linea); }
+.ve-cab h2 { color: var(--tinta); }
+.ve-tarjeta { background: var(--fondo); border: 0.5px solid var(--linea); }
+.ve-tarjeta:hover { border-color: var(--linea-2); background: #fff; }

@@ -544,6 +544,46 @@ for (const lado of ['izq', 'der']) {
   prueba('Margen para pulir', bien, texto.join(' · '));
 }
 
+// Zonas dibujadas (Ernesto, 2026-11-22): relleno (prótesis de dedos) sube su altura adentro y no toca nada a 1 mm
+// afuera; descarga hueca baja hasta el piso (cara de abajo + 1 mm) y no más; la cara de abajo no cambia y el sólido
+// queda cerrado. EVA y resina; también una zona que se sale de la plantilla (hasta el borde).
+{
+  const texto = []; let bien = true, L = 260;
+  for (const [nombre, base] of [['EVA', {}], ['resina', { acabado }]]) {
+    // con zonas la malla lleva 80 anillos: la de comparación, igual
+    const p0 = { largo: L, antepie: 2, copa: 12, arco: 18, lado: 'izq', ...base }, g0 = generar(horma, { ...p0, anillos: 80 });
+    // cuadrado en el antepié (75–90 % del largo), a lo ancho del lado interno; el relleno pasa el borde
+    let xMax = -Infinity; for (let q = 0; q < g0.x.length; q++) if (Math.abs(g0.y[q] / L - 0.82) < 0.02) xMax = Math.max(xMax, g0.x[q]);
+    const cuad = [[xMax - 30, 0.75 * L], [xMax + 10, 0.75 * L], [xMax + 10, 0.9 * L], [xMax - 30, 0.9 * L]];
+    const desc = [[xMax - 40, 0.62 * L], [xMax - 20, 0.62 * L], [xMax - 20, 0.7 * L], [xMax - 40, 0.7 * L]];
+    const g = generar(horma, { ...p0, zonas: [{ tipo: 'relleno', puntos: cuad, altura: 15, borde: 5 }, { tipo: 'descarga', puntos: desc, altura: 4, borde: 3 }] });
+    let subeMin = Infinity, subeMax = 0, afuera = 0, pisoMin = Infinity, bajaMax = 0, abajo = 0;
+    for (let q = 0; q < g.z.length; q++) {
+      const dR = g.distZonas[0][q], dD = g.distZonas[1][q], dz = g.z[q] - g0.z[q];
+      abajo = Math.max(abajo, Math.abs(g.zb[q] - g0.zb[q]));
+      if (dR > 6) { subeMin = Math.min(subeMin, dz); subeMax = Math.max(subeMax, dz); }
+      if (dR < -1 && dD < -1) afuera = Math.max(afuera, Math.abs(dz));
+      if (dD > 4) { pisoMin = Math.min(pisoMin, g.z[q] - g.zb[q]); bajaMax = Math.max(bajaMax, -dz); }
+    }
+    const rev = revisarSolido(solido(g));
+    const ok = Math.abs(subeMin - 15) < 0.01 && Math.abs(subeMax - 15) < 0.01 && afuera < 1e-6 && abajo < 1e-6 && pisoMin > 0.99 && bajaMax <= 4 + 1e-6 && rev.cerrado;
+    bien = bien && ok;
+    // fondo plano en el arco (2026-11-22): adentro queda a la altura del punto más alto menos 1,5 mm, y lo más bajo no se toca
+    const arco = [[xMax - 35, 0.3 * L], [xMax - 5, 0.3 * L], [xMax - 5, 0.5 * L], [xMax - 35, 0.5 * L]];
+    const gP = generar(horma, { ...p0, zonas: [{ tipo: 'descarga', fondo: 'plano', puntos: arco, altura: 1.5, borde: 3 }] });
+    let zTope = -Infinity; for (let q = 0; q < gP.z.length; q++) if (gP.distZonas[0][q] > 0) zTope = Math.max(zTope, g0.z[q]);
+    let errPlano = 0, nPlano = 0;
+    for (let q = 0; q < gP.z.length; q++) if (gP.distZonas[0][q] > 4) {
+      const esperado = Math.max(Math.min(g0.z[q], zTope - 1.5), g0.zb[q] + 1); errPlano = Math.max(errPlano, Math.abs(gP.z[q] - esperado)); nPlano++;
+    }
+    const okP = nPlano > 50 && errPlano < 0.3 && revisarSolido(solido(gP)).cerrado;
+    bien = bien && okP;
+    texto.push(`${nombre} fondo plano en el arco: tope ${n2(zTope)} mm → fondo ${n2(zTope - 1.5)} mm, error ${n2(errPlano)} mm en ${nPlano} puntos`);
+    texto.push(`${nombre}: relleno sube ${n2(subeMin)}–${n2(subeMax)} mm (15), afuera cambia ${n2(afuera)} mm, descarga baja hasta ${n2(bajaMax)} mm y deja ${n2(pisoMin)} mm de piso, cara de abajo ${n2(abajo)} mm, ${rev.cerrado ? 'cerrado' : 'abierto'}`);
+  }
+  prueba('Zonas dibujadas: relleno y descarga hueca', bien, texto.join(' · '));
+}
+
 // 26. Mover ápice (2026-11-19, Ernesto: el arco entero, también su comienzo): con 10 mm la cima y la mitad de la subida
 // (del lado del talón) se corren ~10 mm hacia los dedos; la copa del talón (antes del 12 %) y el antepié (después del
 // 65 %) no cambian; sólido cerrado y sin pliegues nuevos.

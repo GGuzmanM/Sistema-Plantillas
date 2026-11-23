@@ -61,6 +61,11 @@ let cajaEl = null;   // caja abierta: { i (elemento), pie, herr, sel, hist, lazo
 let objElegido = null, modoObj = 'mover';
 // escaneo y muestra de cada proyecto ya abierto en esta sesión (clave "diseñador/carpeta"); ver crearInicio
 const archivosAbiertos = new Map(); let claveArchivos = null;
+// zonas dibujadas a mano (2026-11-22): [{ pie, tipo: 'relleno' | 'descarga', puntos: [[x, y], …] mm, altura, borde }]
+// zonando = herramienta prendida; dibujoZona = { pie, puntos, rehace (índice de la zona que se redibuja) } a medio
+// dibujar; zonaElegida = índice de la zona con el panel abierto (-1 ninguna)
+let zonas = [], zonando = false, dibujoZona = null, zonaElegida = -1, cursorZona = null;
+let materialDiseno = '';   // material del diseño elegido a mano (EVA o de impresión); '' = el del tipo de producto
 const formasCaja = new Map();
 function formaConCaja(e, pie) {
   const c = e.caja?.[pie], base = formas[e.id];
@@ -660,7 +665,7 @@ const editorHorma = {
   },
 };
 // Miniaturas tipo silueta (Biblioteca): color claro y una luz desde arriba a la izquierda; lo inclinado se oscurece
-const SILUETA = [0.86, 0.88, 0.9];
+const SILUETA = [0.6, 0.61, 0.66];   // gris grafito sobre fondo blanco (tema 2026-11-23; antes casi blanco, para el fondo azul)
 function luzCara(g, a, b, cc, d) {
   const { x, y, z } = g;
   const u = [x[cc] - x[a], y[cc] - y[a], (z[cc] - z[a]) * 1.6], w = [x[d] - x[b], y[d] - y[b], (z[d] - z[b]) * 1.6];
@@ -869,6 +874,9 @@ function diseno() {
     margenPulido: margenPunta(), margenLados: margenLados(), margenTalon: margenTalon(),
     // máquina elegida (Inicio → Máquinas, 2026-11-19)
     mesa: $('mesaElegida').value, materialEva: $('materialEva').value, impresora: $('impresoraElegida').value,
+    // material de impresión y el material del diseño (el que se ve en Inicio): el último elegido, o el del tipo de
+    // producto si nunca se eligió (2026-11-22)
+    materialResina: $('materialResina').value, material: materialDiseno || (esEVA() ? $('materialEva').value : $('materialResina').value),
     ancho: $('anchoAuto').checked ? null : num('ancho'),
     tipoDiseno: $('tipoDiseno').value,
     escalaTalon,
@@ -881,6 +889,7 @@ function diseno() {
     correcciones: { arcoMedial: [num('corrArcoIzq') || 0, num('corrArcoDer') || 0], moverApice: [num('corrApiceIzq') || 0, num('corrApiceDer') || 0],
                     alza: [num('alzaIzq') || 0, num('alzaDer') || 0], alzaTipo: $('alzaTipo').value === 'completa' ? 'completa' : 'talon' },
     elementos: JSON.parse(JSON.stringify(elegidos)),
+    zonas: JSON.parse(JSON.stringify(zonas)),
     // archivos del escaneo con que se hizo (solo el nombre: el escaneo se abre de la carpeta del paciente)
     escaneo: escaneos.izq || escaneos.der ? { izq: escaneos.izq?.nombre ?? null, der: escaneos.der?.nombre ?? null } : null,
     orden: ordenActual,
@@ -958,7 +967,9 @@ function generarPies(d) {
     // Ernesto pidió poder bajarlo de ahí (aviso en la pantalla si no llega a lo pedido).
     // correcciones de este pie (se suman a la horma, sin reescalarla)
     { const k = lado === 'izq' ? 0 : 1, c = d.correcciones; if (c) b = { ...b, arcoMedial: c.arcoMedial?.[k] || 0, moverApice: c.moverApice?.[k] || 0, alza: c.alza?.[k] || 0, alzaTipo: c.alzaTipo }; }
-    const p = { ...b, lado, elementos: de(lado), alturaBorde: d.alturaBorde?.[lado] ?? undefined }, es = escaneos[lado];
+    // zonas dibujadas de este pie; i = su lugar en la lista (para pintarla y elegirla)
+    const zs = (d.zonas ?? []).map((z, i) => ({ ...z, i })).filter(z => z.pie === lado);
+    const p = { ...b, lado, elementos: de(lado), alturaBorde: d.alturaBorde?.[lado] ?? undefined, zonas: zs }, es = escaneos[lado];
     if (!(d.contacto > 0 && es)) return generar(hp, p);
     const al = alinearEscaneo(es, generar(hp, { ...b, lado, lados: 120, anillos: 20 }), b.antepie);
     // arco "natural" (por defecto): se alisa a lo largo y se rellenan los pozos, como el borde prolijo de la muestra;
@@ -1098,10 +1109,23 @@ function malla(g, ox, al) {
       }
     }
   }
+  // zonas dibujadas (2026-11-22): relleno en rojo, descarga hueca en naranja, la elegida en verde. El borde nítido va
+  // justo en el contorno dibujado (marca pasa 0,5 donde distZonas = 0). Donde un elemento ya se ve, manda el elemento.
+  if (!modoMapa && !unCuerpo && g.distZonas?.length) {
+    g.distZonas.forEach((dz, k) => {
+      const zn = g.p.zonas?.[k]; if (!zn) return;
+      const color = zn.i === zonaElegida ? COLOR_ELEGIDO : zn.tipo === 'relleno' ? COLOR_RELLENO : COLOR_DESCARGA;
+      const pone = (v, q) => { col2.set(color, 3 * v); marca[v] = Math.min(Math.max(0.5 + dz[q] * 0.5, 0), 1); };
+      for (let q = 0; q < n; q++) if (dz[q] > -3 && (dz[q] > 0 || marca[q] < 0.5)) pone(q, q);
+      for (let i = 0; i < ns; i++) if (dz[i * nr] > -3) { pone(base + i, i * nr); pone(base + ns + i, i * nr); }
+    });
+  }
   return { pos, nor, idx, col, col2, marca };
 }
-const COLOR_DESCARGA = [0.9, 0.52, 0.18];
-const COLOR_PULIDO = [0.85, 0.28, 0.11];   // línea punteada del borde final (ya pulido), naranja
+const COLOR_RELLENO = [0.86, 0.2, 0.2];   // zona de relleno (prótesis de dedos), rojo como el de las fotos de Ernesto
+// tema "Blanco grafito" (2026-11-23): lo que era naranja pasa a azul (Ernesto)
+const COLOR_DESCARGA = [0.0, 0.48, 1.0];   // descargas y descargas huecas: azul #007AFF
+const COLOR_PULIDO = [0.0, 0.48, 1.0];     // línea punteada del borde final (ya pulido), azul
 
 // Línea de pulido (Ernesto, 2026-11-22, propuesta C): con margen para pulir, una línea punteada naranja sobre la cara
 // de arriba marca dónde queda el borde de la plantilla una vez pulida (el contorno sin margen). La plantilla queda
@@ -1144,7 +1168,8 @@ function lineaPulido(g, ox) {
   for (let v = 0; v < nv; v++) { nor[3 * v + 2] = 1; col.set(COLOR_PULIDO, 3 * v); }
   return { pos: new Float32Array(pos), nor, idx: new Uint32Array(idx), col };
 }
-const COLOR_PLANTILLA = [0.95, 0.95, 0.94], COLOR_ELEMENTO = [0.31, 0.41, 0.93], COLOR_ELEGIDO = [0.05, 0.62, 0.12], COLOR_PAR = [0.86, 0.12, 0.1];
+// elementos que suben en índigo (#5E5CE6), para no confundirlos con las descargas azules; elegido verde, su par rojo
+const COLOR_PLANTILLA = [0.95, 0.95, 0.94], COLOR_ELEMENTO = [0.37, 0.36, 0.9], COLOR_ELEGIDO = [0.2, 0.7, 0.32], COLOR_PAR = [0.9, 0.2, 0.17];
 const ELEM_BORDE = 0.12;   // mm: desde ahí se pinta el elemento
 
 // Contorno de la plantilla: una cinta fina verde oscuro por el borde de la cara de arriba (como LutraCAD), apenas
@@ -1165,7 +1190,7 @@ function contornoPlantilla(g, ox) {
     px = x[qa] + (x[qb] - x[qa]) * f; py = y[qa] + (y[qb] - y[qa]) * f;
     zMax = Math.max(zMax, z[qa] + (z[qb] - z[qa]) * f) + ALTO;
     pos.set([x[q0] + ox, y[q0], zMax, px + ox, py, zMax], 6 * i);
-    nor.set([0, 0, 1, 0, 0, 1], 6 * i); col.set([0.09, 0.22, 0.85, 0.09, 0.22, 0.85], 6 * i);   // azul marca (2026-11-19)
+    nor.set([0, 0, 1, 0, 0, 1], 6 * i); col.set([0.24, 0.24, 0.26, 0.24, 0.24, 0.26], 6 * i);   // grafito (tema 2026-11-23)
     const j = (i + 1) % ns;
     idx.set([2 * i, 2 * j, 2 * j + 1, 2 * i, 2 * j + 1, 2 * i + 1], 6 * i);
   }
@@ -1861,7 +1886,7 @@ function puntoDelClicExacto(px, py) {
 // Perfil de la plantilla por el punto elegido: a lo ancho (transversal) y a lo largo (longitudinal). Gris = la
 // plantilla (de la base a la cara de arriba), naranja = lo que suman los elementos, azul punteado = planta del
 // pie del escaneo. La altura se agranda (×k, se indica) para que se lea; las distancias son en mm reales.
-const COLOR_TRANS = '#d9481c', COLOR_LONG = '#1838d9';
+const COLOR_TRANS = '#1d1d1f', COLOR_LONG = '#007aff';
 function perfilesCorte(v) {
   const G = grillaDe(v.g), al = v.al, trans = [], long = [];
   for (let x = G.x0; x <= G.x1; x += 0.5) { const p = G.leer(x, corte.y); if (p) trans.push({ s: x, ...p, pie: al?.altura(x, corte.y) ?? null }); }
@@ -2033,6 +2058,7 @@ if (visor) {
     if (objElegido?.tipo === 'muestra' && !midiendo && !cortando && !reglando) return;   // moviendo la muestra, igual
     if (clicDeRegla) { clicDeRegla = false; return; }   // fue elegir o agarrar una cota, no un clic de herramienta
     if (reglaElegida) { reglaElegida = null; visor.pedir(); }   // clic en otro lado: la cota deja de estar elegida
+    if (zonando) { clicZona(px, py); return; }
     if (cortando) {
       const p = puntoDelClic(px, py); if (!p) return;
       corte = { pie: p.pie, x: p.x, y: p.y }; $('panelCorte').hidden = false; dibujarCorte(); visor.pedir();
@@ -2050,6 +2076,12 @@ if (visor) {
     medidasTomadas.push({ pie: p.pie, x: p.x, y: p.y }); if (medidasTomadas.length > 8) medidasTomadas.shift();
     $('borrarMedidas').hidden = false; visor.pedir();
   });
+  // zonas dibujadas: el contorno a medio dibujar y el de la elegida (2026-11-22)
+  visor.alDibujar(dibujarZonas2D);
+  $('lienzo').addEventListener('pointermove', e => {
+    if (!dibujoZona || e.buttons) return;
+    const r = $('lienzo').getBoundingClientRect(); cursorZona = { px: e.clientX - r.left, py: e.clientY - r.top }; visor.pedir();
+  });
   // la caja del elemento, encima del 3D
   visor.alDibujar(() => {
     if (!cajaEl) return;
@@ -2061,6 +2093,8 @@ if (visor) {
     if (cajaEl) return agarrarCajaEl(px, py, ev);
     // escaneo o muestra elegidos: arrastrar sobre ellos los corre o gira
     if (objElegido && !fijoModulo()) { const r = agarrarObjeto(px, py); if (r || objElegido.tipo === 'muestra') return r; }
+    // zona dibujada: un punto de la elegida o la zona entera (2026-11-22)
+    if (!zonando && !midiendo && !reglando && !cortando) { const r = agarrarZona(px, py); if (r) return r; }
     const r = agarrarRegla(px, py); if (r) return r;
     if (reglaElegida) { reglaElegida = null; visor.pedir(); }
     return agarrarElemento(px, py, ev);
@@ -2633,7 +2667,7 @@ function pintarPanelElemento() {
   if (cajaEl && (!si || cajaEl.i !== activo || cajaEl.pie !== activoPie)) soltarCajaEl();
   // al elegir un elemento se suelta el escaneo o la muestra elegidos
   if (si && objElegido) { objElegido = null; pintarPanelObjeto(); pedir(); }
-  $('panelElemento').hidden = !si; pintarPanelPlantilla(); if (!si) return;
+  $('panelElemento').hidden = !si; pintarPanelPlantilla(); pintarPanelZona(); if (!si) return;
   $('panelElemento').classList.toggle('con-caja', !!cajaEl);
   $('peCaja').classList.toggle('activo', !!cajaEl); $('peCaja').setAttribute('aria-pressed', !!cajaEl);
   $('peCaja').hidden = !!cajaEl;
@@ -2881,6 +2915,147 @@ function pintarPanelPlantilla() {
   $('ppReflejar').title = `La plantilla ${nombrePie(a)} queda igual a la ${nombrePie(de)}, en espejo`;
   $('ppNota').textContent = `Reflejar copia a la ${nombrePie(a)} solo la plantilla: alturas, línea de corte y altura del borde. Los elementos no cambian (cada uno se refleja desde su panel). Se deshace con Ctrl+Z.`;
 }
+
+// ---- Zonas dibujadas a mano (Ernesto, 2026-11-22, propuesta C) ----
+// Relleno = prótesis de dedos (sube); descarga hueca = la hunde. Se dibujan con "Dibujar zona": clic para cada punto
+// del contorno sobre la plantilla (fuera de ella también, a la altura del piso), clic en el primero o Enter cierra.
+// Clic en una zona la elige y abre su panel (tipo, altura, borde suave, copiar al otro pie, redibujar, eliminar).
+const ZONA_NUEVA = { relleno: { altura: 15, borde: 5 }, descarga: { altura: 3, borde: 4 } };
+let tipoZonaNueva = 'descarga';
+const dentroDe = (P, X, Y) => {
+  let d = false;
+  for (let i = 0, j = P.length - 1; i < P.length; j = i++) { const [ax, ay] = P[j], [bx, by] = P[i]; if ((ay > Y) !== (by > Y) && X < ax + ((Y - ay) * (bx - ax)) / (by - ay)) d = !d; }
+  return d;
+};
+function zonaEn(pie, x, y) { for (let k = zonas.length - 1; k >= 0; k--) if (zonas[k].pie === pie && dentroDe(zonas[k].puntos, x, y)) return k; return -1; }
+// punto de un pie (mm) a la pantalla, apoyado en la cara de arriba
+function proyectarPie(pie, [x, y]) {
+  const v = enVista.find(e => e.pie === pie); if (!v || !visor) return null;
+  const z = grillaDe(v.g).leer(x, y)?.z ?? 0;
+  return visor.proyectar([x + v.ox, y, z + 0.2]);
+}
+function clicZona(px, py) {
+  let p = puntoDelClicExacto(px, py) ?? puntoDelClic(px, py);
+  // ya empezada: un clic fuera de la plantilla también vale (en el piso), para que la zona llegue hasta el borde
+  if (!p && dibujoZona) {
+    const v = enVista.find(e => e.pie === dibujoZona.pie), { o, d } = visor.rayo(px, py);
+    if (v && Math.abs(d[2]) > 1e-6) { const t = -o[2] / d[2]; if (t > 0) p = { pie: v.pie, x: o[0] + t * d[0] - v.ox, y: o[1] + t * d[1] }; }
+  }
+  if (!p) return;
+  if (!dibujoZona) dibujoZona = { pie: p.pie, puntos: [], rehace: -1 };
+  if (p.pie !== dibujoZona.pie) { mensaje('La zona se dibuja sobre un solo pie: ciérrela (Enter) o cancélela (Esc) antes de pasar al otro.', false); return; }
+  const P = dibujoZona.puntos;
+  // clic sobre el primer punto (a 10 px en pantalla) con 3 o más: cierra
+  if (P.length >= 3) { const s = proyectarPie(dibujoZona.pie, P[0]); if (s && Math.hypot(s.x - px, s.y - py) < 10) { cerrarZona(); return; } }
+  P.push([Math.round(p.x * 10) / 10, Math.round(p.y * 10) / 10]); visor.pedir();
+}
+function cerrarZona() {
+  const dz = dibujoZona;
+  if (!dz || dz.puntos.length < 3) { mensaje('Una zona necesita al menos 3 puntos.', false); return; }
+  dibujoZona = null; cursorZona = null;
+  let k = dz.rehace;
+  if (k >= 0 && zonas[k]) zonas[k].puntos = dz.puntos;
+  else { zonas.push({ pie: dz.pie, tipo: tipoZonaNueva, puntos: dz.puntos, ...ZONA_NUEVA[tipoZonaNueva] }); k = zonas.length - 1; }
+  if (zonando) usarHerramienta('zona');   // se apaga la herramienta: lo que sigue es ajustar la zona en su panel
+  elegirZona(k);
+  mensaje(`Zona lista (${zonas[k].tipo === 'relleno' ? 'relleno' : 'descarga hueca'}): ajuste su altura y su borde en el panel. Se deshace con Ctrl+Z.`);
+}
+function elegirZona(k) {
+  zonaElegida = k;
+  if (k >= 0 && activo >= 0) { activo = -1; refrescarPosiciones(); }
+  pintarPanelZona(); pedir();
+}
+function pintarPanelZona() {
+  const z = zonas[zonaElegida];
+  let si; try { si = !!z && !fijoModulo() && !lc; } catch (err) { if (err instanceof ReferenceError) return; throw err; }
+  $('panelZona').hidden = !si; if (!si) return;
+  const relleno = z.tipo === 'relleno';
+  $('pzNombre').textContent = `${relleno ? 'Relleno' : 'Descarga hueca'} · ${nombrePie(z.pie)}`;
+  document.querySelectorAll('[data-tipo-zona]').forEach(b => b.classList.toggle('activo', b.dataset.tipoZona === z.tipo));
+  $('pzEtqAltura').textContent = relleno ? 'Altura' : 'Profundidad';
+  $('pzFondo').hidden = relleno;
+  document.querySelectorAll('[data-fondo-zona]').forEach(b => b.classList.toggle('activo', b.dataset.fondoZona === (z.fondo === 'plano' ? 'plano' : 'forma')));
+  if (document.activeElement !== $('pzAltura')) $('pzAltura').value = z.altura;
+  if (document.activeElement !== $('pzBorde')) $('pzBorde').value = z.borde;
+  $('pzAyuda').textContent = relleno ? 'Sube la plantilla dentro del contorno dibujado (prótesis de dedos).'
+    : z.fondo === 'plano' ? 'Fondo plano: horizontal, la profundidad debajo del punto más alto de la zona. Nunca deja la plantilla más fina que el espesor mínimo.'
+    : 'Cada punto baja la profundidad desde donde estaba (el fondo copia la forma). Nunca deja la plantilla más fina que el espesor mínimo.';
+}
+document.querySelectorAll('[data-fondo-zona]').forEach(b => b.addEventListener('click', () => {
+  const z = zonas[zonaElegida]; if (!z) return;
+  if (b.dataset.fondoZona === 'plano') z.fondo = 'plano'; else delete z.fondo;
+  pintarPanelZona(); pedir();
+}));
+document.querySelectorAll('[data-tipo-zona]').forEach(b => b.addEventListener('click', () => {
+  const z = zonas[zonaElegida]; if (!z || z.tipo === b.dataset.tipoZona) return;
+  z.tipo = tipoZonaNueva = b.dataset.tipoZona; Object.assign(z, ZONA_NUEVA[z.tipo]); pintarPanelZona(); pedir();
+}));
+for (const [id, k, max] of [['pzAltura', 'altura', 40], ['pzBorde', 'borde', 30]])
+  $(id).addEventListener('input', () => { const z = zonas[zonaElegida], v = parseFloat($(id).value); if (!z || !Number.isFinite(v)) return; z[k] = Math.min(Math.max(v, 0.5), max); pedir(); });
+$('pzCerrar').addEventListener('click', () => elegirZona(-1));
+$('pzBorrar').addEventListener('click', () => { if (zonaElegida < 0) return; zonas.splice(zonaElegida, 1); elegirZona(-1); });
+$('pzReflejar').addEventListener('click', () => {
+  const z = zonas[zonaElegida]; if (!z) return;
+  // el pie derecho es el izquierdo en espejo (x al revés)
+  zonas.push({ ...z, pie: z.pie === 'izq' ? 'der' : 'izq', puntos: z.puntos.map(([x, y]) => [-x, y]) });
+  mensaje(`Zona copiada a la plantilla ${nombrePie(z.pie === 'izq' ? 'der' : 'izq')}.`); elegirZona(zonas.length - 1);
+});
+$('pzRedibujar').addEventListener('click', () => {
+  const z = zonas[zonaElegida]; if (!z) return;
+  if (!zonando) usarHerramienta('zona');
+  dibujoZona = { pie: z.pie, puntos: [], rehace: zonaElegida }; visor?.pedir();
+});
+// Arrastrar una zona ya cerrada (Ernesto, 2026-11-22): agarrada por un punto de la elegida, se mueve solo ese punto;
+// agarrada por adentro, se mueve entera sin cambiar su forma. Mientras se arrastra solo se redibuja el contorno; la
+// plantilla se recalcula al soltar.
+function agarrarZona(px, py) {
+  if (fijoModulo() || !zonas.length || dibujoZona) return null;
+  let k = -1, punto = -1, ancla = null;
+  const z0 = zonas[zonaElegida];
+  if (z0) z0.puntos.forEach((q, i) => { const s = proyectarPie(z0.pie, q); if (s && Math.hypot(s.x - px, s.y - py) < 9 && punto < 0) { punto = i; k = zonaElegida; ancla = q; } });
+  if (k < 0) {
+    const p = puntoDelClic(px, py); if (!p) return null;
+    k = zonaEn(p.pie, p.x, p.y); if (k < 0) return null;
+    ancla = [p.x, p.y];
+  }
+  const z = zonas[k], v = enVista.find(e => e.pie === z.pie); if (!v) return null;
+  if (k !== zonaElegida) { zonaElegida = k; if (activo >= 0) { activo = -1; refrescarPosiciones(); } pintarPanelZona(); pedir(); }
+  // se arrastra sobre un plano horizontal a la altura del punto agarrado
+  const alto = grillaDe(v.g).leer(ancla[0], ancla[1])?.z ?? 0, inicio = z.puntos.map(q => [...q]);
+  const enPlano = (mx, my) => { const { o, d } = visor.rayo(mx, my); if (Math.abs(d[2]) < 1e-4) return null; const t = (alto - o[2]) / d[2]; return t > 0 ? [o[0] + t * d[0] - v.ox, o[1] + t * d[1]] : null; };
+  const w0 = enPlano(px, py); if (!w0) return null;
+  document.querySelector('.visor').classList.add('moviendo');
+  return {
+    mover(mx, my) {
+      const w = enPlano(mx, my); if (!w) return;
+      const dx = w[0] - w0[0], dy = w[1] - w0[1], r1 = n => Math.round(n * 10) / 10;
+      z.puntos = inicio.map((q, i) => (punto < 0 || i === punto ? [r1(q[0] + dx), r1(q[1] + dy)] : q));
+      visor.pedir();
+    },
+    soltar(movio) { document.querySelector('.visor').classList.remove('moviendo'); if (movio) pedir(); },
+  };
+}
+// el contorno: a medio dibujar (rojo, con sus puntos y el tramo hasta el ratón) y el de la zona elegida (verde)
+function dibujarZonas2D() {
+  if (!dibujoZona && zonaElegida < 0) return;
+  const dpr = window.devicePixelRatio || 1, c = capa.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const traza = (pie, P, cerrada, color, guiones) => {
+    const S = P.map(q => proyectarPie(pie, q)); if (S.some(s => !s) || !S.length) return S;
+    c.save(); c.setLineDash(guiones); c.strokeStyle = color; c.lineWidth = 2; c.beginPath();
+    S.forEach((s, i) => (i ? c.lineTo(s.x, s.y) : c.moveTo(s.x, s.y))); if (cerrada) c.closePath(); c.stroke(); c.restore();
+    return S;
+  };
+  const z = zonas[zonaElegida];
+  if (z && !dibujoZona) {
+    // contorno y sus puntos (se agarran para moverlos de a uno; por adentro se mueve la zona entera)
+    const S = traza(z.pie, z.puntos, true, '#0a6b24', [6, 4]);
+    S.forEach(s => { if (!s) return; c.beginPath(); c.arc(s.x, s.y, 4.5, 0, 7); c.fillStyle = '#fff'; c.fill(); c.strokeStyle = '#0a6b24'; c.lineWidth = 1.5; c.stroke(); });
+  }
+  if (!dibujoZona) return;
+  const S = traza(dibujoZona.pie, dibujoZona.puntos, false, '#b3261e', []), u = S.at(-1);
+  if (cursorZona && u) { c.save(); c.setLineDash([4, 4]); c.strokeStyle = '#b3261e'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(u.x, u.y); c.lineTo(cursorZona.px, cursorZona.py); c.stroke(); c.restore(); }
+  S.forEach((s, i) => { if (!s) return; c.beginPath(); c.arc(s.x, s.y, i === 0 ? 6 : 4, 0, 7); c.fillStyle = i === 0 ? '#fff' : '#b3261e'; c.fill(); c.strokeStyle = '#b3261e'; c.lineWidth = 1.5; c.stroke(); });
+}
 // ---- Escaneo y muestra: correr y girar con el ratón (Ernesto, 2026-11-19, como "Girar" de LutraCAD) ----
 // Clic en el escaneo lo elige (se pinta verde) y aparece su panel: Mover o Girar, y arrastrar sobre él lo corre o lo
 // gira alrededor del medio del pie. La muestra se elige con "Mover o girar la muestra…" (está debajo de la plantilla) y
@@ -2960,6 +3135,10 @@ $('moverMuestra').addEventListener('click', () => { if (muestra) elegirObjeto(ob
 
 function elegirPlantilla(px, py) {
   const p = puntoDelClic(px, py);
+  // sobre una zona dibujada: se elige la zona (2026-11-22)
+  const kz = p ? zonaEn(p.pie, p.x, p.y) : -1;
+  if (kz >= 0) { plantillaElegida = null; pintarPanelPlantilla(); if (objElegido) elegirObjeto(null); elegirZona(kz); return; }
+  if (zonaElegida >= 0) elegirZona(-1);
   // sobre un elemento: el clic es del elemento (ya quedó elegido al agarrarlo)
   if (p) {
     const v = enVista.find(e => e.pie === p.pie), g = v.g; let q0 = 0, dmin = Infinity;
@@ -3029,14 +3208,17 @@ ponerModulo('base');
 document.querySelectorAll('[data-herr]').forEach(b => b.addEventListener('click', () => usarHerramienta(b.dataset.herr)));
 function usarHerramienta(h) {
   // medir y corte usan el clic: prender uno apaga el otro
-  if (h === 'medir' || h === 'corte' || h === 'regla') {
-    const prender = !{ medir: midiendo, corte: cortando, regla: reglando }[h];
+  if (h === 'medir' || h === 'corte' || h === 'regla' || h === 'zona') {
+    const prender = !{ medir: midiendo, corte: cortando, regla: reglando, zona: zonando }[h];
     midiendo = prender && h === 'medir'; cortando = prender && h === 'corte'; reglando = prender && h === 'regla';
-    // una regla a medio poner (un solo punto) se descarta al apagar la herramienta
+    zonando = prender && h === 'zona';
+    // una regla a medio poner (un solo punto) se descarta al apagar la herramienta; igual una zona a medio dibujar
     if (!reglando && reglas.length && !reglas[reglas.length - 1].b) { reglas.pop(); visor?.pedir(); }
-    for (const [k, si] of [['medir', midiendo], ['corte', cortando], ['regla', reglando]])
+    if (!zonando && dibujoZona) { dibujoZona = null; cursorZona = null; visor?.pedir(); }
+    if (zonando) mensaje('Dibujar zona: clic en la plantilla para poner los puntos del contorno; clic en el primero (o Enter) cierra la zona. Retroceso borra el último punto, Esc cancela.');
+    for (const [k, si] of [['medir', midiendo], ['corte', cortando], ['regla', reglando], ['zona', zonando]])
       document.querySelector(`[data-herr=${k}]`).classList.toggle('activo', si);
-    document.querySelector('.visor').classList.toggle('midiendo', midiendo || reglando);
+    document.querySelector('.visor').classList.toggle('midiendo', midiendo || reglando || zonando);
     document.querySelector('.visor').classList.toggle('cortando', cortando);
     return;
   }
@@ -3152,7 +3334,7 @@ const mesaElegida = () => maquinas.mesas.find(m => m.id === $('mesaElegida').val
 const impresoraElegida = () => maquinas.impresoras.find(m => m.id === $('impresoraElegida').value) ?? maquinas.impresoras[0];
 const materialElegido = () => maquinas.materiales.find(m => m.id === $('materialEva').value) ?? maquinas.materiales[0];
 function pintarMaquinasDiseno() {
-  for (const [id, lista] of [['mesaElegida', maquinas.mesas], ['materialEva', maquinas.materiales], ['impresoraElegida', maquinas.impresoras]]) {
+  for (const [id, lista] of [['mesaElegida', maquinas.mesas], ['materialEva', maquinas.materiales], ['impresoraElegida', maquinas.impresoras], ['materialResina', maquinas.resinas]]) {
     const sel = $(id), antes = sel.dataset.pedida || sel.value;
     sel.innerHTML = lista.map(m => `<option value="${esc(m.id)}">${esc(m.nombre)}</option>`).join('');
     sel.value = lista.some(m => m.id === antes) ? antes : lista[0].id;
@@ -3169,7 +3351,8 @@ $('mesaElegida').addEventListener('change', () => {
   pintarMaquinasDiseno(); pedir();
 });
 $('impresoraElegida').addEventListener('change', () => { delete $('impresoraElegida').dataset.pedida; pintarMaquinasDiseno(); pedir(); });
-$('materialEva').addEventListener('change', () => { delete $('materialEva').dataset.pedida; pintarMaquinasDiseno(); pedir(); });
+for (const id of ['materialEva', 'materialResina'])
+  $(id).addEventListener('change', () => { delete $(id).dataset.pedida; materialDiseno = $(id).value; pintarMaquinasDiseno(); pedir(); });
 pintarMaquinasDiseno();
 $('exportarGcode').addEventListener('click', async () => {
   if (!actual || hayFueraDeRango()) return;
@@ -3303,6 +3486,12 @@ function limpiarReceta(r) {
   }
   if (c.separados != null && !(Array.isArray(c.separados) && c.separados.every(s => typeof s === 'string'))) delete c.separados;
   c.elementos = Array.isArray(c.elementos) ? c.elementos.filter(e => esObj(e) && typeof e.id === 'string') : [];
+  // zonas dibujadas (2026-11-22): lo que no tenga forma de zona se descarta; los valores quedan en sus límites
+  c.zonas = (Array.isArray(c.zonas) ? c.zonas : []).filter(z => esObj(z) && (z.pie === 'izq' || z.pie === 'der') && Array.isArray(z.puntos)
+      && z.puntos.length >= 3 && z.puntos.length <= 400 && z.puntos.every(q => Array.isArray(q) && q.length === 2 && q.every(numFin)))
+    .map(z => ({ pie: z.pie, tipo: z.tipo === 'relleno' ? 'relleno' : 'descarga', puntos: z.puntos.map(([a, b]) => [+a, +b]),
+                 altura: Math.min(Math.max(numFin(z.altura) ? +z.altura : 3, 0.5), 40), borde: Math.min(Math.max(numFin(z.borde) ? +z.borde : 4, 0.5), 30),
+                 ...(z.fondo === 'plano' ? { fondo: 'plano' } : {}) }));
   if (c.contorno != null) {
     if (!esObj(c.contorno) || !puntosValidos(c.contorno.puntos)) c.contorno = null;
     else if (c.contorno.puntosDer != null && !puntosValidos(c.contorno.puntosDer)) { c.contorno = { ...c.contorno }; delete c.contorno.puntosDer; }
@@ -3333,7 +3522,7 @@ function limpiarReceta(r) {
   c.margenLados = numFin(c.margenLados) ? Math.min(Math.max(+c.margenLados, 0), 10) : 0;
   c.margenTalon = numFin(c.margenTalon) ? Math.min(Math.max(+c.margenTalon, 0), 10) : 0;
   // máquina elegida (2026-11-19): un id de Inicio → Máquinas; si ya no existe, se usa la primera
-  for (const k of ['mesa', 'materialEva', 'impresora']) if (typeof c[k] !== 'string' || c[k].length > 80) delete c[k];
+  for (const k of ['mesa', 'materialEva', 'impresora', 'materialResina', 'material']) if (typeof c[k] !== 'string' || c[k].length > 80) delete c[k];
   // ancho de la receta (QA-02): fuera de lo posible se rechaza la receta, no se genera una plantilla gigante
   if (c.ancho != null && !(c.ancho >= 40 && c.ancho <= 160)) throw new Error(`ancho fuera de rango en la receta (${c.ancho} mm; de 40 a 160)`);
   return c;
@@ -3371,7 +3560,8 @@ function aplicarRecetaSinRed(r) {
     $('margenActivo').checked = con; $('margenMm').value = con ? r.margenPulido : 5;
     $('margenLados').value = con ? r.margenLados : 3; $('margenTalon').value = con ? r.margenTalon : 0; pintarMargen(); }
   // mesa de trabajo e impresora del diseño (si la lista aún no llegó de la carpeta compartida, se elige al llegar)
-  for (const [id, v] of [['mesaElegida', r.mesa], ['materialEva', r.materialEva], ['impresoraElegida', r.impresora]]) { if (v) $(id).dataset.pedida = v; else delete $(id).dataset.pedida; }
+  for (const [id, v] of [['mesaElegida', r.mesa], ['materialEva', r.materialEva], ['impresoraElegida', r.impresora], ['materialResina', r.materialResina]]) { if (v) $(id).dataset.pedida = v; else delete $(id).dataset.pedida; }
+  materialDiseno = r.material || '';
   try { pintarMaquinasDiseno(); } catch (err) { if (!(err instanceof ReferenceError)) throw err; /* al cargar, antes de la lista */ }
   pintarNotaLargo();
   $('anchoAuto').checked = r.ancho == null; if (r.ancho != null) $('ancho').value = r.ancho;
@@ -3394,6 +3584,9 @@ function aplicarRecetaSinRed(r) {
   ordenActual = r.orden ?? null; pintarOrden();
   contornoActual = r.contorno?.puntos?.length > 20 ? r.contorno : null; pintarContorno();
   alturaBordeActual = r.alturaBorde && (r.alturaBorde.izq || r.alturaBorde.der) ? r.alturaBorde : null;
+  zonas = Array.isArray(r.zonas) ? JSON.parse(JSON.stringify(r.zonas)) : [];
+  if (zonaElegida >= zonas.length) zonaElegida = -1;
+  dibujoZona = null; try { pintarPanelZona(); } catch (err) { if (!(err instanceof ReferenceError)) throw err; }
   // recetas viejas (sin el dato): contacto total, que es lo de siempre con escaneo
   $('contactoActivo').checked = r.contacto !== null; if (r.contacto > 0) $('contactoPct').value = r.contacto;
   $('contactoForma').value = r.contactoForma === 'fiel' ? 'fiel' : 'natural';
@@ -3601,7 +3794,17 @@ document.addEventListener('keydown', ev => {
     return;
   }
   if (enCampo || ev.altKey) return;
+  // zona a medio dibujar: Enter la cierra, Retroceso borra el último punto, Esc la cancela (2026-11-22)
+  if (dibujoZona) {
+    if (ev.key === 'Enter') { ev.preventDefault(); cerrarZona(); return; }
+    if (ev.key === 'Backspace') { ev.preventDefault(); dibujoZona.puntos.pop(); visor?.pedir(); return; }
+    if (ev.key === 'Escape') { ev.preventDefault(); dibujoZona = null; cursorZona = null; visor?.pedir(); return; }
+  }
+  // zona elegida: Supr la quita, Esc la suelta
+  if (zonaElegida >= 0 && (ev.key === 'Delete' || ev.key === 'Supr')) { zonas.splice(zonaElegida, 1); elegirZona(-1); return; }
+  if (zonaElegida >= 0 && ev.key === 'Escape') { elegirZona(-1); return; }
   if (VISTAS_TECLA[ev.key]) visor?.vista(VISTAS_TECLA[ev.key]);
+  else if (k === 'z') usarHerramienta('zona');
   else if (k === 'm') usarHerramienta('medir');
   else if (k === 'c') usarHerramienta('corte');
   else if (k === 'r') usarHerramienta('regla');
@@ -3664,6 +3867,12 @@ inicio = crearInicio({
   antesDeSalir: () => { if (lc) terminarCorte(true); volcarHistorial(); },
   // "Nuevo desde carpeta": elige la carpeta del paciente (recordándola) y carga el escaneo y las muestras
   abrirCarpeta: abrirCarpetaRecordando, elegirCarpetaPaciente, olvidarProyecto,
+  // material cambiado en Inicio (lista de diseños del paciente) del diseño que está abierto (2026-11-22)
+  ponerMaterial: id => {
+    const sel = ['materialEva', 'materialResina'].map($).find(s => [...s.options].some(o => o.value === id));
+    if (!sel) { materialDiseno = ''; pedir(); return; }
+    sel.value = id; sel.dispatchEvent(new Event('change'));
+  },
   biblioteca: { catalogo: () => catalogo, miniatura: miniaturaElemento, recuadro: recuadroElemento, vista3D: vista3DElemento, aplicar: ponerElementosPropios, hormas: listaHormas,
                 aplicarHormas: ponerHormasPropias, editorHorma, aplicarMaquinas },
 });

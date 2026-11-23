@@ -58,6 +58,14 @@ export const CAMPOS_MATERIAL = [
   { g: 'Notas' },
   { k: 'notas', etq: 'Color, proveedor, observaciones…', t: 'texto', def: '' },
 ];
+// materiales de impresión 3D (resinas, Ernesto 2026-11-22): Class TPU, Glam TPU y 3D. Sin velocidades (las pone la
+// impresora); la densidad es para el peso aproximado del par
+export const CAMPOS_RESINA = [
+  { g: 'Material' },
+  { k: 'densidad', etq: 'Densidad', u: 'g/cm³', min: 0.1, max: 3, paso: 0.01, def: 1.2, ayuda: 'Del material macizo, para el peso aproximado del par. A confirmar con el material real.' },
+  { g: 'Notas' },
+  { k: 'notas', etq: 'Color, proveedor, perfil de impresión…', t: 'texto', def: '' },
+];
 const porDefecto = campos => Object.fromEntries(campos.filter(c => c.k).map(c => [c.k, c.def]));
 // las de fábrica: siempre están; si se editan, la versión editada (mismo id) va en maquinas.json
 export const MESAS_FABRICA = [{ id: 'vx1r', nombre: 'Sensor Medica VX1R (EdingCNC)', fabrica: true, ...porDefecto(CAMPOS_MESA) }];
@@ -70,11 +78,16 @@ export const MATERIALES_FABRICA = [
   { id: 'protection', nombre: 'Protection S40', fabrica: true, ...porDefecto(CAMPOS_MATERIAL), shore: 40, relieve: 6000 },
   { id: 'dynamic', nombre: 'Dynamic S50', fabrica: true, ...porDefecto(CAMPOS_MATERIAL), shore: 50, relieve: 5400 },
 ];
+export const RESINAS_FABRICA = [
+  { id: 'class_tpu', nombre: 'Class TPU', fabrica: true, ...porDefecto(CAMPOS_RESINA) },
+  { id: 'glam_tpu', nombre: 'Glam TPU', fabrica: true, ...porDefecto(CAMPOS_RESINA) },
+  { id: 'resina_3d', nombre: '3D', fabrica: true, ...porDefecto(CAMPOS_RESINA) },
+];
 
 // lista completa: las de fábrica (o su versión editada) y las propias
 export function listaMaquinas(datos) {
   const une = (fab, propias = []) => [...fab.map(f => ({ ...f, ...(propias.find(p => p.id === f.id) ?? {}), fabrica: true })), ...propias.filter(p => !fab.some(f => f.id === p.id))];
-  return { mesas: une(MESAS_FABRICA, datos?.mesas), impresoras: une(IMPRESORAS_FABRICA, datos?.impresoras), materiales: une(MATERIALES_FABRICA, datos?.materiales) };
+  return { mesas: une(MESAS_FABRICA, datos?.mesas), impresoras: une(IMPRESORAS_FABRICA, datos?.impresoras), materiales: une(MATERIALES_FABRICA, datos?.materiales), resinas: une(RESINAS_FABRICA, datos?.resinas) };
 }
 // valores con los límites de cada campo (lo que llegue de un archivo editado a mano no rompe el G-code)
 export function limpiarMaquina(m, campos) {
@@ -105,6 +118,8 @@ const TIPOS = {
            resumen: x => `${x.largo} × ${x.ancho} mm · fresa ${String(x.diametro).replace('.', ',')} mm` },
   materiales: { titulo: 'Materiales EVA', campos: CAMPOS_MATERIAL, fabrica: MATERIALES_FABRICA, nueva: 'Nuevo material', nombre: 'Material nuevo',
                 resumen: x => `Shore ${x.shore} · relieve F${x.relieve}` },
+  resinas: { titulo: 'Materiales impresión 3D', campos: CAMPOS_RESINA, fabrica: RESINAS_FABRICA, nueva: 'Nuevo material', nombre: 'Material nuevo',
+             resumen: x => `${String(x.densidad).replace('.', ',')} g/cm³` },
   impresoras: { titulo: 'Impresoras 3D', campos: CAMPOS_IMPRESORA, fabrica: IMPRESORAS_FABRICA, nueva: 'Nueva impresora', nombre: 'Impresora nueva',
                 resumen: x => `${x.x} × ${x.y} × ${x.z} mm` },
 };
@@ -122,7 +137,7 @@ export function pintarMaquinas(cuerpo, ctx) {
         <div class="maq-tipos" role="tablist">
           ${Object.entries(TIPOS).map(([id, t]) => `<button data-maq-tipo="${id}" class="${tipo === id ? 'activo' : ''}">${t.titulo}</button>`).join('')}
         </div>
-        <p class="maq-intro">Se guardan en la carpeta compartida (las ven las tres PC). En cada diseño se elige cuál usar: la mesa y el material en 3. EVA, la impresora en 3. Imprimir.</p>
+        <p class="maq-intro">Se guardan en la carpeta compartida (las ven las tres PC). En cada diseño se elige cuál usar: la mesa y el material en 3. EVA, la impresora y su material en 3. Imprimir (o el material en Inicio, en los diseños del paciente).</p>
       </div>
       <div class="maq-grilla">
         <div class="maq-lista">
@@ -145,7 +160,7 @@ export function pintarMaquinas(cuerpo, ctx) {
       </div>`;
     cuerpo.querySelectorAll('[data-maq-tipo]').forEach(b => b.onclick = () => { tipo = b.dataset.maqTipo; elegida = null; pintar(); });
     cuerpo.querySelectorAll('[data-maq]').forEach(b => b.onclick = () => { elegida = b.dataset.maq; pintar(); });
-    const datos = () => { const d = ctx.datos() ?? {}; return { mesas: [...(d.mesas ?? [])], materiales: [...(d.materiales ?? [])], impresoras: [...(d.impresoras ?? [])] }; };
+    const datos = () => { const d = ctx.datos() ?? {}; return { mesas: [...(d.mesas ?? [])], materiales: [...(d.materiales ?? [])], resinas: [...(d.resinas ?? [])], impresoras: [...(d.impresoras ?? [])] }; };
     const poner = async (nueva, aviso) => {
       const d = datos(); d[tipo] = [...d[tipo].filter(x => x.id !== nueva.id), limpiarMaquina(nueva, campos())];
       await ctx.guardar(d); elegida = nueva.id; pintar(); const msg = cuerpo.querySelector('#maqMsg'); if (msg) msg.textContent = aviso;

@@ -612,3 +612,32 @@ botones "A lo ancho / A lo largo" (se recuerda la elección) y en el 3D solo la 
 prendido, una línea punteada naranja sobre la plantilla marca dónde queda el borde una vez pulida (propuesta C de
 Ernesto; la plantilla sigue de un solo color). El motor devuelve `margen` (mm afuera del contorno sin margen) y
 `lineaPulido()` en app.js busca dónde pasa por 0.
+
+**2026-11-22 — Pacientes con varios diseños.** En Inicio, cada diseñador tiene carpetas de paciente y cada paciente
+uno o varios diseños: `Diseños/<Diseñador>/<Paciente>/<Paciente - fecha>/proyecto.json`. En la lista de diseños de un
+paciente se elige el material (los de Máquinas → Materiales EVA; se guarda en la receta como `materialEva` y, si es el
+diseño abierto, cambia también en la pantalla) y se escribe el tipo de calzado (`tipoCalzado` en proyecto.json).
+"Duplicar" crea otro diseño del paciente igual al elegido. Los proyectos de antes (sin carpeta del paciente) no se
+mueven: aparecen dentro del paciente con el mismo nombre. "Nuevo desde carpeta" suma un diseño si el paciente ya existe.
+Materiales de impresión 3D (2026-11-22): Class TPU, Glam TPU y 3D, en Máquinas → "Materiales impresión 3D" (densidad y
+notas; `resinas` en maquinas.json). En 3. Imprimir se elige el material (`materialResina`). El material del diseño
+(`receta.material`, el que muestra Inicio) es el último elegido, EVA o de impresión.
+
+**2026-11-22 — Dibujar zona (relleno de dedos y descarga hueca).** Herramienta "Dibujar zona" en el 3D (tecla Z): clic
+para cada punto del contorno (ya empezada, también fuera de la plantilla, para llegar al borde), clic en el primero o
+Enter cierra, Retroceso borra el último, Esc cancela. Clic en una zona la elige: panel con Relleno (prótesis, sube; 15 mm
+por defecto) o Descarga hueca (hunde; 3 mm, nunca deja menos de 1 mm de piso), borde suave, copiar al otro pie,
+redibujar y eliminar (Supr). Se guarda en la receta como `zonas` ({ pie, tipo, puntos [[x, y]] mm como se ve, altura,
+borde }); el motor la aplica después del margen (paso 5 de `generar`) y devuelve `distZonas` para pintarla.
+Zonas, 2.ª vuelta (2026-11-22): una zona cerrada se arrastra entera (agarrándola por adentro, sin cambiar su forma) o
+de a un punto (los puntos blancos de la elegida); la plantilla se recalcula al soltar. Con zonas la malla lleva 80
+anillos en vez de 44 y las esquinas del dibujo se redondean hasta 2,5 mm: la pared de una descarga angosta ya no sale
+en escalones. La profundidad se mide desde la superficie de cada punto (copia la forma del arco, más abajo).
+Descarga con fondo plano (2026-11-22): en el panel de la zona, "Sigue la forma" (cada punto baja la profundidad) o
+"Fondo plano" (`fondo: 'plano'`): fondo horizontal a la profundidad debajo del punto más alto de la zona; lo que ya
+está más bajo no se toca. Las dos respetan el espesor mínimo.
+
+**2026-11-23 — Tema "Blanco grafito" (propuesta D, limpio como Apple).** `app/tema.css` reemplaza a `marca.css` (el
+azul de antes; sigue en la carpeta: para volver, cambiar el <link> en index.html). Todo blanco y gris claro, líneas
+finas, acento grafito; Inicio, Biblioteca y Máquinas también claros. En el 3D: descargas, zonas huecas y línea de
+pulido en azul #007AFF (antes naranja), elementos en índigo, contorno grafito; siluetas de la Biblioteca en gris.
