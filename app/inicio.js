@@ -54,6 +54,7 @@ async function subcarpetas(dir) {
 
 import { pintarBiblioteca } from './biblioteca.js';
 import { pintarMaquinas, listaMaquinas } from './maquinas.js';
+import { pintarFresado } from './fresado.js';
 
 // Pacientes de un diseñador: { nombre, carpeta (la del paciente, o null si solo tiene diseños de antes), disenos: [{
 // ruta ("Paciente/Diseño" o, los de antes, "Paciente - fecha"), dir, datos }] }. Mismo paciente = mismo nombre.
@@ -199,6 +200,11 @@ export function crearInicio({ aplicarReceta, recetaNueva, mensaje, alAbrir, bibl
       return;
     }
     if (vista === 'maquinas') { pintarMaquinas(cuerpo, { datos: () => datosMaquinas, guardar: guardarMaquinas }); return; }
+    if (vista === 'fresado') {
+      pintarFresado(cuerpo, { leerCola, guardarEnCola: escribirCola, quitarDeCola, guardarGcode: guardarGcodeTaco,
+        maquinas: () => listaMaquinas(datosMaquinas), carpeta: () => `${PRUEBA ? '(prueba)' : raiz.name}\\Fresado\\G-code` });
+      return;
+    }
     if (!disenador) return pintarDisenadores(cuerpo);
     if (paciente) return pintarDisenos(cuerpo);
     return pintarPacientes(cuerpo);
@@ -438,6 +444,33 @@ export function crearInicio({ aplicarReceta, recetaNueva, mensaje, alAbrir, bibl
     await escribir(proyecto.dir, 'proyecto.json', JSON.stringify(d, null, 2));
   }
 
+  // ---- Cola de fresado (módulo Fresado, beta; Ernesto 2026-11-23) ----
+  // Fresado/Cola/<id>.json: cada diseño enviado desde 4. Exportar, con la forma de sus plantillas (así el taco se arma
+  // sin volver a abrir cada diseño). Fresado/G-code/: el G-code de cada taco. Ernesto marca a mano lo que ya se fresó.
+  const dirCola = () => carpetaEn(raiz, ['Fresado', 'Cola'], true);
+  async function leerCola() {
+    if (!raiz) return [];
+    const d = await dirCola(), r = [];
+    for await (const [n, h] of d.entries()) {
+      if (h.kind !== 'file' || !n.endsWith('.json')) continue;
+      try { const j = JSON.parse(await (await h.getFile()).text()); if (j?.id && j.izq && j.der) r.push(j); } catch { /* archivo dañado: se salta */ }
+    }
+    return r.sort((a, b) => String(a.creado).localeCompare(String(b.creado)));
+  }
+  const escribirCola = async item => escribir(await dirCola(), item.id + '.json', JSON.stringify(item));
+  async function quitarDeCola(id) { await (await dirCola()).removeEntry(id + '.json'); }
+  async function guardarGcodeTaco(nombre, texto) { await escribir(await carpetaEn(raiz, ['Fresado', 'G-code'], true), nombre, texto); }
+  // desde el diseño abierto: si ese diseño ya estaba en la cola sin fresar, se reemplaza (se mandó otra vez corregido)
+  async function enviarACola(datos) {
+    if (!raiz) throw new Error('primero elija la carpeta de trabajo en Inicio');
+    const lista = await leerCola(), de = proyecto ? { disenador: proyecto.disenador, carpeta: proyecto.carpeta } : {};
+    const antes = proyecto ? lista.find(x => x.estado !== 'fresado' && x.disenador === de.disenador && x.carpeta === de.carpeta) : null;
+    const item = { id: antes?.id ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`, creado: antes?.creado ?? new Date().toISOString(),
+      enviado: new Date().toISOString(), estado: 'pendiente', pies: antes?.pies ?? 'ambos', ...de, ...datos };
+    await escribirCola(item);
+    return { reemplazo: !!antes, total: lista.filter(x => x.estado !== 'fresado').length + (antes ? 0 : 1) };
+  }
+
   // al volver a Inicio desde un diseño se ven los diseños de ese paciente
   $('irInicio').onclick = async () => { antesDeSalir?.(); await guardarYa(); vista = 'disenadores'; if (proyecto) { disenador = proyecto.disenador; paciente = proyecto.carpeta.includes('/') ? proyecto.carpeta.split('/')[0] : proyecto.datos.paciente || null; } mostrar(true); };
   $('inicioVolver').onclick = () => mostrar(false);
@@ -445,7 +478,7 @@ export function crearInicio({ aplicarReceta, recetaNueva, mensaje, alAbrir, bibl
   iniciar();
 
   return {
-    guardarArchivo, exportado, alCambiar, guardarAhora,
+    guardarArchivo, exportado, alCambiar, guardarAhora, enviarACola,
     // "Añadir a la biblioteca" desde el diseño (necesita la carpeta de trabajo)
     agregarABiblioteca: async def => {
       if (!raiz) throw new Error('primero elija la carpeta de trabajo en Inicio');

@@ -1253,7 +1253,7 @@ function actualizar() {
   catch (err) { estado.textContent = 'No se pudo generar'; estado.title = err.message; mensaje('No se pudo generar la plantilla: ' + err.message, false); return; }
   if ($('anchoAuto').checked) $('ancho').value = (r.h.ancho * d.largo / r.h.largo).toFixed(1);
   // G-code de la fresadora solo para EVA (sin acabado de resina: base plana)
-  { const eva = !producto().acabado; $('exportarGcode').hidden = !eva; pintarModuloProduccion(); }
+  { const eva = !producto().acabado; $('exportarGcode').hidden = !eva; $('enviarCola').hidden = !eva; pintarModuloProduccion(); }
   // arco pedido más bajo de lo que da la horma sin su capa de arco (2026-11-19): se avisa al lado del alto de arco
   { const min = r.izq.p.arcoMin, av = $('avisoArcoSube'), sube = min != null && d.arco != null && min > d.arco + 0.05;
     av.hidden = !sube; if (sube) av.textContent = `Con esta horma y copa ${String(d.copa).replace('.', ',')} el arco no baja de ${f1(min)} mm: queda sin subida propia del arco.`; }
@@ -3267,11 +3267,11 @@ function limpiarPaciente() {
   muestra = null; muestrasCarpeta = []; $('datosMuestra').hidden = true; pintarListaMuestras();
   pintarEscaneo(); document.querySelector('[data-herr=ajuste]').hidden = true;
 }
+const tallaCorta = d => d.talla == null ? d.largo + 'mm' : d.cuadro === 'hombre' ? `US${d.talla}H` : d.cuadro === 'dama' ? `US${d.talla}D` : 'T' + d.talla;
 function nombreBase(d) {
   const limpio = s => s.normalize('NFC').replace(/[^\p{L}\p{N} _.-]/gu, '').replace(/\s+/g, ' ').trim();
   const prod = d.producto === 'resina' ? 'resina' : d.producto;
-  const t = d.talla == null ? d.largo + 'mm' : d.cuadro === 'hombre' ? `US${d.talla}H` : d.cuadro === 'dama' ? `US${d.talla}D` : 'T' + d.talla;
-  return limpio(`${d.paciente || 'sin nombre'} ${prod} ${t}`);
+  return limpio(`${d.paciente || 'sin nombre'} ${prod} ${tallaCorta(d)}`);
 }
 // Los archivos que se generan van a la carpeta del proyecto, en la carpeta de trabajo compartida (OneDrive)
 async function guardar(nombre, cuerpo) { await inicio.guardarArchivo(nombre, cuerpo); }
@@ -3372,6 +3372,21 @@ $('exportarGcode').addEventListener('click', async () => {
     if (destino) await escribirEnCarpeta(destino, nombre, r.texto);
     mensaje(`Guardado en ${destino ? `la carpeta "${destino.name}" (y copia en ${dondeSeGuarda()})` : dondeSeGuarda()}: "${nombre}" (${r.lineas.toLocaleString('es')} líneas, alto máximo ${r.alturaMax.toFixed(1).replace('.', ',')} mm). Antes de fresar: revíselo en la vista de EdingCNC y páselo primero en el aire.`);
   } catch (e) { mensaje('No se generó el G-code: ' + e.message, false); }
+});
+
+// ---- Enviar a la cola de fresado (módulo Fresado, beta; Ernesto 2026-11-23) ----
+// Se guarda la forma de las dos plantillas tal como están (la misma que usaría el G-code del par), el paciente, la talla
+// y el material EVA elegido. En Inicio → Fresado se juntan varias en un taco.
+const aB64 = a => { const b = new Uint8Array(new Float32Array(a).buffer); let s = ''; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000)); return btoa(s); };
+const formaCola = g => ({ ns: g.ns, nr: g.nr, x: aB64(g.x), y: aB64(g.y), z: aB64(g.z), zb: aB64(g.zb) });
+$('enviarCola').addEventListener('click', async () => {
+  if (!actual || hayFueraDeRango()) return;
+  try {
+    const d = actual.d, mat = materialElegido();
+    const r = await inicio.enviarACola({ paciente: d.paciente || 'sin nombre', talla: tallaCorta(d), largo: actual.m.largo,
+      material: { id: mat.id, nombre: mat.nombre }, izq: formaCola(actual.izq), der: formaCola(actual.der) });
+    mensaje(`${r.reemplazo ? 'Actualizado en' : 'Enviado a'} la cola de fresado (${mat.nombre}): ${r.total} ${r.total === 1 ? 'diseño espera' : 'diseños esperan'}. Se arma el taco en Inicio → Fresado.`);
+  } catch (e) { mensaje('No se envió a la cola: ' + e.message, false); }
 });
 
 // ---- Hoja del diseño ----

@@ -191,3 +191,46 @@ table.proyectos tbody tr:hover td, table.proyectos tbody tr:hover { background: 
 .ve-cab h2 { color: var(--tinta); }
 .ve-tarjeta { background: var(--fondo); border: 0.5px solid var(--linea); }
 .ve-tarjeta:hover { border-color: var(--linea-2); background: #fff; }
+
+/* ---------- Fresado (beta, 2026-11-23): cola, taco en 3D y opciones ---------- */
+.etq-beta { font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 99px; background: #e8f1ff; color: #0062cc; vertical-align: 2px; margin-left: 4px; letter-spacing: 0; }
+.nota-fresado { color: var(--suave); font-size: 12.5px; }
+.inicio-cuerpo:has(.fresado) { max-width: none; }
+.fresado { display: grid; grid-template-columns: clamp(240px, 17vw, 320px) minmax(0, 1fr) clamp(220px, 15vw, 280px); gap: 16px; align-items: start; }
+.fresado .fr-tit { font-size: 12px; color: var(--suave); margin: 12px 0 6px; }
+.fresado .fr-tit:first-child { margin-top: 0; }
+.fr-cola, .fr-opciones { background: #fff; border: 0.5px solid var(--linea); border-radius: 12px; padding: 14px; }
+.fr-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.fr-chip { height: 26px; padding: 0 10px; border-radius: 99px; border: 0.5px solid var(--linea-2); background: #fff; color: var(--suave); font-size: 12px; }
+.fr-chip b { font-weight: 600; color: var(--tinta); margin-left: 2px; }
+.fr-chip.activo { background: #e8f1ff; color: #0062cc; border-color: #9cc3ff; }
+.fr-item { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 6px; padding: 7px 0; border-bottom: 0.5px solid var(--linea); font-size: 13px; }
+.fr-item label { display: flex; align-items: center; gap: 7px; min-width: 0; cursor: pointer; }
+.fr-item.hecho { opacity: .55; }
+.fr-punto { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.fr-nombre { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fr-nombre small { display: block; color: var(--tercero); font-size: 11px; }
+.fr-item select { font-size: 11.5px; height: 26px; padding: 0 4px; }
+.fr-x { width: 24px; height: 24px; padding: 0; border-radius: 6px; border: none; background: transparent; color: var(--tercero); }
+.fr-x:hover { background: var(--gris-2); color: var(--tinta); }
+.fr-vacia { color: var(--tercero); font-size: 12.5px; }
+.fr-ver { display: flex; gap: 6px; align-items: center; margin-top: 10px; font-size: 12px; color: var(--suave); }
+.fr-visor { position: relative; height: max(420px, calc(100vh - 250px)); border-radius: 12px; border: 0.5px solid var(--linea); background: radial-gradient(ellipse at 50% 40%, #ffffff 0%, #f7f7f9 60%, #efeff2 100%); overflow: hidden; }
+.fr-visor canvas#frLienzo { width: 100%; height: 100%; display: block; }
+.fr-cubo { position: absolute; top: 10px; right: 10px; width: 110px; height: 110px; cursor: grab; touch-action: none; }
+.fr-ayuda { position: absolute; left: 12px; bottom: 10px; font-size: 11.5px; color: var(--tercero); pointer-events: none; }
+.fr-est { text-align: center; color: var(--suave); font-size: 12.5px; margin-top: 8px; }
+.fr-avisos { color: var(--mal); font-size: 12.5px; margin-top: 4px; text-align: center; }
+.fr-tipo { display: grid; grid-template-columns: 1fr 1fr; }
+.fr-med { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.fr-med label { display: flex; flex-direction: column; gap: 2px; font-size: 11px; color: var(--suave); }
+.fr-med input { width: 100%; box-sizing: border-box; }
+.fr-med label[hidden] { display: none; }
+.fr-opciones select { width: 100%; }
+.fr-opciones > button { width: 100%; margin-top: 8px; }
+.fr-girar { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.fr-archivo { font-size: 12px; background: var(--fondo); border-radius: 8px; padding: 7px 8px; word-break: break-word; }
+.fr-listo { margin-top: 10px; font-size: 12px; color: var(--verde); background: var(--verde-claro); border-radius: 8px; padding: 8px; }
+.fr-listo button { width: 100%; margin-top: 8px; }
+.fr-mal { margin-top: 10px; font-size: 12px; color: var(--mal); background: #fff1f1; border-radius: 8px; padding: 8px; }
+@media (max-width: 1100px) { .fresado { grid-template-columns: 1fr; } }

@@ -641,3 +641,33 @@ está más bajo no se toca. Las dos respetan el espesor mínimo.
 azul de antes; sigue en la carpeta: para volver, cambiar el <link> en index.html). Todo blanco y gris claro, líneas
 finas, acento grafito; Inicio, Biblioteca y Máquinas también claros. En el 3D: descargas, zonas huecas y línea de
 pulido en azul #007AFF (antes naranja), elementos en índigo, contorno grafito; siluetas de la Biblioteca en gris.
+
+**2026-11-23 — Módulo Fresado (beta): varias plantillas en un taco, un solo G-code.** Inicio → "Fresado beta"
+(`app/fresado.js`).
+- **Cola de fresado:** en el diseño (EVA), 4. Exportar → "Enviar a cola de fresado" guarda la forma de las dos plantillas
+  tal como están, con paciente, talla y material EVA, en `Fresado/Cola/<id>.json` de la carpeta compartida. Si el mismo
+  diseño ya esperaba sin fresar, se reemplaza.
+- **Armar el taco:** la cola se filtra por material (Relax, Protection, Dynamic…). Se marcan los diseños que van en el
+  taco, y de cada uno si va el par, solo el izquierdo o solo el derecho.
+- **Tipo de taco:** recto o preformado. El preformado mide 26 mm del lado del talón, es recto (sin lomo), baja a la mitad
+  del largo y queda en 8 mm. Largo, ancho, alto, parte baja y margen se pueden cambiar.
+- **Margen:** 5 mm por defecto, contados desde el corte de la fresa hasta el borde del taco. Entre dos plantillas quedan
+  sus dos cortes, la entrada del contorno (3 mm) y 2 mm de EVA.
+- **Acomodo:** las plantillas se acomodan solas en los espacios libres: derechas, al revés o atravesadas. En el preformado
+  van solo derechas, con el talón al lado alto.
+- **Mover a mano:** se arrastran con el ratón, las flechas mueven 1 mm (con Mayús 5) y se giran 90° o 5° (tecla R).
+  Una plantilla en rojo se sale del margen, choca con otra o queda donde el taco no alcanza; así no se genera el G-code.
+- **Recomendar:** prueba tres órdenes (antigüedad, talla chica primero, talla grande primero) y elige el que más
+  aprovecha el taco. Se ve en 3D con el cubo de vistas.
+- **G-code:** `gcodeTaco` en `motor/fresado.js`, con el mismo formato y las mismas velocidades que el par de siempre.
+  Antes de escribir revisa el margen, que la fresa de una plantilla (contorno y entrada) no toque otra, y el alto del
+  taco (también el del preformado). Se guarda en `Fresado/G-code/`, y en la carpeta elegida si "Elegir carpeta" está
+  activo.
+- **Nombre del archivo:** todos los pacientes unidos con " + ", con "(solo derecho)" o "(solo izquierdo)" cuando va un
+  pie, más el material y "fresadora.iso".
+- **Marcar como fresadas:** después de generar, el botón "Marcar estas plantillas como fresadas" lo pulsa Ernesto a mano
+  cuando salieron bien. Salen de la cola, se ven con "Ver las ya fresadas" y ↺ las devuelve.
+- **Cambios en el motor:** `gcodeEVA` ahora comparte la escritura con `gcodeTaco` (mismo G-code de siempre: las pruebas
+  del par siguen iguales). Nuevos `colocarPieza`, `revisarTaco` y `minutosGcode`, y una prueba con un par acostado y un
+  pie atravesado.
+- **Falta probar en la VX1R:** pasar primero en el aire.

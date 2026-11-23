@@ -91,18 +91,25 @@ function contornoFresa(borde, r) {
 
 // izq, der = plantillas generadas (generar); op = { nombre, radio (5), bloque {largo 350, ancho 260, alto 26},
 // pasoY (0,5), pasoX (2), separacion (7 = Y del borde interno), zSeguro (55), zContorno ([15, 1]), velocidades }
+// Parámetros comunes del G-code (de la mesa de trabajo y el material)
+function parametros(op) {
+  return {
+    r: op.radio ?? 5, bloque: { largo: 350, ancho: 260, alto: 26, ...op.bloque }, pasoY: op.pasoY ?? 0.5, pasoX: op.pasoX ?? 2,
+    zSeg: op.zSeguro ?? 55, zCont: op.zContorno ?? [15, 1],
+    // mesa de trabajo (2026-11-19): material que queda de más arriba (para pulir) y corte del contorno más afuera
+    sobre: op.sobreespesor ?? 0, masAfuera: op.margenContorno ?? 0,
+    F: { trasladar: 14400, bajar: 900, cortar: 1800, relieve: 6000, ...op.velocidades }, S: op.husillo ?? 24000,
+    // velocidad del relieve (2026-11-21, Ernesto: tardaba 40 min y LutraCAD 15-20): como LutraCAD ("Marketing PLANTILLA
+    // T38.5"), solo las primeras filas de cada plantilla (3,5 mm, mientras la fresa entra en el bloque) van a F1800;
+    // el resto del relieve más rápido: LutraCAD usa F14400; aquí punto medio F6000 (≈14 min el par) para no forzar la
+    // fresa (Ernesto). El contorno sigue a F1800.
+    entradaLenta: op.entradaLenta ?? 3.5,
+  };
+}
+
 export function gcodeEVA(izq, der, op = {}) {
-  const r = op.radio ?? 5, bloque = { largo: 350, ancho: 260, alto: 26, ...op.bloque }, pasoY = op.pasoY ?? 0.5, pasoX = op.pasoX ?? 2;
-  const sep = op.separacion ?? 7, zSeg = op.zSeguro ?? 55, zCont = op.zContorno ?? [15, 1];
-  // mesa de trabajo (2026-11-19): material que queda de más arriba (para pulir) y corte del contorno más afuera
-  const sobre = op.sobreespesor ?? 0, masAfuera = op.margenContorno ?? 0;
-  const F = { trasladar: 14400, bajar: 900, cortar: 1800, relieve: 6000, ...op.velocidades }, S = op.husillo ?? 24000;
-  // velocidad del relieve (2026-11-21, Ernesto: tardaba 40 min y LutraCAD 15-20): como LutraCAD ("Marketing PLANTILLA
-  // T38.5"), solo las primeras filas de cada plantilla (3,5 mm, mientras la fresa entra en el bloque) van a F1800;
-  // el resto del relieve más rápido: LutraCAD usa F14400; aquí punto medio F6000 (≈14 min el par) para no forzar la
-  // fresa (Ernesto). El contorno sigue a F1800.
-  const entradaLenta = op.entradaLenta ?? 3.5;
-  const avisos = [], L = [];
+  const { r, bloque, zSeg, sobre, masAfuera } = parametros(op), sep = op.separacion ?? 7;
+  const avisos = [];
   const pies = [['izq', izq, sep], ['der', der, -sep]].filter(p => p[1]);
   const datos = pies.map(([lado, g, y0]) => { const M = aMaquina(g, lado, y0); return { lado, M, m: mapa(g, M, 0.5) }; });
   // que entre en el bloque (con la fresa) y no pase su alto
@@ -117,7 +124,14 @@ export function gcodeEVA(izq, der, op = {}) {
   if (zMax + sobre > bloque.alto - 0.5) avisos.push(`La plantilla mide ${zMax.toFixed(1)} mm de alto y el bloque ${bloque.alto} mm: no alcanza.`);
   // auditoría 2026-11-19 (seguridad): con la altura segura por debajo del bloque la fresa se trasladaría a través del EVA
   if (zSeg < bloque.alto + 10) avisos.push(`La altura segura (${zSeg} mm) debe quedar al menos 10 mm sobre el bloque (${bloque.alto} mm): cámbiela en Inicio → Máquinas.`);
+  // filas: la izquierda desde Y redondeado hacia abajo y la derecha hacia arriba (así quedaron los G-code de siempre)
+  return escribirGcode(datos.map(d => ({ m: d.m, techo: d.lado === 'der' })), op, avisos, zMax);
+}
 
+// Escribe el G-code de una o varias plantillas ya puestas en la máquina: datos = [{ m (mapa), techo? }], en orden.
+// Relieve de cada plantilla (una después de la otra) y después los contornos.
+function escribirGcode(datos, op, avisos, zMax) {
+  const { r, bloque, pasoY, pasoX, zSeg, zCont, sobre, masAfuera, F, S, entradaLenta } = parametros(op), L = [];
   L.push(`((${(op.nombre ?? 'plantilla').replace(/[()]/g, '')}))`, '%', 'G90', 'G28', `S${S}`, 'M03', 'G64', `F${F.trasladar}`, `G01 Z${f2(zSeg)}`);
   let puntos = 0, ant = null;
   const altura = (m, X, Y) => Math.min(alturaBola(m, X, Y, r) + sobre, bloque.alto);
@@ -131,10 +145,10 @@ export function gcodeEVA(izq, der, op = {}) {
     return [...intermedios(m, a, c, n + 1), c, ...intermedios(m, c, b, n + 1)];
   };
   // relieve, una plantilla y después la otra; filas desde el borde externo del bloque hacia el centro
-  datos.forEach(({ lado, m }, ip) => {
+  datos.forEach(({ techo, m }, ip) => {
     let Y0 = Infinity, Y1 = -Infinity; for (const [, y] of m.borde) { Y0 = Math.min(Y0, y); Y1 = Math.max(Y1, y); }
     const filas = [];
-    if (lado === 'izq') for (let Y = Math.floor(Y1 / pasoY) * pasoY; Y >= Y0; Y -= pasoY) filas.push(Y);
+    if (!techo) for (let Y = Math.floor(Y1 / pasoY) * pasoY; Y >= Y0; Y -= pasoY) filas.push(Y);
     else for (let Y = Math.ceil(Y1 / pasoY) * pasoY; Y >= Y0; Y -= pasoY) filas.push(Y);
     let primero = true, sentido = 1, yInicio = null, rapido = false;
     for (const Y of filas) {
@@ -175,7 +189,108 @@ export function gcodeEVA(izq, der, op = {}) {
     }
   }
   L.push(`G01 Z${f2(zSeg)}`, 'G28', 'M5', '%');
-  return { texto: L.join('\n') + '\n', avisos, lineas: L.length, puntos, alturaMax: zMax, inicioContorno };
+  const texto = L.join('\n') + '\n';
+  return { texto, avisos, lineas: L.length, puntos, alturaMax: zMax, inicioContorno, minutos: minutosGcode(texto) };
+}
+
+// Tiempo teórico del G-code en minutos (largo de cada tramo / su velocidad, sin aceleraciones)
+export function minutosGcode(texto) {
+  let x = 0, y = 0, z = 0, f = 1, s = 0;
+  for (const l of texto.split('\n')) {
+    const g = l.match(/^F([\d.]+)/); if (g) { f = +g[1]; continue; }
+    if (!l.startsWith('G01')) continue;
+    const a = l.match(/X(-?[\d.]+)/), b = l.match(/Y(-?[\d.]+)/), c = l.match(/Z(-?[\d.]+)/);
+    const nx = a ? +a[1] : x, ny = b ? +b[1] : y, nz = c ? +c[1] : z; s += Math.hypot(nx - x, ny - y, nz - z) / f; x = nx; y = ny; z = nz;
+  }
+  return s;
+}
+
+// ---- Varias plantillas en un taco (módulo Fresado, beta; Ernesto 2026-11-23) ----
+// Cada pieza = { g (plantilla generada), x, y (centro en la máquina, mm), giro (grados, antihorario), nombre }.
+// Giro 0 = como en el par de siempre: acostada a lo largo de X con el talón en X negativo; en el pie izquierdo el lado
+// interno mira a Y negativo y en el derecho a Y positivo (si la izquierda va arriba, los arcos se miran).
+export function colocarPieza(g, { x = 0, y = 0, giro = 0 } = {}) {
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (let q = 0; q < g.x.length; q++) { x0 = Math.min(x0, g.x[q]); x1 = Math.max(x1, g.x[q]); y0 = Math.min(y0, g.y[q]); y1 = Math.max(y1, g.y[q]); }
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, a = (giro * Math.PI) / 180, c = Math.cos(a), s = Math.sin(a);
+  // primero acostada (X = a lo largo, Y = -ancho: es un giro, no un espejo), después el giro y el lugar
+  const X = q => { const u = g.y[q] - cy, v = -(g.x[q] - cx); return x + u * c - v * s; };
+  const Y = q => { const u = g.y[q] - cy, v = -(g.x[q] - cx); return y + u * s + v * c; };
+  return { X, Y, largo: y1 - y0, ancho: x1 - x0 };
+}
+
+// distancia de un punto a un polígono cerrado (0 si está adentro)
+function distPoligono(P, X, Y) {
+  let d = Infinity, dentro = false;
+  for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+    const [ax, ay] = P[j], [bx, by] = P[i];
+    if ((ay > Y) !== (by > Y) && X < ax + ((Y - ay) / (by - ay)) * (bx - ax)) dentro = !dentro;
+    const ex = bx - ax, ey = by - ay, l2 = ex * ex + ey * ey, t = l2 ? Math.min(1, Math.max(0, ((X - ax) * ex + (Y - ay) * ey) / l2)) : 0;
+    d = Math.min(d, Math.hypot(X - ax - t * ex, Y - ay - t * ey));
+  }
+  return dentro ? 0 : d;
+}
+
+// G-code de un taco con varias plantillas. op = lo mismo que gcodeEVA más: margen (mm libres desde el corte de la
+// fresa hasta el borde del taco, 5 por defecto; Ernesto 2026-11-23) y altoEn(X, Y) (alto del taco en ese punto, para
+// el preformado; sin él, el taco es recto de bloque.alto).
+// Revisa antes de escribir: que cada plantilla con su corte quede dentro del taco con el margen, que la fresa de una no
+// toque a otra (contorno y entrada del contorno a más de un radio de la otra), y que el taco alcance de alto.
+export function gcodeTaco(piezas, op = {}) {
+  const { r, bloque, zSeg, sobre, masAfuera } = parametros(op), margen = op.margen ?? 5, altoEn = op.altoEn ?? (() => bloque.alto);
+  const avisos = [];
+  if (!piezas.length) avisos.push('No hay plantillas en el taco.');
+  const datos = piezas.map((p, i) => { const M = colocarPieza(p.g, p); return { nombre: p.nombre ?? `plantilla ${i + 1}`, M, g: p.g, m: mapa(p.g, M, 0.5) }; });
+  let zMax = 0;
+  for (const d of datos) {
+    // dentro del taco con el corte de la fresa y el margen: el corte llega a 2 radios (más el corte más afuera) del
+    // borde de la plantilla, y de ahí al borde del taco quedan `margen` mm
+    let fuera = 0;
+    for (const [x, y] of d.m.borde) fuera = Math.max(fuera, Math.abs(x) + 2 * r + masAfuera + margen - bloque.largo / 2, Math.abs(y) + 2 * r + masAfuera + margen - bloque.ancho / 2);
+    if (fuera > 0.05) avisos.push(`${d.nombre}: se sale del taco o no deja ${margen} mm de margen al borde (faltan ${fuera.toFixed(1)} mm).`);
+    // alto del taco en cada punto
+    let falta = 0;
+    for (let q = 0; q < d.g.z.length; q++) { const z = d.g.z[q] + sobre; zMax = Math.max(zMax, d.g.z[q]); falta = Math.max(falta, z - (altoEn(d.M.X(q), d.M.Y(q)) - 0.5)); }
+    if (falta > 0) avisos.push(`${d.nombre}: el taco no alcanza de alto (faltan ${falta.toFixed(1)} mm).`);
+  }
+  // la fresa de una plantilla (contorno, con su entrada 3 mm más afuera) no puede tocar a otra
+  for (let i = 0; i < datos.length; i++) {
+    const P = contornoFresa(datos[i].m.borde, r + masAfuera), n = P.length;
+    let cx = 0, cy = 0; for (const [x, y] of P) { cx += x / n; cy += y / n; }
+    const tx = P[1][0] - P[n - 1][0], ty = P[1][1] - P[n - 1][1], tl = Math.hypot(tx, ty) || 1;
+    let nx = ty / tl, ny = -tx / tl; if (nx * (P[0][0] - cx) + ny * (P[0][1] - cy) < 0) { nx = -nx; ny = -ny; }
+    const camino = [...P, [P[0][0] + 3 * nx, P[0][1] + 3 * ny]];
+    let X0 = Infinity, X1 = -Infinity, Y0 = Infinity, Y1 = -Infinity; for (const [x, y] of camino) { X0 = Math.min(X0, x); X1 = Math.max(X1, x); Y0 = Math.min(Y0, y); Y1 = Math.max(Y1, y); }
+    for (let j = 0; j < datos.length; j++) {
+      if (j === i) continue;
+      const B = datos[j].m.borde;
+      if (!B.some(([x, y]) => x > X0 - r && x < X1 + r && y > Y0 - r && y < Y1 + r)) continue;
+      let dmin = Infinity; for (let k = 0; k < camino.length; k += 2) dmin = Math.min(dmin, distPoligono(B, camino[k][0], camino[k][1]));
+      if (dmin < r + 0.3) avisos.push(`${datos[i].nombre} y ${datos[j].nombre} quedan muy juntas: la fresa de una tocaría la otra (separe un poco más).`);
+    }
+  }
+  if (zMax + sobre > bloque.alto - 0.5) avisos.push(`Las plantillas miden hasta ${zMax.toFixed(1)} mm de alto y el taco ${bloque.alto} mm: no alcanza.`);
+  if (zSeg < bloque.alto + 10) avisos.push(`La altura segura (${zSeg} mm) debe quedar al menos 10 mm sobre el bloque (${bloque.alto} mm): cámbiela en Inicio → Máquinas.`);
+  const unicos = [...new Set(avisos)];
+  return escribirGcode(datos.map(d => ({ m: d.m, techo: false })), op, unicos, zMax);
+}
+
+// Revisión del G-code de un taco (como revisarTrayecto): cuánto entraría la bola en cada pieza como máximo, mm.
+export function revisarTaco(piezas, texto, op = {}) {
+  const r = op.radio ?? 5, mapas = piezas.map(p => mapa(p.g, colocarPieza(p.g, p), 0.5)), peor = piezas.map(() => 0);
+  let x = 0, y = 0, z = 0;
+  for (const l of texto.split('\n').slice(0, op.hasta ?? Infinity)) {
+    if (!l.startsWith('G01')) continue;
+    const a = l.match(/X(-?[\d.]+)/), b = l.match(/Y(-?[\d.]+)/), c = l.match(/Z(-?[\d.]+)/);
+    const nx = a ? +a[1] : x, ny = b ? +b[1] : y, nz = c ? +c[1] : z;
+    const d = Math.hypot(nx - x, ny - y), n = Math.max(1, Math.ceil(d / 0.2));
+    if (Math.min(z, nz) < 40) for (let k = 0; k <= n; k++) {
+      const t = k / n, X = x + t * (nx - x), Y = y + t * (ny - y), Z = z + t * (nz - z);
+      mapas.forEach((m, i) => { const e = alturaBola(m, X, Y, r) - Z; if (e > peor[i]) peor[i] = e; });
+    }
+    x = nx; y = ny; z = nz;
+  }
+  return peor;
 }
 
 // Revisión (2026-11-21, Ernesto: en el pie derecho la fresa tocó el arco): recorre el G-code cada 0,2 mm, también

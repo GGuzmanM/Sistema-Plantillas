@@ -454,6 +454,30 @@ for (const lado of ['izq', 'der']) {
   const dyn = gcodeEVA(gi, gd, { ...opcionesGcode(MESAS_FABRICA[0], 26, mat('dynamic')) }).texto, rel = gcodeEVA(gi, gd, { ...opcionesGcode(MESAS_FABRICA[0], 26, mat('relax')) }).texto;
   const okVel = (r.texto.match(/^F6000$/gm) || []).length === 2 && minutos(lento.texto) > 2.5 * minutos(r.texto) && /^F5400$/m.test(dyn) && /^F6600$/m.test(rel) && minutos(dyn) > minutos(r.texto) && minutos(rel) < minutos(r.texto) && filasLentas >= 10 && filasLentas <= 20 && fab.texto === r.texto;
   prueba('G-code: relieve más rápido (punto medio) y por material', okVel, `tiempo teórico ${n1(minutos(r.texto))} min a F6000 (todo a F1800 serían ${n1(minutos(lento.texto))}); Relax S20 ${n1(minutos(rel))}, Dynamic S50 ${n1(minutos(dyn))} min; ${filasLentas} filas a F1800 al entrar`);
+  // Módulo Fresado (beta, Ernesto 2026-11-23): varias plantillas en un taco, un solo G-code. Un par de 200 mm acostado
+  // (talón en X negativo) y un pie de 150 mm atravesado (girado 90°) en lo que sobra. La bola no entra en ninguna,
+  // todo queda dentro del taco con 5 mm de margen desde el corte, y avisa si se juntan, se salen o el taco no alcanza.
+  {
+    const { gcodeTaco, revisarTaco } = await import('../motor/fresado.js');
+    const p2 = { largo: 200, antepie: 2, copa: 12, arco: 16, canto: 1.2, arcoPos: 0.4 };
+    const a = generar(h, { ...p2, lado: 'izq' }), b = generar(h, { ...p2, lado: 'der' }), c = generar(h, { ...p2, largo: 150, lado: 'izq' });
+    const anchoDe = g => Math.max(...g.x) - Math.min(...g.x), wa = anchoDe(a);
+    const piezas = [{ g: a, x: -58, y: wa / 2 + 7, giro: 0, nombre: 'A izq' }, { g: b, x: -58, y: -(wa / 2 + 7), giro: 0, nombre: 'A der' },
+      { g: c, x: 110, y: 0, giro: 90, nombre: 'B izq' }];
+    const t = gcodeTaco(piezas, { nombre: 'taco', bloque: { alto: 26 } }), pen = revisarTaco(piezas, t.texto, { hasta: t.inicioContorno });
+    let X0 = Infinity, X1 = -Infinity, Y0 = Infinity, Y1 = -Infinity, zz = Infinity, x = 0, y = 0, z = 0;
+    for (const l of t.texto.split('\n')) { const u = l.match(/X(-?[\d.]+)/), v = l.match(/Y(-?[\d.]+)/), w = l.match(/Z(-?[\d.]+)/); if (u) x = +u[1]; if (v) y = +v[1]; if (w) z = +w[1];
+      if (!l.startsWith('G01') || z >= 50) continue; X0 = Math.min(X0, x); X1 = Math.max(X1, x); Y0 = Math.min(Y0, y); Y1 = Math.max(Y1, y); zz = Math.min(zz, z); }
+    const junto = gcodeTaco([...piezas.slice(0, 2), { ...piezas[2], x: 45 }], { bloque: { alto: 26 } }).avisos.some(s => /muy juntas/.test(s));
+    const afuera = gcodeTaco([...piezas.slice(0, 2), { ...piezas[2], x: 150 }], { bloque: { alto: 26 } }).avisos.some(s => /se sale del taco/.test(s));
+    // preformado: alto 26 del lado del talón (X negativo), baja a la mitad y queda en 8 mm
+    const sm = (e0, e1, v) => { v = Math.min(1, Math.max(0, (v - e0) / (e1 - e0))); return v * v * (3 - 2 * v); };
+    const altoEn = X => 26 - 18 * sm(0.4, 0.62, (X + 175) / 350);
+    const bajo = gcodeTaco(piezas, { bloque: { alto: 26 }, altoEn }).avisos.some(s => /B izq: el taco no alcanza/.test(s));
+    const ok = !t.avisos.length && Math.max(...pen) < 0.2 && X0 >= -175 + 10 - 0.01 && X1 <= 175 - 10 && Y0 >= -130 + 10 && Y1 <= 130 - 10 && zz >= 0.99 && junto && afuera && bajo &&
+      t.texto.startsWith('((taco))') && t.minutos > 5;
+    prueba('Fresado: varias plantillas en un taco', ok, `${t.lineas} líneas, ≈${n1(t.minutos)} min teóricos; la bola entra ${pen.map(n2).join(' / ')} mm; X ${n1(X0)} a ${n1(X1)}, Y ${n1(Y0)} a ${n1(Y1)}; avisa juntas: ${junto ? 'sí' : 'no'}, afuera: ${afuera ? 'sí' : 'no'}, preformado bajo: ${bajo ? 'sí' : 'no'}${t.avisos.length ? '; avisos: ' + t.avisos.join(' ') : ''}`);
+  }
   prueba('Mesa de trabajo del G-code', okMesa, `la de fábrica da el mismo G-code: ${fab.texto === r.texto ? 'sí' : 'no'}; giro 18000: ${otra.texto.includes('S18000') ? 'sí' : 'no'}; dejar 0,5 mm arriba: +${n2(zMax(otra.texto) - zMax(r.texto))} mm; sin contorno: ${!otra.texto.includes('G01 Z15.00') ? 'sí' : 'no'}; corte 3 mm más afuera: ${n1(minX(r.texto) - minX(afuera.texto))} mm`);
 }
 

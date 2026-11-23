@@ -299,6 +299,7 @@
       <button data-inicio-vista="disenadores" class="activo">Diseñadores</button>
       <button data-inicio-vista="biblioteca">Biblioteca</button>
       <button data-inicio-vista="maquinas">Máquinas</button>
+      <button data-inicio-vista="fresado">Fresado <span class="etq-beta">beta</span></button>
     </nav>
     <span id="inicioCarpeta" class="inicio-carpeta"></span>
     <button id="inicioVolver" class="primario" hidden>Volver al diseño</button>
@@ -504,6 +505,8 @@
         <button class="primario" id="exportar">Exportar STL (izquierdo y derecho)</button>
         <!-- EVA: G-code para la fresadora Sensor Medica VX1R (EdingCNC), 2026-11-17; el alto del bloque está en 3. EVA -->
         <button class="primario" id="exportarGcode" hidden title="Par en un bloque de 350 × 260 mm, cero en el centro y Z 0 en la base; fresa de bola de 10 mm">G-code para la fresadora (EVA)</button>
+        <!-- 2026-11-23 (Ernesto): módulo Fresado (beta): varias plantillas en un taco; el diseño se manda a la cola -->
+        <button id="enviarCola" hidden title="Manda este par a la cola de fresado (Inicio → Fresado), para fresarlo junto con otros en un mismo taco">Enviar a cola de fresado</button>
         <button id="hojaDiseno">Hoja del diseño (imprimir / PDF)</button>
         <button id="guardarReceta">Guardar receta</button>
         <button id="abrirReceta">Abrir receta…</button>
