@@ -478,6 +478,53 @@ for (const lado of ['izq', 'der']) {
       t.texto.startsWith('((taco))') && t.minutos > 5;
     prueba('Fresado: varias plantillas en un taco', ok, `${t.lineas} líneas, ≈${n1(t.minutos)} min teóricos; la bola entra ${pen.map(n2).join(' / ')} mm; X ${n1(X0)} a ${n1(X1)}, Y ${n1(Y0)} a ${n1(Y1)}; avisa juntas: ${junto ? 'sí' : 'no'}, afuera: ${afuera ? 'sí' : 'no'}, preformado bajo: ${bajo ? 'sí' : 'no'}${t.avisos.length ? '; avisos: ' + t.avisos.join(' ') : ''}`);
   }
+  // Impresora de cinta PodoTec3D (BETA, Ernesto 2026-11-23): mismo inicio y final que el perfil de ideaMaker; todo
+  // dentro de la máquina; la cinta solo avanza; E = ancho × espesor × largo ÷ área del filamento (× flujo); la punta
+  // sale primero, el lado interno del pie derecho en X menor (como la referencia) y el del izquierdo en X mayor; el
+  // alto sobre el plano (Y) llega a ≈ 2 × el alto de la plantilla (sen 30°).
+  {
+    const { gcodeCinta } = await import('../motor/cinta.js');
+    const pr = { largo: 240, antepie: 3, copa: 18, arco: 18, acabado, canto: 1.2 };
+    const gi2 = generar(horma, { ...pr, lado: 'izq' }), gd2 = generar(horma, { ...pr, lado: 'der' });
+    const r = gcodeCinta([{ g: gd2, nombre: 'der' }, { g: gi2, nombre: 'izq' }]), L = r.texto.split('\n');
+    const inicioOk = ['M221 T0 S70.00', 'M104 T0 S250.00', 'M109 T0 S250.00', 'G28 X Y ; Home X and Y axis', 'G1 Z5 E5 F100 ; Move belt and Extruder 20mm material', 'G92 Z0.000 E0.000 ; Reset Z and E axes to zero']
+      .every(s => L.includes(s)) && L.includes('M107 ; Fan Off') && L.includes('M84 ; Disable motors');
+    let x = 0, y = 0, z = 0, e = 0, zOk = true, X0 = 1e9, X1 = -1e9, Y0 = 1e9, Y1 = -1e9, esp = 0.45, ancho = 0.8, flujo = 1, peorE = 0, cap = null, pieza = '';
+    const capas = [];
+    for (const l of L) {
+      if (l.startsWith(';LAYER:')) { cap = { yMax: 0, xEnY: 0, pieza: '' }; capas.push(cap); }
+      if (l.startsWith(';HEIGHT-BELT:')) esp = +l.slice(13); if (l.startsWith(';WIDTH:')) ancho = +l.slice(7); if (l.startsWith(';FLOW:')) flujo = +l.slice(6) / 100;
+      if (l.startsWith(';PRINTING:')) pieza = l.slice(11);
+      const a = l.match(/X(-?[\d.]+)/), b = l.match(/Y(-?[\d.]+)/), c = l.match(/ Z(-?[\d.]+)/), d = l.match(/E(-?[\d.]+)/);
+      const nx = a ? +a[1] : x, ny = b ? +b[1] : y;
+      if (l.startsWith(';end of Start')) z = 0;   // el inicio avanza 5 mm y vuelve Z a 0 (G92)
+      if (c && /^G[01] /.test(l) && l.includes(';LAYER') === false && !l.includes('Move belt')) { if (+c[1] < z - 1e-6) zOk = false; z = +c[1]; }
+      if (/^G1 .*X.*E/.test(l)) {
+        const esperado = e + (ancho * esp * Math.hypot(nx - x, ny - y) * flujo) / (Math.PI * 0.875 ** 2);
+        peorE = Math.max(peorE, Math.abs(esperado - +d[1]));
+        X0 = Math.min(X0, nx); X1 = Math.max(X1, nx); Y0 = Math.min(Y0, ny); Y1 = Math.max(Y1, ny);
+        if (cap && ny > cap.yMax) { cap.yMax = ny; cap.xEnY = nx; cap.pieza = pieza; }
+      }
+      if (d) e = +d[1]; x = nx; y = ny;
+    }
+    // lado interno: en el arco (45–60 % de cada plantilla) el punto más alto
+    const lado = nombre => { const cs = capas.filter(k => k.pieza === nombre), n = cs.length; const m = cs.slice(Math.floor(n * 0.45), Math.floor(n * 0.6)); return m.reduce((s, k) => s + (k.xEnY < 105 ? 1 : 0), 0) / m.length; };
+    const hmax = Math.max(...gd2.z), ladoDer = lado('der'), ladoIzq = lado('izq');
+    // prueba chica: solo los primeros 40 mm de cinta, con el mismo inicio y final
+    const chica = gcodeCinta([{ g: gd2, nombre: 'der' }], { hastaMm: 40 }), zMaxChica = Math.max(...chica.texto.split('\n').filter(l => /^G0 F\d+ Z/.test(l)).map(l => +l.match(/Z([\d.]+)/)[1]));
+    const okChica = zMaxChica <= 40 + 4.2 && chica.numCapas > 20 && chica.numCapas < 50 && chica.texto.includes('M107 ; Fan Off');
+    // perfil de fábrica de Máquinas (2026-11-23) = mismo G-code que los valores del motor; peso como ideaMaker (60,8 g por 35,59 m)
+    const { CINTAS_FABRICA, opcionesCinta } = await import('../app/maquinas.js');
+    const sinCab = t => t.split('\n').filter(l => !/^;(Sliced by|Printer Type)/.test(l)).join('\n');
+    const conPerfil = gcodeCinta([{ g: gd2, nombre: 'der' }], { ...opcionesCinta(CINTAS_FABRICA[0]), hastaMm: 40 });
+    const okPerfil = sinCab(conPerfil.texto) === sinCab(chica.texto) && Math.abs(chica.gramos / (chica.filamento / 1000) - 60.8 / 35.59) < 0.01;
+    // paredes y relleno elegibles (2026-11-23): 3 paredes sin relleno → ningún FILL y capas con dos paredes interiores
+    const p3 = gcodeCinta([{ g: gd2, nombre: 'der' }], { hastaMm: 120, paredes: 3, flujoRelleno: 0 }).texto;
+    const dosInt = p3.split(';LAYER:').filter(c => (c.match(/;TYPE:WALL-INNER/g) || []).length >= 1 && (c.match(/^G0 F6000/gm) || []).length >= 3).length;
+    const okParedes = !p3.includes(';TYPE:FILL') && dosInt > 10;
+    const ok = okParedes && okPerfil && okChica && inicioOk && zOk && peorE < 0.002 && X0 > 5 && X1 < 205 && Y0 >= 0.3 && Y1 < 180 && Math.abs(Y1 - 2 * hmax) < 3 && ladoDer > 0.7 && ladoIzq < 0.3 && !r.avisos.length;
+    prueba('Impresora de cinta (beta)', ok, `${r.numCapas} capas, ≈${n1(r.segundos / 3600)} h, ${n1(r.filamento / 1000)} m de filamento (con flujo 70 %); X ${n1(X0)} a ${n1(X1)}, Y ${n2(Y0)} a ${n1(Y1)} (2 × alto ${n1(2 * hmax)}); E exacto (dif. máx. ${peorE.toFixed(4)}); la cinta solo avanza: ${zOk ? 'sí' : 'no'}; inicio y final del perfil: ${inicioOk ? 'sí' : 'no'}; arco del derecho en X baja en el ${Math.round(ladoDer * 100)} % de las capas, del izquierdo en el ${Math.round((1 - ladoIzq) * 100)} % en X alta; prueba chica: ${chica.numCapas} capas, ≈${Math.round(chica.segundos / 60)} min, cinta hasta ${n1(zMaxChica)} mm, ${n1(chica.gramos)} g; el perfil de Máquinas da el mismo G-code: ${okPerfil ? 'sí' : 'no'}`);
+  }
   prueba('Mesa de trabajo del G-code', okMesa, `la de fábrica da el mismo G-code: ${fab.texto === r.texto ? 'sí' : 'no'}; giro 18000: ${otra.texto.includes('S18000') ? 'sí' : 'no'}; dejar 0,5 mm arriba: +${n2(zMax(otra.texto) - zMax(r.texto))} mm; sin contorno: ${!otra.texto.includes('G01 Z15.00') ? 'sí' : 'no'}; corte 3 mm más afuera: ${n1(minX(r.texto) - minX(afuera.texto))} mm`);
 }
 

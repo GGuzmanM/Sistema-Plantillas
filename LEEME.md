@@ -671,3 +671,39 @@ pulido en azul #007AFF (antes naranja), elementos en índigo, contorno grafito; 
   del par siguen iguales). Nuevos `colocarPieza`, `revisarTaco` y `minutosGcode`, y una prueba con un par acostado y un
   pie atravesado.
 - **Falta probar en la VX1R:** pasar primero en el aire.
+
+**2026-11-23 — Impresora de cinta PodoTec3D: laminador propio (BETA).** `motor/cinta.js`, con el botón "G-code
+impresora de cinta beta" en 4. Exportar (productos de impresión 3D).
+- **Referencia:** copia el perfil de ideaMaker "PLANTAR3D- 08- OCT25" (G-code de referencia de Ernesto, PRUEBA ERNESTO PT2).
+  - RepRapFirmware, cabezal a 30°.
+  - X a lo ancho de la cinta; Y sobre el plano inclinado (Y = alto ÷ sen 30°); Z = avance de la cinta.
+  - Capas de 0,9 mm de cinta (0,45 mm de espesor); la primera, el doble.
+  - 250 °C y M221 S70.
+  - Inicio y final iguales al perfil.
+- **Pasada:** pared interior (F3000) y exterior (F1500; la primera capa a F600 y 0,88 mm), relleno concéntrico al 60 %
+  (F1800), retracción de 0,8 mm, limpieza de 1 mm a F3600 y ventilador del 30 al 60 % según lo que dura la capa.
+  E = ancho × espesor × largo ÷ área del filamento.
+- **Posición en la cinta:** el par va el derecho y después el izquierdo, la punta primero, centrados en X 105. El lado
+  interno del derecho queda en X menor, como en la referencia (es un giro de 180°, no un espejo).
+- **Cómo corta:** grilla de 0,15 mm sobre el plano inclinado de cada capa y transformada de distancia exacta. Las curvas
+  a 0,4 mm, 1,2 mm y luego cada 0,8 mm dan las paredes y el relleno.
+- **Diferencia con ideaMaker:** ideaMaker rellena el centro con una línea de ancho variable. Por eso puede variar un
+  poco el filamento: en la prueba, 20,6 m por plantilla de 240 mm contra unos 18 m de ideaMaker.
+- **Prueba nueva** "Impresora de cinta (beta)": inicio y final, todo dentro de la máquina, la cinta solo avanza, E exacto,
+  lado interno correcto en cada pie y alto ≈ 2 × el de la plantilla.
+- **Antes de imprimir:** revisar el archivo en la vista previa (de la impresora o de ideaMaker). La primera vez, una pieza
+  chica y mirando la máquina.
+- **Prueba chica en la cinta (40 mm) beta:** botón junto al anterior. Genera solo los primeros 40 mm de cinta, que son la
+  punta del pie derecho: unas 41 capas, unos 7 minutos y 1 m de filamento. Sirve para la primera impresión con el
+  laminador propio. En el motor es la opción `hastaMm`.
+- **Perfil editable (2026-11-23):** Inicio → Máquinas → "Impresoras de cinta (beta)". La de fábrica, PodoTec3D Model 1,
+  viene cargada con los perfiles de ideaMaker de Ernesto:
+  - 1.printer (la máquina) y 2.filament (el TPU), con flujo 70 % confirmado por Ernesto.
+  - 3.bin está cifrado; sus valores salen del G-code de referencia.
+  - En 3. Imprimir se elige cuál usar ("Impresora de cinta beta").
+  - Al generar el G-code se muestra el peso en gramos (densidad 710 kg/m³, como ideaMaker).
+- **Paredes y relleno elegibles (2026-11-23):** en el perfil de la impresora de cinta se eligen la cantidad de paredes
+  (1 a 6; ideaMaker usa 2), el relleno (0 a 100 %; 0 es solo paredes) y la separación de sus líneas.
+- **Arreglo:** en las partes muy angostas de una capa faltaba la pared exterior. Ahora va siempre.
+- **Vista previa de ideaMaker:** la cabecera lleva Belt Base Y y Offset Z en 0, para que la pieza se dibuje al inicio de
+  la cinta. Falta confirmarlo con Ernesto.

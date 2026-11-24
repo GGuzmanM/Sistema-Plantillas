@@ -6,7 +6,7 @@ import { escalaPNG, analizarMuestra, contornoParaReceta, contornoProlijo } from 
 import { imagenDePDF } from '../motor/pdf.js';
 import { crearInicio } from './inicio.js';
 import { gcodeEVA } from '../motor/fresado.js';
-import { listaMaquinas, opcionesGcode } from './maquinas.js';
+import { listaMaquinas, opcionesGcode, opcionesCinta } from './maquinas.js';
 
 const $ = id => document.getElementById(id);
 // texto seguro dentro de HTML (auditoría 2026-11-18: nombres de archivos, de elementos y recetas que vienen de otras PC)
@@ -873,7 +873,7 @@ function diseno() {
     // mm de más en la punta para pulir (0 = sin margen); el largo de arriba no los incluye
     margenPulido: margenPunta(), margenLados: margenLados(), margenTalon: margenTalon(),
     // máquina elegida (Inicio → Máquinas, 2026-11-19)
-    mesa: $('mesaElegida').value, materialEva: $('materialEva').value, impresora: $('impresoraElegida').value,
+    mesa: $('mesaElegida').value, materialEva: $('materialEva').value, impresora: $('impresoraElegida').value, cinta: $('cintaElegida').value,
     // material de impresión y el material del diseño (el que se ve en Inicio): el último elegido, o el del tipo de
     // producto si nunca se eligió (2026-11-22)
     materialResina: $('materialResina').value, material: materialDiseno || (esEVA() ? $('materialEva').value : $('materialResina').value),
@@ -1114,7 +1114,7 @@ function malla(g, ox, al) {
   if (!modoMapa && !unCuerpo && g.distZonas?.length) {
     g.distZonas.forEach((dz, k) => {
       const zn = g.p.zonas?.[k]; if (!zn) return;
-      const color = zn.i === zonaElegida ? COLOR_ELEGIDO : zn.tipo === 'relleno' ? COLOR_RELLENO : COLOR_DESCARGA;
+      const color = zn.i === zonaElegida && enLamina() ? COLOR_ELEGIDO : zn.tipo === 'relleno' ? COLOR_RELLENO : COLOR_DESCARGA;
       const pone = (v, q) => { col2.set(color, 3 * v); marca[v] = Math.min(Math.max(0.5 + dz[q] * 0.5, 0), 1); };
       for (let q = 0; q < n; q++) if (dz[q] > -3 && (dz[q] > 0 || marca[q] < 0.5)) pone(q, q);
       for (let i = 0; i < ns; i++) if (dz[i * nr] > -3) { pone(base + i, i * nr); pone(base + ns + i, i * nr); }
@@ -1253,7 +1253,7 @@ function actualizar() {
   catch (err) { estado.textContent = 'No se pudo generar'; estado.title = err.message; mensaje('No se pudo generar la plantilla: ' + err.message, false); return; }
   if ($('anchoAuto').checked) $('ancho').value = (r.h.ancho * d.largo / r.h.largo).toFixed(1);
   // G-code de la fresadora solo para EVA (sin acabado de resina: base plana)
-  { const eva = !producto().acabado; $('exportarGcode').hidden = !eva; $('enviarCola').hidden = !eva; pintarModuloProduccion(); }
+  { const eva = !producto().acabado; $('exportarGcode').hidden = !eva; $('enviarCola').hidden = !eva; $('exportarCinta').hidden = eva; $('exportarCintaPrueba').hidden = eva; pintarModuloProduccion(); }
   // arco pedido más bajo de lo que da la horma sin su capa de arco (2026-11-19): se avisa al lado del alto de arco
   { const min = r.izq.p.arcoMin, av = $('avisoArcoSube'), sube = min != null && d.arco != null && min > d.arco + 0.05;
     av.hidden = !sube; if (sube) av.textContent = `Con esta horma y copa ${String(d.copa).replace('.', ',')} el arco no baja de ${f1(min)} mm: queda sin subida propia del arco.`; }
@@ -3037,7 +3037,8 @@ function agarrarZona(px, py) {
 }
 // el contorno: a medio dibujar (rojo, con sus puntos y el tramo hasta el ratón) y el de la zona elegida (verde)
 function dibujarZonas2D() {
-  if (!dibujoZona && zonaElegida < 0) return;
+  // el contorno de la zona y sus puntos solo en 1. Base y 2. Diseño (Ernesto, 2026-11-23: en EVA, Imprimir y Exportar no)
+  if ((!dibujoZona && zonaElegida < 0) || !enLamina()) return;
   const dpr = window.devicePixelRatio || 1, c = capa.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0);
   const traza = (pie, P, cerrada, color, guiones) => {
     const S = P.map(q => proyectarPie(pie, q)); if (S.some(s => !s) || !S.length) return S;
@@ -3334,7 +3335,7 @@ const mesaElegida = () => maquinas.mesas.find(m => m.id === $('mesaElegida').val
 const impresoraElegida = () => maquinas.impresoras.find(m => m.id === $('impresoraElegida').value) ?? maquinas.impresoras[0];
 const materialElegido = () => maquinas.materiales.find(m => m.id === $('materialEva').value) ?? maquinas.materiales[0];
 function pintarMaquinasDiseno() {
-  for (const [id, lista] of [['mesaElegida', maquinas.mesas], ['materialEva', maquinas.materiales], ['impresoraElegida', maquinas.impresoras], ['materialResina', maquinas.resinas]]) {
+  for (const [id, lista] of [['mesaElegida', maquinas.mesas], ['materialEva', maquinas.materiales], ['impresoraElegida', maquinas.impresoras], ['materialResina', maquinas.resinas], ['cintaElegida', maquinas.cintas]]) {
     const sel = $(id), antes = sel.dataset.pedida || sel.value;
     sel.innerHTML = lista.map(m => `<option value="${esc(m.id)}">${esc(m.nombre)}</option>`).join('');
     sel.value = lista.some(m => m.id === antes) ? antes : lista[0].id;
@@ -3343,7 +3344,10 @@ function pintarMaquinasDiseno() {
   $('notaMesa').textContent = `Bloque ${m.largo} × ${m.ancho} mm · fresa de punta redonda ${n(m.diametro)} mm a ${m.husillo.toLocaleString('es')} rpm · filas cada ${n(m.pasoY)} mm. Cero en el centro del bloque y Z 0 sobre la mesa. Se cambia en Inicio → Máquinas; el G-code se genera en 4. Exportar.`;
   { const t = materialElegido(); $('notaMaterial').textContent = `Shore ${t.shore}: entra y corta el borde a F${t.cortar}, el relieve a F${t.relieve} mm/min${t.notas ? ' · ' + t.notas : ''}. Se cambia en Inicio → Máquinas → Materiales EVA.`; }
   $('notaImpresora').textContent = `Área ${p.x} × ${p.y} × ${p.z} mm${p.notas ? ' · ' + p.notas : ''}. Se cambia en Inicio → Máquinas.`;
+  { const c = cintaElegida(); $('notaCinta').textContent = `BETA · cabezal a ${c.angulo}°, ${c.temp} °C, flujo ${c.flujo} %, capas de ${n((c.paso * Math.sin(c.angulo * Math.PI / 180)).toFixed(2))} mm, ${c.paredes} paredes, relleno ${c.relleno} %. El G-code se genera en 4. Exportar; el perfil se cambia en Inicio → Máquinas → Impresoras de cinta.`; }
 }
+const cintaElegida = () => maquinas.cintas.find(m => m.id === $('cintaElegida').value) ?? maquinas.cintas[0];
+$('cintaElegida').addEventListener('change', () => { delete $('cintaElegida').dataset.pedida; pintarMaquinasDiseno(); pedir(); });
 function aplicarMaquinas(datos) { maquinas = listaMaquinas(datos); pintarMaquinasDiseno(); pedir(); }
 $('mesaElegida').addEventListener('change', () => {
   delete $('mesaElegida').dataset.pedida;
@@ -3373,6 +3377,33 @@ $('exportarGcode').addEventListener('click', async () => {
     mensaje(`Guardado en ${destino ? `la carpeta "${destino.name}" (y copia en ${dondeSeGuarda()})` : dondeSeGuarda()}: "${nombre}" (${r.lineas.toLocaleString('es')} líneas, alto máximo ${r.alturaMax.toFixed(1).replace('.', ',')} mm). Antes de fresar: revíselo en la vista de EdingCNC y páselo primero en el aire.`);
   } catch (e) { mensaje('No se generó el G-code: ' + e.message, false); }
 });
+
+// ---- G-code para la impresora de cinta PodoTec3D (BETA, Ernesto 2026-11-23) ----
+// Laminador propio (motor/cinta.js) con el perfil de ideaMaker que usa la máquina: el par en la cinta, el derecho y
+// después el izquierdo, la punta primero. Se guarda en la carpeta del proyecto (y en la elegida, si está marcado).
+// Prueba chica (2026-11-23, Ernesto): solo los primeros 40 mm de cinta = la punta del pie derecho, para la primera
+// impresión con el laminador propio (unos minutos), antes de una plantilla entera.
+async function exportarCinta(prueba) {
+  if (!actual || hayFueraDeRango()) return;
+  try {
+    const destino = await pedirCarpetaDestino();
+    if (destino === false) { mensaje('No se generó el G-code de la cinta: no se eligió la carpeta.', false); return; }
+    const base = nombreBase(actual.d), nombre = prueba ? `${base} cinta PRUEBA 40mm BETA.gcode` : `${base} cinta BETA.gcode`;
+    mensaje('Laminando para la impresora de cinta (beta)… puede tardar unos segundos.');
+    await new Promise(r => setTimeout(r, 30));
+    const { gcodeCinta } = await import('../motor/cinta.js');
+    const perfil = opcionesCinta(cintaElegida());
+    const r = prueba ? gcodeCinta([{ g: actual.der, nombre: base + ' derecho (prueba 40 mm)' }], { ...perfil, hastaMm: 40 })
+      : gcodeCinta([{ g: actual.der, nombre: base + ' derecho' }, { g: actual.izq, nombre: base + ' izquierdo' }], perfil);
+    if (r.avisos.length) { mensaje('No se generó el G-code de la cinta: ' + r.avisos.join(' '), false); return; }
+    await guardar(nombre, r.texto);
+    if (destino) await escribirEnCarpeta(destino, nombre, r.texto);
+    const h = Math.floor(r.segundos / 3600), min = Math.round((r.segundos % 3600) / 60);
+    mensaje(`BETA — guardado "${nombre}" en ${destino ? `la carpeta "${destino.name}" (y copia en ${dondeSeGuarda()})` : dondeSeGuarda()}: ${r.numCapas} capas, ≈ ${h} h ${min} min, ${(r.filamento / 1000).toFixed(1).replace('.', ',')} m de filamento (≈ ${Math.round(r.gramos)} g) con "${cintaElegida().nombre}". Antes de imprimir: revíselo (vista previa de la impresora o de ideaMaker) y la primera vez imprima una pieza chica, mirando la máquina.`);
+  } catch (e) { mensaje('No se generó el G-code de la cinta: ' + e.message, false); }
+}
+$('exportarCinta').addEventListener('click', () => exportarCinta(false));
+$('exportarCintaPrueba').addEventListener('click', () => exportarCinta(true));
 
 // ---- Enviar a la cola de fresado (módulo Fresado, beta; Ernesto 2026-11-23) ----
 // Se guarda la forma de las dos plantillas tal como están (la misma que usaría el G-code del par), el paciente, la talla
@@ -3537,7 +3568,7 @@ function limpiarReceta(r) {
   c.margenLados = numFin(c.margenLados) ? Math.min(Math.max(+c.margenLados, 0), 10) : 0;
   c.margenTalon = numFin(c.margenTalon) ? Math.min(Math.max(+c.margenTalon, 0), 10) : 0;
   // máquina elegida (2026-11-19): un id de Inicio → Máquinas; si ya no existe, se usa la primera
-  for (const k of ['mesa', 'materialEva', 'impresora', 'materialResina', 'material']) if (typeof c[k] !== 'string' || c[k].length > 80) delete c[k];
+  for (const k of ['mesa', 'materialEva', 'impresora', 'cinta', 'materialResina', 'material']) if (typeof c[k] !== 'string' || c[k].length > 80) delete c[k];
   // ancho de la receta (QA-02): fuera de lo posible se rechaza la receta, no se genera una plantilla gigante
   if (c.ancho != null && !(c.ancho >= 40 && c.ancho <= 160)) throw new Error(`ancho fuera de rango en la receta (${c.ancho} mm; de 40 a 160)`);
   return c;
@@ -3575,7 +3606,7 @@ function aplicarRecetaSinRed(r) {
     $('margenActivo').checked = con; $('margenMm').value = con ? r.margenPulido : 5;
     $('margenLados').value = con ? r.margenLados : 3; $('margenTalon').value = con ? r.margenTalon : 0; pintarMargen(); }
   // mesa de trabajo e impresora del diseño (si la lista aún no llegó de la carpeta compartida, se elige al llegar)
-  for (const [id, v] of [['mesaElegida', r.mesa], ['materialEva', r.materialEva], ['impresoraElegida', r.impresora], ['materialResina', r.materialResina]]) { if (v) $(id).dataset.pedida = v; else delete $(id).dataset.pedida; }
+  for (const [id, v] of [['mesaElegida', r.mesa], ['materialEva', r.materialEva], ['impresoraElegida', r.impresora], ['cintaElegida', r.cinta], ['materialResina', r.materialResina]]) { if (v) $(id).dataset.pedida = v; else delete $(id).dataset.pedida; }
   materialDiseno = r.material || '';
   try { pintarMaquinasDiseno(); } catch (err) { if (!(err instanceof ReferenceError)) throw err; /* al cargar, antes de la lista */ }
   pintarNotaLargo();

@@ -494,6 +494,9 @@
       <!-- material de impresión (Ernesto, 2026-11-22): Class TPU, Glam TPU, 3D -->
       <div class="fila"><label for="materialResina">Material</label><select id="materialResina"></select></div>
       <p class="nota-modulo">Plantilla maciza con la base curva y canto fino, para imprimir en resina. El STL se genera en 4. Exportar.</p>
+      <!-- 2026-11-23 (Ernesto): impresora de cinta sin fin, perfil del laminador propio (BETA) -->
+      <div class="fila"><label for="cintaElegida">Impresora de cinta <span class="etq-beta">beta</span></label><select id="cintaElegida"></select></div>
+      <p class="nota-modulo" id="notaCinta"></p>
     </section>
     <section data-en="base diseno produccion exportar">
       <h2>Revisión</h2>
@@ -506,6 +509,9 @@
         <!-- EVA: G-code para la fresadora Sensor Medica VX1R (EdingCNC), 2026-11-17; el alto del bloque está en 3. EVA -->
         <button class="primario" id="exportarGcode" hidden title="Par en un bloque de 350 × 260 mm, cero en el centro y Z 0 en la base; fresa de bola de 10 mm">G-code para la fresadora (EVA)</button>
         <!-- 2026-11-23 (Ernesto): módulo Fresado (beta): varias plantillas en un taco; el diseño se manda a la cola -->
+        <!-- 2026-11-23 (Ernesto): impresora de cinta PodoTec3D, laminador propio en BETA -->
+        <button id="exportarCinta" hidden title="G-code para la impresora de cinta PodoTec3D (perfil PLANTAR3D 08-OCT25): el par, una plantilla detrás de la otra. BETA: revisarlo antes de imprimir.">G-code impresora de cinta <span class="etq-beta">beta</span></button>
+        <button id="exportarCintaPrueba" hidden title="Pieza chica para la primera prueba en la impresora de cinta: solo los primeros 40 mm de la punta del pie derecho (unos minutos de impresión).">Prueba chica en la cinta (40 mm) <span class="etq-beta">beta</span></button>
         <button id="enviarCola" hidden title="Manda este par a la cola de fresado (Inicio → Fresado), para fresarlo junto con otros en un mismo taco">Enviar a cola de fresado</button>
         <button id="hojaDiseno">Hoja del diseño (imprimir / PDF)</button>
         <button id="guardarReceta">Guardar receta</button>

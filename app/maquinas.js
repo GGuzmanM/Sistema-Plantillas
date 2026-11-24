@@ -20,9 +20,8 @@ export const CAMPOS_MESA = [
   { g: 'Velocidades de avance' },
   { k: 'trasladar', etq: 'Trasladar (en el aire)', u: 'mm/min', min: 100, max: 30000, paso: 100, def: 14400 },
   { k: 'bajar', etq: 'Bajar (entrar al EVA)', u: 'mm/min', min: 50, max: 10000, paso: 50, def: 900 },
-  { k: 'cortar', etq: 'Cortar (entrada y contorno)', u: 'mm/min', min: 100, max: 20000, paso: 100, def: 1800, ayuda: 'Al entrar en el EVA (primeras filas de cada plantilla) y al cortar el borde.' },
-  { k: 'relieve', etq: 'Fresar el relieve', u: 'mm/min', min: 100, max: 30000, paso: 100, def: 6000, ayuda: 'El resto de la superficie (cada fila solo roza 0,5 mm). 6000 ≈ 14 min el par; LutraCAD usa 14400. Si no se elige material.' },
-  { k: 'entradaLenta', etq: 'Ancho que entra despacio', u: 'mm', min: 0, max: 50, paso: 0.5, def: 3.5, ayuda: 'Primeros mm de cada plantilla a la velocidad de cortar, mientras la fresa entra en el bloque.' },
+  // cortar y relieve (2026-11-23, Ernesto): ya no están en la mesa; dependen de la dureza y están en Materiales EVA
+  { k: 'entradaLenta', etq: 'Ancho que entra despacio', u: 'mm', min: 0, max: 50, paso: 0.5, def: 3.5, ayuda: 'Primeros mm de cada plantilla a la velocidad de cortar del material, mientras la fresa entra en el bloque.' },
   { g: 'Relieve (pasadas)' },
   { k: 'pasoY', etq: 'Paso entre filas (a lo ancho)', u: 'mm', min: 0.1, max: 5, paso: 0.1, def: 0.5, ayuda: 'Más chico = más liso y más lento.' },
   { k: 'pasoX', etq: 'Paso entre puntos (a lo largo)', u: 'mm', min: 0.2, max: 10, paso: 0.1, def: 2 },
@@ -66,6 +65,51 @@ export const CAMPOS_RESINA = [
   { g: 'Notas' },
   { k: 'notas', etq: 'Color, proveedor, perfil de impresión…', t: 'texto', def: '' },
 ];
+// impresoras de cinta sin fin (BETA, Ernesto 2026-11-23): el perfil con que el programa lamina (motor/cinta.js). De
+// fábrica, la PodoTec3D Model 1 con los perfiles de ideaMaker de Ernesto: máquina "PLANTAR3D- 08- OCT25" (1.printer),
+// filamento PLANTAR3D TPU F 95A (2.filament; flujo 70 %, confirmado por Ernesto) y lo que hace el perfil de laminado
+// (3.bin está cifrado: los valores salen del G-code de referencia "PRUEBA ERNESTO PT2").
+export const CAMPOS_CINTA = [
+  { g: 'Máquina' },
+  { k: 'angulo', etq: 'Ángulo del cabezal', u: '°', min: 15, max: 60, paso: 1, def: 30 },
+  { k: 'ancho', etq: 'Ancho de impresión (X)', u: 'mm', min: 50, max: 1000, paso: 1, def: 210 },
+  { k: 'alto', etq: 'Alto de impresión', u: 'mm', min: 20, max: 1000, paso: 1, def: 180 },
+  { k: 'centroX', etq: 'Centro de las plantillas (X)', u: 'mm', min: 20, max: 500, paso: 0.5, def: 105 },
+  { k: 'separacion', etq: 'Separación entre plantillas', u: 'mm', min: 0, max: 100, paso: 1, def: 10, ayuda: 'En la cinta, del talón de una a la punta de la siguiente.' },
+  { g: 'Filamento' },
+  { k: 'temp', etq: 'Temperatura de la boquilla', u: '°C', min: 150, max: 310, paso: 1, def: 250 },
+  { k: 'flujo', etq: 'Flujo (M221)', u: '%', min: 30, max: 150, paso: 1, def: 70 },
+  { k: 'filamento', etq: 'Diámetro del filamento', u: 'mm', min: 1, max: 3, paso: 0.05, def: 1.75 },
+  { k: 'densidad', etq: 'Densidad', u: 'kg/m³', min: 100, max: 3000, paso: 1, def: 710, ayuda: 'Para el peso en gramos (TPU espumado PLANTAR3D: 710).' },
+  { g: 'Capas y líneas' },
+  { k: 'paso', etq: 'Avance de cinta por capa', u: 'mm', min: 0.2, max: 2, paso: 0.05, def: 0.9, ayuda: 'Espesor de capa = avance × sen(ángulo): 0,9 mm → 0,45 mm. La primera capa avanza el doble.' },
+  { k: 'linea', etq: 'Ancho de línea', u: 'mm', min: 0.3, max: 1.5, paso: 0.01, def: 0.8 },
+  { k: 'primera', etq: 'Ancho en la primera capa', u: 'mm', min: 0.3, max: 2, paso: 0.01, def: 0.88 },
+  { k: 'paredes', etq: 'Cantidad de paredes', u: '', min: 1, max: 6, paso: 1, def: 2, ayuda: 'Líneas alrededor de cada capa (la exterior y las de adentro). El perfil de ideaMaker usa 2.' },
+  { k: 'relleno', etq: 'Relleno (densidad)', u: '%', min: 0, max: 100, paso: 1, def: 60, ayuda: 'Cuánto material lleva el relleno: 0 = sin relleno (solo paredes), 100 = macizo. El perfil de ideaMaker usa 60.' },
+  { k: 'pasoRelleno', etq: 'Separación de las líneas del relleno', u: 'mm', min: 0.3, max: 5, paso: 0.05, def: 0.8, ayuda: 'Más separación = relleno más abierto y más rápido.' },
+  { g: 'Velocidades' },
+  { k: 'vPrimera', etq: 'Primera capa', u: 'mm/min', min: 60, max: 9000, paso: 10, def: 600 },
+  { k: 'vExterior', etq: 'Pared exterior', u: 'mm/min', min: 60, max: 9000, paso: 10, def: 1500 },
+  { k: 'vInterior', etq: 'Pared interior', u: 'mm/min', min: 60, max: 9000, paso: 10, def: 3000 },
+  { k: 'vRelleno', etq: 'Relleno', u: 'mm/min', min: 60, max: 9000, paso: 10, def: 1800 },
+  { k: 'vViaje', etq: 'Viaje (sin imprimir)', u: 'mm/min', min: 300, max: 9000, paso: 10, def: 6000 },
+  { k: 'vZ', etq: 'Avance de cinta', u: 'mm/min', min: 60, max: 3000, paso: 10, def: 1200 },
+  { g: 'Retracción' },
+  { k: 'retraccion', etq: 'Retracción', u: 'mm', min: 0, max: 5, paso: 0.05, def: 0.8 },
+  { k: 'vRetraer', etq: 'Velocidad al retraer', u: 'mm/min', min: 60, max: 6000, paso: 10, def: 1800 },
+  { k: 'vVolver', etq: 'Velocidad al volver', u: 'mm/min', min: 60, max: 6000, paso: 10, def: 1500 },
+  { k: 'limpieza', etq: 'Limpieza al cerrar la pared', u: 'mm', min: 0, max: 5, paso: 0.1, def: 1 },
+  { g: 'Notas' },
+  { k: 'notas', etq: 'Perfil de ideaMaker, observaciones…', t: 'texto', def: '' },
+];
+// perfil de una impresora de cinta → opciones de gcodeCinta (motor/cinta.js)
+export function opcionesCinta(c) {
+  return { nombre: c.nombre, angulo: c.angulo, ancho: c.ancho, alto: c.alto, centroX: c.centroX, separacion: c.separacion, temp: c.temp, flujo: c.flujo,
+    filamento: c.filamento, densidad: c.densidad, paso: c.paso, linea: c.linea, primera: c.primera, paredes: c.paredes, flujoRelleno: c.relleno / 100, pasoRelleno: c.pasoRelleno,
+    retraccion: c.retraccion, limpieza: c.limpieza,
+    F: { primera: c.vPrimera, exterior: c.vExterior, interior: c.vInterior, relleno: c.vRelleno, viaje: c.vViaje, z: c.vZ, retraer: c.vRetraer, volver: c.vVolver } };
+}
 const porDefecto = campos => Object.fromEntries(campos.filter(c => c.k).map(c => [c.k, c.def]));
 // las de fábrica: siempre están; si se editan, la versión editada (mismo id) va en maquinas.json
 export const MESAS_FABRICA = [{ id: 'vx1r', nombre: 'Sensor Medica VX1R (EdingCNC)', fabrica: true, ...porDefecto(CAMPOS_MESA) }];
@@ -78,6 +122,8 @@ export const MATERIALES_FABRICA = [
   { id: 'protection', nombre: 'Protection S40', fabrica: true, ...porDefecto(CAMPOS_MATERIAL), shore: 40, relieve: 6000 },
   { id: 'dynamic', nombre: 'Dynamic S50', fabrica: true, ...porDefecto(CAMPOS_MATERIAL), shore: 50, relieve: 5400 },
 ];
+export const CINTAS_FABRICA = [{ id: 'podotec3d', nombre: 'PodoTec3D Model 1 (PLANTAR3D 08-OCT25)', fabrica: true, ...porDefecto(CAMPOS_CINTA),
+  notas: 'Boquilla 0,8 mm. Filamento PLANTAR3D TPU F 95A 1,75 mm. Perfiles de ideaMaker: 1.printer, 2.filament, 3.bin.' }];
 export const RESINAS_FABRICA = [
   { id: 'class_tpu', nombre: 'Class TPU', fabrica: true, ...porDefecto(CAMPOS_RESINA) },
   { id: 'glam_tpu', nombre: 'Glam TPU', fabrica: true, ...porDefecto(CAMPOS_RESINA) },
@@ -87,7 +133,7 @@ export const RESINAS_FABRICA = [
 // lista completa: las de fábrica (o su versión editada) y las propias
 export function listaMaquinas(datos) {
   const une = (fab, propias = []) => [...fab.map(f => ({ ...f, ...(propias.find(p => p.id === f.id) ?? {}), fabrica: true })), ...propias.filter(p => !fab.some(f => f.id === p.id))];
-  return { mesas: une(MESAS_FABRICA, datos?.mesas), impresoras: une(IMPRESORAS_FABRICA, datos?.impresoras), materiales: une(MATERIALES_FABRICA, datos?.materiales), resinas: une(RESINAS_FABRICA, datos?.resinas) };
+  return { mesas: une(MESAS_FABRICA, datos?.mesas), impresoras: une(IMPRESORAS_FABRICA, datos?.impresoras), materiales: une(MATERIALES_FABRICA, datos?.materiales), resinas: une(RESINAS_FABRICA, datos?.resinas), cintas: une(CINTAS_FABRICA, datos?.cintas) };
 }
 // valores con los límites de cada campo (lo que llegue de un archivo editado a mano no rompe el G-code)
 export function limpiarMaquina(m, campos) {
@@ -99,11 +145,11 @@ export function limpiarMaquina(m, campos) {
   }
   return r;
 }
-// opciones de gcodeEVA (motor/fresado.js) a partir de una mesa y, si se eligió, el material EVA (sus velocidades de
-// cortar y del relieve reemplazan a las de la mesa)
+// opciones de gcodeEVA (motor/fresado.js) a partir de una mesa y el material EVA: la mesa da la máquina y la fresa;
+// el material, las velocidades de cortar y del relieve (sin material: 1800 y 6000, los de fábrica)
 export function opcionesGcode(mesa, alto, material = null) {
   return { radio: mesa.diametro / 2, bloque: { largo: mesa.largo, ancho: mesa.ancho, alto }, husillo: mesa.husillo,
-           velocidades: { trasladar: mesa.trasladar, bajar: mesa.bajar, cortar: material?.cortar ?? mesa.cortar, relieve: material?.relieve ?? mesa.relieve ?? 6000 }, entradaLenta: mesa.entradaLenta ?? 3.5, pasoY: mesa.pasoY, pasoX: mesa.pasoX,
+           velocidades: { trasladar: mesa.trasladar, bajar: mesa.bajar, cortar: material?.cortar ?? 1800, relieve: material?.relieve ?? 6000 }, entradaLenta: mesa.entradaLenta ?? 3.5, pasoY: mesa.pasoY, pasoX: mesa.pasoX,
            // auditoría 2026-11-19: si en el archivo la 2.ª vuelta quedó más alta que la 1.ª, se cortaba primero lo más hondo
            separacion: mesa.separacion, zSeguro: mesa.zSeguro, zContorno: mesa.contorno === false ? [] : [mesa.zContorno1, mesa.zContorno2].sort((a, b) => b - a),
            sobreespesor: mesa.sobreespesor, margenContorno: mesa.margenContorno };
@@ -122,6 +168,8 @@ const TIPOS = {
              resumen: x => `${String(x.densidad).replace('.', ',')} g/cm³` },
   impresoras: { titulo: 'Impresoras 3D', campos: CAMPOS_IMPRESORA, fabrica: IMPRESORAS_FABRICA, nueva: 'Nueva impresora', nombre: 'Impresora nueva',
                 resumen: x => `${x.x} × ${x.y} × ${x.z} mm` },
+  cintas: { titulo: 'Impresoras de cinta (beta)', campos: CAMPOS_CINTA, fabrica: CINTAS_FABRICA, nueva: 'Nueva impresora de cinta', nombre: 'Impresora de cinta nueva',
+            resumen: x => `${x.angulo}° · ${x.temp} °C · ${x.paredes} paredes · relleno ${x.relleno} %` },
 };
 
 // ---- Pantalla Inicio → Máquinas ----
@@ -160,7 +208,7 @@ export function pintarMaquinas(cuerpo, ctx) {
       </div>`;
     cuerpo.querySelectorAll('[data-maq-tipo]').forEach(b => b.onclick = () => { tipo = b.dataset.maqTipo; elegida = null; pintar(); });
     cuerpo.querySelectorAll('[data-maq]').forEach(b => b.onclick = () => { elegida = b.dataset.maq; pintar(); });
-    const datos = () => { const d = ctx.datos() ?? {}; return { mesas: [...(d.mesas ?? [])], materiales: [...(d.materiales ?? [])], resinas: [...(d.resinas ?? [])], impresoras: [...(d.impresoras ?? [])] }; };
+    const datos = () => { const d = ctx.datos() ?? {}; return { mesas: [...(d.mesas ?? [])], materiales: [...(d.materiales ?? [])], resinas: [...(d.resinas ?? [])], impresoras: [...(d.impresoras ?? [])], cintas: [...(d.cintas ?? [])] }; };
     const poner = async (nueva, aviso) => {
       const d = datos(); d[tipo] = [...d[tipo].filter(x => x.id !== nueva.id), limpiarMaquina(nueva, campos())];
       await ctx.guardar(d); elegida = nueva.id; pintar(); const msg = cuerpo.querySelector('#maqMsg'); if (msg) msg.textContent = aviso;

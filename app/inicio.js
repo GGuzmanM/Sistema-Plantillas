@@ -88,7 +88,7 @@ export function crearInicio({ aplicarReceta, recetaNueva, mensaje, alAbrir, bibl
     biblioteca?.aplicar(datosBib);
     datosHormas = (await leerJSON(dir, 'hormas.json')) ?? { hormas: [] };
     biblioteca?.aplicarHormas?.(datosHormas);
-    datosMaquinas = (await leerJSON(dir, 'maquinas.json')) ?? { mesas: [], materiales: [], resinas: [], impresoras: [] };
+    datosMaquinas = (await leerJSON(dir, 'maquinas.json')) ?? { mesas: [], materiales: [], resinas: [], impresoras: [], cintas: [] };
     biblioteca?.aplicarMaquinas?.(datosMaquinas);
   }
   // Máquinas (2026-11-19): mesas de trabajo de la fresadora e impresoras 3D, en Biblioteca/maquinas.json
