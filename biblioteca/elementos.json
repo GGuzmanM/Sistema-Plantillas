@@ -34,8 +34,8 @@
     },
     {
       "id": "arco_lateral", "categoria": "Arcos", "nombre": "Arco lateral", "altura": 3, "suavizado": 5,
-      "largo": { "tipo": "arco", "desde": 0.24, "hasta": 0.62, "pico": 0.5, "punta": 0.7, "subida": 2 },
-      "ancho": { "tipo": "cuna", "lado": "externo", "hasta": 0.37, "perfil": "degradado", "finSuave": 0.3 }
+      "largo": { "tipo": "arco", "desde": 0.25, "hasta": 0.6, "pico": 0.5, "punta": 0.7, "subida": 2 },
+      "ancho": { "tipo": "cuna", "lado": "externo", "hasta": 0.31, "perfil": "degradado", "finSuave": 0.3 }
     },
     {
       "id": "oliva", "categoria": "Barras y olivas", "nombre": "Oliva (pad metatarsal)", "altura": 4, "suavizado": 2.5,
