@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maqueta · Módulo Impresión (beta)</title>
+<!-- Maqueta 2 (Ernesto eligió la propuesta B, 2026-11-24). Plantillas reales del programa (hormas de la biblioteca,
+     no de pacientes) laminadas con el laminador de verdad (motor/cinta.js); cada línea se ve como un hilo de 0,8 mm.
+     Los pacientes de la cola son de muestra. -->
+<style>
+  :root { --borde:#dfe2e7; --texto:#1f2630; --suave:#667085; --acento:#1d5fbf; --acento2:#e8f0fb; --panel:330px; --cola:86px; }
+  * { box-sizing:border-box; }
+  [hidden] { display:none !important; }
+  html, body { height:100%; }
+  body { margin:0; font:14px/1.4 system-ui, "Segoe UI", sans-serif; color:var(--texto); background:#f3f4f6; display:flex; flex-direction:column; }
+  header { display:flex; align-items:center; gap:14px; padding:9px 16px; background:#fff; border-bottom:1px solid var(--borde); flex-wrap:wrap; }
+  header h1 { font-size:17px; margin:0; }
+  .beta { font-size:11px; font-weight:700; color:#9a5b00; background:#fff1d6; border:1px solid #f1c46b; border-radius:10px; padding:1px 7px; margin-left:6px; vertical-align:middle; }
+  .nota { color:var(--suave); font-size:12.5px; }
+  .btn { border:1px solid var(--borde); background:#fff; border-radius:8px; padding:7px 10px; cursor:pointer; font:inherit; }
+  .btn.prim { background:var(--acento); border-color:var(--acento); color:#fff; font-weight:600; }
+  .chip { border:1px solid var(--borde); border-radius:14px; padding:3px 10px; background:#fff; cursor:pointer; font-size:12.5px; white-space:nowrap; }
+  .chip.si { background:var(--acento2); border-color:var(--acento); color:var(--acento); font-weight:600; }
+  .mat { font-size:11px; font-weight:700; border-radius:6px; padding:1px 6px; }
+  .mat-3D { background:#e6f2ec; color:#1e7a4c; } .mat-Glam { background:#f6e8f3; color:#9a3a85; } .mat-Class { background:#e8eef9; color:#2b55a0; }
+
+  .escena { position:relative; flex:1; min-height:520px; background:radial-gradient(ellipse at 50% 30%, #f4f6f9, #d9dee5); overflow:hidden; }
+  #c3d, #rotulos { position:absolute; left:0; top:0; width:calc(100% - var(--panel) - 20px); height:calc(100% - var(--cola) - 20px); }
+  #c3d { cursor:grab; } #rotulos { pointer-events:none; }
+  .flot { position:absolute; z-index:3; background:rgba(255,255,255,.96); border:1px solid var(--borde); border-radius:10px; box-shadow:0 4px 18px rgba(0,0,0,.08); }
+  .barraSup { top:10px; left:10px; padding:6px 8px; display:flex; gap:6px; align-items:center; flex-wrap:wrap; max-width:calc(100% - var(--panel) - 40px); }
+  /* panel de ajustes: toda la altura, de arriba hasta la cola; los botones al fondo (sin espacio en blanco) */
+  /* columna derecha: ajustes (a su medida) y debajo la capa actual, que ocupa lo que queda (sin espacio en blanco) */
+  .columna { position:absolute; z-index:3; top:10px; right:10px; bottom:calc(var(--cola) + 20px); width:var(--panel); display:flex; flex-direction:column; gap:10px; }
+  .columna .flot { position:relative; }
+  .ajustes { padding:12px 14px; display:flex; flex-direction:column; gap:2px; overflow:auto; flex:none; }
+  .ajustes h3 { margin:0 0 4px; font-size:14px; }
+  .campo { display:grid; grid-template-columns:1fr 104px; align-items:center; gap:8px; margin:3px 0; font-size:13.5px; }
+  .campo input, .campo select { width:100%; padding:5px 7px; border:1px solid var(--borde); border-radius:6px; font:inherit; }
+  .campo .u { color:var(--suave); font-size:12px; }
+  .sep { border:0; border-top:1px solid var(--borde); margin:8px 0; width:100%; }
+  .resumen div { display:flex; justify-content:space-between; padding:2px 0; font-size:13.5px; }
+  .acciones { display:grid; grid-template-columns:1fr 1fr; gap:6px; padding-top:8px; }
+  .acciones .prim, .acciones .nota { grid-column:1 / -1; }
+  .cola { left:10px; right:10px; bottom:10px; height:var(--cola); padding:8px; display:flex; gap:8px; overflow-x:auto; align-items:stretch; }
+  .cola .titulo { min-width:118px; display:flex; flex-direction:column; justify-content:center; padding:0 6px; border-right:1px solid var(--borde); }
+  .carta { min-width:190px; border:1px solid var(--borde); border-radius:8px; padding:7px 10px; background:#fff; cursor:pointer; user-select:none; }
+  .carta.si { border-color:var(--acento); box-shadow:0 0 0 2px var(--acento2); }
+  .carta.hecha { opacity:.5; }
+  .capaBox { flex:1; min-height:150px; padding:0; overflow:hidden; }
+  .capaBox .tit { position:absolute; left:10px; top:6px; font-size:12px; color:var(--suave); }
+  #capa2d { width:100%; height:100%; display:block; }
+  .barraCapa { left:10px; right:calc(var(--panel) + 30px); bottom:calc(var(--cola) + 20px); display:flex; gap:8px; align-items:center; padding:6px 10px; }
+  .barraCapa input { flex:1; }
+  .leyenda { left:10px; bottom:calc(var(--cola) + 66px); font-size:12px; padding:6px 10px; }
+  .leyenda i { display:inline-block; width:16px; height:6px; border-radius:3px; margin-right:6px; vertical-align:middle; }
+  .laminando { left:50%; top:45%; transform:translate(-50%, -50%); padding:12px 18px; font-weight:600; min-width:240px; text-align:center; }
+  .laminando .barra { height:6px; border-radius:3px; background:#e3e6ec; margin-top:8px; overflow:hidden; }
+  .laminando .barra i { display:block; height:100%; width:0; background:#1f5fcc; transition:width .3s; }
+  .laminando .nota { font-weight:400; margin-top:6px; }
+  #c3d.viejo { opacity:.35; transition:opacity .3s; }
+  #archivo { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .avisos { color:#a33; font-size:12.5px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Impresión <span class="beta">BETA</span></h1>
+  <span class="nota">Maqueta 2 · plantillas reales del programa (hormas de la biblioteca), laminadas con el laminador de la impresora de cinta. Clic izquierdo mueve, derecho gira, rueda acerca.</span>
+</header>
+<div class="escena" id="escena">
+  <canvas id="c3d"></canvas><canvas id="rotulos"></canvas>
+
+  <div class="flot barraSup">
+    <b style="padding:0 4px">Ver:</b>
+    <span class="chip si" data-modo="tipo">Por tipo de línea</span>
+    <span class="chip" data-modo="plantilla">Por plantilla</span>
+    <span class="chip" data-modo="material">Color del filamento</span>
+    <span class="nota" style="padding:0 4px">· Material:</span>
+    <span data-filtro style="display:flex;gap:5px"></span>
+  </div>
+
+  <div class="columna">
+  <div class="flot ajustes">
+    <h3>Ajustes de esta impresión</h3>
+    <div class="campo"><span>Impresora</span><select><option>PodoTec3D Model 1</option></select></div>
+    <div class="campo"><span>Boquilla</span><span><b>0,8 mm</b></span></div>
+    <label class="campo"><span>Velocidad <span class="u">(relleno, mm/s)</span></span><input type="number" data-k="vel" min="5" max="100" step="1"></label>
+    <label class="campo"><span>Temperatura <span class="u">°C</span></span><input type="number" data-k="temp" min="180" max="290" step="1"></label>
+    <label class="campo"><span>Flujo <span class="u">%</span></span><input type="number" data-k="flujo" min="30" max="150" step="1"></label>
+    <label class="campo"><span>Relleno <span class="u">%</span></span><input type="number" data-k="relleno" min="0" max="100" step="5"></label>
+    <label class="campo"><span>Tipo de relleno</span><select data-k="tipo"><option value="giroide">Giroide</option><option value="cubico">Cúbico</option><option value="concentrico">Concéntrico</option></select></label>
+    <label class="campo"><span>Paredes</span><input type="number" data-k="paredes" min="1" max="6" step="1"></label>
+    <div class="nota">Salen del perfil de Máquinas; lo que cambie aquí vale solo para este G-code.</div>
+    <hr class="sep">
+    <div class="resumen" id="resumen"></div>
+    <div class="avisos" id="avisos"></div>
+    <div class="acciones">
+      <button class="btn prim">Generar G-code</button>
+      <button class="btn">Prueba chica</button>
+      <button class="btn">Marcar impresas</button>
+      <div class="nota" id="archivo"></div>
+    </div>
+  </div>
+  <div class="flot capaBox"><span class="tit" id="tit2d">Capa actual, de frente al cabezal</span><canvas id="capa2d"></canvas></div>
+  </div>
+  <div class="flot leyenda" id="leyenda"></div>
+  <div class="flot barraCapa">
+    <button class="btn" id="play" title="Ver cómo se imprime">▶</button>
+    <span>Capa</span><input type="range" id="capa" min="0" max="0" value="0"><span id="capaTxt" style="min-width:170px"></span>
+    <button class="btn" id="enfocar">Mirar la capa</button><button class="btn" id="todo">Ver todo</button>
+  </div>
+  <div class="flot cola" id="cola"></div>
+  <div class="flot laminando" id="laminando" hidden>Laminando…</div>
+</div>
+
+<script type="module">
+import { crearVistaCinta, COLORES_TIPO, COLORES_PIEZA } from '../app/vistaCinta.js';
+
+// cola de muestra (los pacientes son inventados; las plantillas salen de hormas de la biblioteca)
+const COLA = [
+  { id: 0, pac: 'Paciente de muestra 1', talla: 38, largo: 250, horma: 'guia_tallas', mat: '3D', lado: 'Par' },
+  { id: 1, pac: 'Paciente de muestra 2', talla: 42, largo: 272, horma: 'chimpunes', mat: 'Glam', lado: 'Solo der.' },
+  { id: 2, pac: 'Paciente de muestra 3', talla: 35, largo: 232, horma: 'crocs', mat: 'Class', lado: 'Par' },
+  { id: 3, pac: 'Paciente de muestra 4', talla: 40, largo: 262, horma: 'guia_tallas', mat: '3D', lado: 'Par', hecha: true },
+];
+const S = { vel: 30, temp: 250, flujo: 70, relleno: 60, tipo: 'giroide', paredes: 2, modo: 'tipo', filtro: 'Todas', sel: new Set([0]) };
+let R = null, capa = 0;
+
+const cv = document.getElementById('c3d'), vista = crearVistaCinta(cv);
+// laminar varias plantillas toma segundos: si se pide otra cosa a mitad, se corta ese trabajo y se empieza de nuevo
+let trabajador = null, ocupado = false, pedidoId = 0, espera = null;
+function nuevoTrabajador() {
+  trabajador = new Worker(new URL('../app/laminarCinta.worker.js', import.meta.url), { type: 'module' });
+  trabajador.onmessage = alResponder;
+}
+
+function piezasElegidas() {
+  const out = [];
+  for (const it of COLA) {
+    if (!S.sel.has(it.id) || it.hecha || (S.filtro !== 'Todas' && it.mat !== S.filtro)) continue;
+    // en la cinta: la punta primero; el par sale derecho y después izquierdo
+    for (const lado of it.lado === 'Par' ? ['der', 'izq'] : it.lado === 'Solo der.' ? ['der'] : ['izq'])
+      out.push({ horma: it.horma, largo: it.largo, lado, nombre: `${it.pac} · ${lado}`, pac: it.pac });
+  }
+  return out;
+}
+function opciones() {
+  const f = S.vel * 60;   // la velocidad del relleno; las paredes guardan la proporción del perfil (1500 / 3000 / 1800)
+  return { temp: S.temp, flujo: S.flujo, flujoRelleno: S.relleno / 100, tipoRelleno: S.tipo, paredes: S.paredes,
+    F: { relleno: f, exterior: Math.round(f * 1500 / 1800), interior: Math.round(f * 3000 / 1800) } };
+}
+function laminar() {
+  clearTimeout(espera);
+  espera = setTimeout(() => {
+    const piezas = piezasElegidas(), el = document.getElementById('laminando');
+    el.hidden = !piezas.length;
+    const pacs = new Set(piezas.map(p => p.pac)).size;
+    el.innerHTML = `Laminando ${piezas.length} plantilla${piezas.length === 1 ? '' : 's'} (${pacs} paciente${pacs === 1 ? '' : 's'})… <span id="pct">0 %</span>
+      <div class="barra"><i id="barra"></i></div><div class="nota">Unos 8 s por plantilla. Mientras, se ve lo anterior en gris.</div>`;
+    cv.classList.toggle('viejo', !!R && piezas.length > 0);
+    if (!piezas.length) { R = null; vista.poner([], []); textos(); return; }
+    if (ocupado) { trabajador.terminate(); nuevoTrabajador(); }
+    ocupado = true;
+    trabajador.postMessage({ id: ++pedidoId, piezas, op: opciones() });
+  }, 350);
+}
+function alResponder({ data }) {
+  if (data.id !== pedidoId) return;   // llegó tarde: ya se pidió otra
+  if (data.avance != null) {
+    const p = Math.round(data.avance * 100) + ' %';
+    document.getElementById('pct').textContent = p; document.getElementById('barra').style.width = p;
+    return;
+  }
+  ocupado = false; cv.classList.remove('viejo');
+  document.getElementById('laminando').hidden = true;
+  if (data.error) { document.getElementById('avisos').textContent = 'Error al laminar: ' + data.error.split('\n')[0]; return; }
+  // si cambió qué plantillas van (no solo un ajuste), se encuadra todo de nuevo para que se vean las nuevas
+  const primera = !R || R.piezas.map(p => p.nombre).join() !== data.piezas.map(p => p.nombre).join(); R = data;
+  vista.poner(R.capas, R.piezas);
+  const r = document.getElementById('capa'); r.max = R.capas.length - 1;
+  capa = primera ? R.capas.length - 1 : Math.min(capa, R.capas.length - 1); r.value = capa; vista.capa(capa);
+  if (primera) verTodo();
+  textos(); dibujar2D();
+}
+nuevoTrabajador();
+
+// ---------- textos ----------
+function textos() {
+  const c = R?.capas[capa];
+  document.getElementById('capaTxt').textContent = c ? `${capa + 1} de ${R.capas.length} · cinta ${c.z.toFixed(0)} mm` : '—';
+  document.getElementById('leyenda').innerHTML = S.modo === 'plantilla' && R
+    ? R.piezas.map((p, i) => `<div><i style="background:${COLORES_PIEZA[i % 6]}"></i>${p.nombre}</div>`).join('')
+    : S.modo === 'material' ? '<div><i style="background:#dbd9d1"></i>Color del filamento (TPU foam)</div>'
+    : `<div><i style="background:${COLORES_TIPO.exterior}"></i>Pared exterior</div><div><i style="background:${COLORES_TIPO.interior}"></i>Paredes interiores</div><div><i style="background:${COLORES_TIPO.relleno}"></i>Relleno ${{ giroide: 'giroide', cubico: 'cúbico', concentrico: 'concéntrico' }[S.tipo]}</div>`;
+  const min = R ? Math.round(R.segundos / 60) : 0;   // se redondean los minutos totales: así nunca sale "4 h 60 min"
+  document.getElementById('resumen').innerHTML = R ? `
+    <div><span>Plantillas</span><b>${R.piezas.length}</b></div>
+    <div><span>Tiempo</span><b>≈ ${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')} min</b></div>
+    <div><span>Filamento</span><b>${(R.filamento / 1000).toFixed(1)} m · ${R.gramos.toFixed(0)} g</b></div>
+    <div><span>Cinta</span><b>${(R.largoCinta / 10).toFixed(0)} cm · ${R.capas.length} capas</b></div>
+    <div class="nota" style="display:block">Calculado por el laminador (beta) en ${(R.ms / 1000).toFixed(1)} s.</div>` : '<div class="nota">Elija plantillas de la cola.</div>';
+  document.getElementById('avisos').textContent = R?.avisos?.join(' ') ?? '';
+  const pz = piezasElegidas(), pacs = [...new Set(pz.map(p => p.pac))];
+  document.getElementById('archivo').textContent = pz.length ? `Archivo: ${pacs.join(', ')}${pz.length === 1 && pz[0].lado === 'der' ? ' (solo derecho)' : ''}.gcode` : '';
+}
+function pintarCola() {
+  document.querySelector('[data-filtro]').innerHTML = ['Todas', '3D', 'Glam', 'Class'].map(m => `<span class="chip ${S.filtro === m ? 'si' : ''}" data-f="${m}">${m}</span>`).join('');
+  document.getElementById('cola').innerHTML = `<div class="titulo"><b>Cola de impresión</b><span class="nota">${COLA.filter(i => !i.hecha).length} por imprimir</span></div>` +
+    COLA.filter(it => S.filtro === 'Todas' || it.mat === S.filtro).map(it => `<div class="carta ${S.sel.has(it.id) && !it.hecha ? 'si' : ''} ${it.hecha ? 'hecha' : ''}" data-id="${it.id}">
+      <div><input type="checkbox" ${S.sel.has(it.id) && !it.hecha ? 'checked' : ''} ${it.hecha ? 'disabled' : ''} style="pointer-events:none"> <b>${it.pac.replace('Paciente de muestra', 'Paciente')}</b></div>
+      <span class="mat mat-${it.mat}">${it.mat}</span> <span class="nota">talla ${it.talla} · ${it.lado}${it.hecha ? ' · ✔ impresa' : ''}</span></div>`).join('');
+}
+for (const el of document.querySelectorAll('[data-k]')) el.value = S[el.dataset.k];
+
+// ---------- capa actual en 2D: los hilos con su ancho real ----------
+const c2 = document.getElementById('capa2d'), g2 = c2.getContext('2d');
+function dibujar2D() {
+  const dpr = devicePixelRatio || 1, W = c2.clientWidth, H = c2.clientHeight;
+  if (c2.width !== Math.round(W * dpr)) { c2.width = Math.round(W * dpr); c2.height = Math.round(H * dpr); }
+  g2.setTransform(dpr, 0, 0, dpr, 0, 0); g2.clearRect(0, 0, W, H);
+  const c = R?.capas[capa]; if (!c) return;
+  let x0 = 1e9, x1 = -1e9, s1 = 3;
+  for (const r of c.recorridos) for (const [x, s] of r.pts) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); s1 = Math.max(s1, s); }
+  const esc = Math.min((W - 30) / (x1 - x0 + 2), (H - 44) / (s1 + 1)), ox = (W - (x1 + x0) * esc) / 2, base = H - 14;
+  g2.fillStyle = '#4a5059'; g2.fillRect(0, base + 2, W, 5);
+  const P = ([x, s]) => [ox + x * esc, base - s * esc];
+  const col = { 'WALL-OUTER': COLORES_TIPO.exterior, 'WALL-INNER': COLORES_TIPO.interior, FILL: COLORES_TIPO.relleno };
+  g2.lineCap = 'round'; g2.lineJoin = 'round';
+  // dos pasadas: el hilo (más oscuro) y su brillo encima: se ve redondo, como plástico
+  for (const [k, ancho, alfa] of [[0, 1, 1], [1, 0.45, 0.45]]) for (const r of c.recorridos) {
+    g2.strokeStyle = k ? '#fff' : col[r.tipo]; g2.globalAlpha = alfa; g2.lineWidth = Math.max(1, 0.8 * esc * ancho);
+    g2.beginPath(); r.pts.forEach((p, i) => { const [a, b] = P(p); i ? g2.lineTo(a, b) : g2.moveTo(a, b); }); g2.stroke();
+  }
+  g2.globalAlpha = 1;
+  document.getElementById('tit2d').textContent = `Capa ${capa + 1}, de frente al cabezal · líneas de 0,8 mm`;
+}
+
+// ---------- nombres sobre cada plantilla ----------
+const ro = document.getElementById('rotulos'), gr = ro.getContext('2d');
+vista.alDibujar(() => {
+  const dpr = devicePixelRatio || 1, W = ro.clientWidth, H = ro.clientHeight;
+  if (ro.width !== Math.round(W * dpr)) { ro.width = Math.round(W * dpr); ro.height = Math.round(H * dpr); }
+  gr.setTransform(dpr, 0, 0, dpr, 0, 0); gr.clearRect(0, 0, W, H);
+  if (!R) return;
+  gr.font = '600 12px system-ui'; gr.textAlign = 'center';
+  R.piezas.forEach((p, i) => {
+    const q = vista.proyectar([105, p.b0 + p.largo / 2, p.alto + 14]); if (!q?.visible) return;
+    const t = p.nombre.replace('Paciente de muestra', 'Paciente'), w = gr.measureText(t).width + 12;
+    gr.fillStyle = 'rgba(255,255,255,.88)'; gr.fillRect(q.x - w / 2, q.y - 14, w, 19);
+    gr.fillStyle = S.modo === 'plantilla' ? COLORES_PIEZA[i % 6] : '#1f2630'; gr.fillText(t, q.x, q.y);
+  });
+});
+
+// ---------- controles ----------
+document.addEventListener('input', e => {
+  const k = e.target.dataset.k; if (!k) return;
+  S[k] = k === 'tipo' ? e.target.value : +e.target.value; textos(); laminar();
+});
+document.addEventListener('click', e => {
+  const f = e.target.closest('[data-f]'), m = e.target.closest('[data-modo]'), carta = e.target.closest('.carta');
+  if (f) { S.filtro = f.dataset.f; pintarCola(); laminar(); }
+  if (m) { S.modo = m.dataset.modo; document.querySelectorAll('[data-modo]').forEach(x => x.classList.toggle('si', x === m)); vista.modo(S.modo); textos(); vista.pedir(); }
+  if (carta) { const it = COLA[+carta.dataset.id]; if (it.hecha) return; S.sel.has(it.id) ? S.sel.delete(it.id) : S.sel.add(it.id); pintarCola(); textos(); laminar(); }
+});
+const rango = document.getElementById('capa');
+const irA = n => { capa = n; rango.value = n; vista.capa(n); textos(); dibujar2D(); };
+rango.addEventListener('input', () => irA(+rango.value));
+let reloj = null;
+document.getElementById('play').onclick = e => {
+  if (reloj) { clearInterval(reloj); reloj = null; e.target.textContent = '▶'; return; }
+  if (!R) return; if (capa >= R.capas.length - 1) irA(0);
+  e.target.textContent = '❚❚';
+  reloj = setInterval(() => { if (capa >= R.capas.length - 1) { document.getElementById('play').click(); return; } irA(Math.min(capa + 4, R.capas.length - 1)); }, 50);
+};
+function verTodo() {
+  if (!R) return; const fin = R.piezas.at(-1);
+  vista.encuadrar([0, -20, 0, 210, fin.b0 + fin.largo + 20, 30], -35, 28);
+}
+document.getElementById('todo').onclick = verTodo;
+document.getElementById('enfocar').onclick = () => { const c = R?.capas[capa]; if (c) vista.encuadrar([45, c.z - 45, 0, 165, c.z + 5, 25], 170, 52); };
+new ResizeObserver(dibujar2D).observe(c2);
+
+pintarCola(); textos(); laminar();
+</script>
+</body>
+</html>

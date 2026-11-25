@@ -88,7 +88,10 @@ for (const lado of ['izq', 'der']) {
     const g = generar(horma, { ...pedido, lado: 'izq', elementos: [{ forma: prepararElemento(e), altura: e.altura }] });
     let mx = 0; for (const v of g.he) mx = Math.max(mx, v);
     const l = lisura(g), m = medidas(g), rev = revisarSolido(solido(g));
-    const ok = Math.abs(mx - e.altura) < 0.05 && l.pliegueArriba < 12 && m.espesor >= 1.19 && rev.cerrado;
+    // las cuñas que llenan en recta (retropié, 2026-11-24) suben su altura en el borde y además rellenan la curva de
+    // la copa debajo de la recta: ahí pueden sumar más que su altura
+    const alturaOk = e.llenar ? mx >= e.altura - 0.05 && mx <= e.altura + 6 : Math.abs(mx - e.altura) < 0.05;
+    const ok = alturaOk && l.pliegueArriba < 12 && m.espesor >= 1.19 && rev.cerrado;
     bien = bien && ok;
     texto.push(`${e.nombre} ${n1(mx)} mm${ok ? '' : ` (pliegue ${n1(l.pliegueArriba)}°, cerrado ${rev.cerrado})`}`);
   }
@@ -514,16 +517,23 @@ for (const lado of ['izq', 'der']) {
     const chica = gcodeCinta([{ g: gd2, nombre: 'der' }], { hastaMm: 40 }), zMaxChica = Math.max(...chica.texto.split('\n').filter(l => /^G0 F\d+ Z/.test(l)).map(l => +l.match(/Z([\d.]+)/)[1]));
     const okChica = zMaxChica <= 40 + 4.2 && chica.numCapas > 20 && chica.numCapas < 50 && chica.texto.includes('M107 ; Fan Off');
     // perfil de fábrica de Máquinas (2026-11-23) = mismo G-code que los valores del motor; peso como ideaMaker (60,8 g por 35,59 m)
-    const { CINTAS_FABRICA, opcionesCinta } = await import('../app/maquinas.js');
+    const { CINTAS_FABRICA, opcionesCinta, opcionesConAjustes, ajustesDeCinta } = await import('../app/maquinas.js');
     const sinCab = t => t.split('\n').filter(l => !/^;(Sliced by|Printer Type)/.test(l)).join('\n');
     const conPerfil = gcodeCinta([{ g: gd2, nombre: 'der' }], { ...opcionesCinta(CINTAS_FABRICA[0]), hastaMm: 40 });
-    const okPerfil = sinCab(conPerfil.texto) === sinCab(chica.texto) && Math.abs(chica.gramos / (chica.filamento / 1000) - 60.8 / 35.59) < 0.01;
+    // los ajustes de una impresión (módulo Impresión, 2026-11-24) sin cambiar nada = el perfil tal cual; 60 mm/s = el doble de rápido en todo
+    const fabC = CINTAS_FABRICA[0], conAj = opcionesConAjustes(fabC, ajustesDeCinta(fabC)), rapido = opcionesConAjustes(fabC, { ...ajustesDeCinta(fabC), vel: 60 });
+    const okAjustes = JSON.stringify(conAj) === JSON.stringify(opcionesCinta(fabC)) && rapido.F.relleno === 3600 && rapido.F.exterior === 3000 && rapido.F.interior === 6000;
+    const okPerfil = okAjustes && sinCab(conPerfil.texto) === sinCab(chica.texto) && Math.abs(chica.gramos / (chica.filamento / 1000) - 60.8 / 35.59) < 0.01;
     // paredes y relleno elegibles (2026-11-23): 3 paredes sin relleno → ningún FILL y capas con dos paredes interiores
     const p3 = gcodeCinta([{ g: gd2, nombre: 'der' }], { hastaMm: 120, paredes: 3, flujoRelleno: 0 }).texto;
     const dosInt = p3.split(';LAYER:').filter(c => (c.match(/;TYPE:WALL-INNER/g) || []).length >= 1 && (c.match(/^G0 F6000/gm) || []).length >= 3).length;
     const okParedes = !p3.includes(';TYPE:FILL') && dosInt > 10;
-    const ok = okParedes && okPerfil && okChica && inicioOk && zOk && peorE < 0.002 && X0 > 5 && X1 < 205 && Y0 >= 0.3 && Y1 < 180 && Math.abs(Y1 - 2 * hmax) < 3 && ladoDer > 0.7 && ladoIzq < 0.3 && !r.avisos.length;
-    prueba('Impresora de cinta (beta)', ok, `${r.numCapas} capas, ≈${n1(r.segundos / 3600)} h, ${n1(r.filamento / 1000)} m de filamento (con flujo 70 %); X ${n1(X0)} a ${n1(X1)}, Y ${n2(Y0)} a ${n1(Y1)} (2 × alto ${n1(2 * hmax)}); E exacto (dif. máx. ${peorE.toFixed(4)}); la cinta solo avanza: ${zOk ? 'sí' : 'no'}; inicio y final del perfil: ${inicioOk ? 'sí' : 'no'}; arco del derecho en X baja en el ${Math.round(ladoDer * 100)} % de las capas, del izquierdo en el ${Math.round((1 - ladoIzq) * 100)} % en X alta; prueba chica: ${chica.numCapas} capas, ≈${Math.round(chica.segundos / 60)} min, cinta hasta ${n1(zMaxChica)} mm, ${n1(chica.gramos)} g; el perfil de Máquinas da el mismo G-code: ${okPerfil ? 'sí' : 'no'}`);
+    // relleno giroide y cúbico (2026-11-24): llevan relleno (FILL) y casi el mismo plástico que el concéntrico con igual %
+    const conc = gcodeCinta([{ g: gd2, nombre: 'der' }], { hastaMm: 120, tipoRelleno: 'concentrico' }), gramosDe = t => gcodeCinta([{ g: gd2, nombre: 'der' }], { hastaMm: 120, tipoRelleno: t });
+    const gir = gramosDe('giroide'), cub = gramosDe('cubico');
+    const okPatron = [gir, cub].every(x => x.texto.includes(';TYPE:FILL') && Math.abs(x.gramos / conc.gramos - 1) < 0.12);
+    const ok = okPatron && okParedes && okPerfil && okChica && inicioOk && zOk && peorE < 0.002 && X0 > 5 && X1 < 205 && Y0 >= 0.3 && Y1 < 180 && Math.abs(Y1 - 2 * hmax) < 3 && ladoDer > 0.7 && ladoIzq < 0.3 && !r.avisos.length;
+    prueba('Impresora de cinta (beta)', ok, `${r.numCapas} capas, ≈${n1(r.segundos / 3600)} h, ${n1(r.filamento / 1000)} m de filamento (con flujo 70 %); X ${n1(X0)} a ${n1(X1)}, Y ${n2(Y0)} a ${n1(Y1)} (2 × alto ${n1(2 * hmax)}); E exacto (dif. máx. ${peorE.toFixed(4)}); la cinta solo avanza: ${zOk ? 'sí' : 'no'}; inicio y final del perfil: ${inicioOk ? 'sí' : 'no'}; arco del derecho en X baja en el ${Math.round(ladoDer * 100)} % de las capas, del izquierdo en el ${Math.round((1 - ladoIzq) * 100)} % en X alta; prueba chica: ${chica.numCapas} capas, ≈${Math.round(chica.segundos / 60)} min, cinta hasta ${n1(zMaxChica)} mm, ${n1(chica.gramos)} g; el perfil de Máquinas da el mismo G-code: ${okPerfil ? 'sí' : 'no'}; relleno (120 mm) concéntrico ${n1(conc.gramos)} g, giroide ${n1(gir.gramos)} g, cúbico ${n1(cub.gramos)} g`);
   }
   prueba('Mesa de trabajo del G-code', okMesa, `la de fábrica da el mismo G-code: ${fab.texto === r.texto ? 'sí' : 'no'}; giro 18000: ${otra.texto.includes('S18000') ? 'sí' : 'no'}; dejar 0,5 mm arriba: +${n2(zMax(otra.texto) - zMax(r.texto))} mm; sin contorno: ${!otra.texto.includes('G01 Z15.00') ? 'sí' : 'no'}; corte 3 mm más afuera: ${n1(minX(r.texto) - minX(afuera.texto))} mm`);
 }

@@ -55,6 +55,7 @@ async function subcarpetas(dir) {
 import { pintarBiblioteca } from './biblioteca.js';
 import { pintarMaquinas, listaMaquinas } from './maquinas.js';
 import { pintarFresado } from './fresado.js';
+import { pintarImpresion, soltarImpresion } from './impresion.js';
 
 // Pacientes de un diseñador: { nombre, carpeta (la del paciente, o null si solo tiene diseños de antes), disenos: [{
 // ruta ("Paciente/Diseño" o, los de antes, "Paciente - fecha"), dir, datos }] }. Mismo paciente = mismo nombre.
@@ -166,7 +167,7 @@ export function crearInicio({ aplicarReceta, recetaNueva, mensaje, alAbrir, bibl
   function mostrar(si) {
     $('inicio').hidden = !si;
     document.body.classList.toggle('en-inicio', si);
-    if (si) pintar(); else pintarCabecera();
+    if (si) pintar(); else { soltarImpresion(); pintarCabecera(); }
   }
   function pintarCabecera() {
     $('inicioCarpeta').textContent = raiz ? `Carpeta: ${PRUEBA ? '(prueba)' : raiz.name}` : 'Sin carpeta de trabajo';
@@ -177,6 +178,7 @@ export function crearInicio({ aplicarReceta, recetaNueva, mensaje, alAbrir, bibl
     $('proyectoActual').classList.toggle('sin-proyecto', !proyecto);
   }
   async function pintar() {
+    soltarImpresion();   // la vista 3D de Impresión suelta la placa de video al cambiar de pantalla
     pintarCabecera();
     const cuerpo = $('inicioCuerpo');
     if (!raiz) {
@@ -201,8 +203,13 @@ export function crearInicio({ aplicarReceta, recetaNueva, mensaje, alAbrir, bibl
     }
     if (vista === 'maquinas') { pintarMaquinas(cuerpo, { datos: () => datosMaquinas, guardar: guardarMaquinas }); return; }
     if (vista === 'fresado') {
-      pintarFresado(cuerpo, { leerCola, guardarEnCola: escribirCola, quitarDeCola, guardarGcode: guardarGcodeTaco,
+      pintarFresado(cuerpo, { leerCola: colaFresado.leer, guardarEnCola: colaFresado.escribir, quitarDeCola: colaFresado.quitar, guardarGcode: colaFresado.guardarGcode,
         maquinas: () => listaMaquinas(datosMaquinas), carpeta: () => `${PRUEBA ? '(prueba)' : raiz.name}\\Fresado\\G-code` });
+      return;
+    }
+    if (vista === 'impresion') {
+      pintarImpresion(cuerpo, { leerCola: colaImpresion.leer, guardarEnCola: colaImpresion.escribir, quitarDeCola: colaImpresion.quitar, guardarGcode: colaImpresion.guardarGcode,
+        maquinas: () => listaMaquinas(datosMaquinas), carpeta: () => `${PRUEBA ? '(prueba)' : raiz.name}\\Impresion\\G-code` });
       return;
     }
     if (!disenador) return pintarDisenadores(cuerpo);
@@ -447,29 +454,35 @@ export function crearInicio({ aplicarReceta, recetaNueva, mensaje, alAbrir, bibl
   // ---- Cola de fresado (módulo Fresado, beta; Ernesto 2026-11-23) ----
   // Fresado/Cola/<id>.json: cada diseño enviado desde 4. Exportar, con la forma de sus plantillas (así el taco se arma
   // sin volver a abrir cada diseño). Fresado/G-code/: el G-code de cada taco. Ernesto marca a mano lo que ya se fresó.
-  const dirCola = () => carpetaEn(raiz, ['Fresado', 'Cola'], true);
-  async function leerCola() {
-    if (!raiz) return [];
-    const d = await dirCola(), r = [];
-    for await (const [n, h] of d.entries()) {
-      if (h.kind !== 'file' || !n.endsWith('.json')) continue;
-      try { const j = JSON.parse(await (await h.getFile()).text()); if (j?.id && j.izq && j.der) r.push(j); } catch { /* archivo dañado: se salta */ }
+  // Impresión (beta, 2026-11-24) usa lo mismo en Impresion/Cola e Impresion/G-code; lo hecho queda en estado 'impresa'.
+  function crearCola(modulo, hecho) {
+    const dir = () => carpetaEn(raiz, [modulo, 'Cola'], true);
+    async function leer() {
+      if (!raiz) return [];
+      const d = await dir(), r = [];
+      for await (const [n, h] of d.entries()) {
+        if (h.kind !== 'file' || !n.endsWith('.json')) continue;
+        try { const j = JSON.parse(await (await h.getFile()).text()); if (j?.id && j.izq && j.der) r.push(j); } catch { /* archivo dañado: se salta */ }
+      }
+      return r.sort((a, b) => String(a.creado).localeCompare(String(b.creado)));
     }
-    return r.sort((a, b) => String(a.creado).localeCompare(String(b.creado)));
+    const escribirItem = async item => escribir(await dir(), item.id + '.json', JSON.stringify(item));
+    async function quitar(id) { await (await dir()).removeEntry(id + '.json'); }
+    async function guardarGcode(nombre, texto) { await escribir(await carpetaEn(raiz, [modulo, 'G-code'], true), nombre, texto); }
+    // desde el diseño abierto: si ese diseño ya estaba en la cola sin hacer, se reemplaza (se mandó otra vez corregido)
+    async function enviar(datos) {
+      if (!raiz) throw new Error('primero elija la carpeta de trabajo en Inicio');
+      const lista = await leer(), de = proyecto ? { disenador: proyecto.disenador, carpeta: proyecto.carpeta } : {};
+      const antes = proyecto ? lista.find(x => x.estado !== hecho && x.disenador === de.disenador && x.carpeta === de.carpeta) : null;
+      const item = { id: antes?.id ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`, creado: antes?.creado ?? new Date().toISOString(),
+        enviado: new Date().toISOString(), estado: 'pendiente', pies: antes?.pies ?? 'ambos', ...de, ...datos };
+      await escribirItem(item);
+      return { reemplazo: !!antes, total: lista.filter(x => x.estado !== hecho).length + (antes ? 0 : 1) };
+    }
+    return { leer, escribir: escribirItem, quitar, guardarGcode, enviar };
   }
-  const escribirCola = async item => escribir(await dirCola(), item.id + '.json', JSON.stringify(item));
-  async function quitarDeCola(id) { await (await dirCola()).removeEntry(id + '.json'); }
-  async function guardarGcodeTaco(nombre, texto) { await escribir(await carpetaEn(raiz, ['Fresado', 'G-code'], true), nombre, texto); }
-  // desde el diseño abierto: si ese diseño ya estaba en la cola sin fresar, se reemplaza (se mandó otra vez corregido)
-  async function enviarACola(datos) {
-    if (!raiz) throw new Error('primero elija la carpeta de trabajo en Inicio');
-    const lista = await leerCola(), de = proyecto ? { disenador: proyecto.disenador, carpeta: proyecto.carpeta } : {};
-    const antes = proyecto ? lista.find(x => x.estado !== 'fresado' && x.disenador === de.disenador && x.carpeta === de.carpeta) : null;
-    const item = { id: antes?.id ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`, creado: antes?.creado ?? new Date().toISOString(),
-      enviado: new Date().toISOString(), estado: 'pendiente', pies: antes?.pies ?? 'ambos', ...de, ...datos };
-    await escribirCola(item);
-    return { reemplazo: !!antes, total: lista.filter(x => x.estado !== 'fresado').length + (antes ? 0 : 1) };
-  }
+  const colaFresado = crearCola('Fresado', 'fresado'), colaImpresion = crearCola('Impresion', 'impresa');
+  const enviarACola = colaFresado.enviar, enviarAColaImpresion = colaImpresion.enviar;
 
   // al volver a Inicio desde un diseño se ven los diseños de ese paciente
   $('irInicio').onclick = async () => { antesDeSalir?.(); await guardarYa(); vista = 'disenadores'; if (proyecto) { disenador = proyecto.disenador; paciente = proyecto.carpeta.includes('/') ? proyecto.carpeta.split('/')[0] : proyecto.datos.paciente || null; } mostrar(true); };
@@ -478,7 +491,7 @@ export function crearInicio({ aplicarReceta, recetaNueva, mensaje, alAbrir, bibl
   iniciar();
 
   return {
-    guardarArchivo, exportado, alCambiar, guardarAhora, enviarACola,
+    guardarArchivo, exportado, alCambiar, guardarAhora, enviarACola, enviarAColaImpresion,
     // "Añadir a la biblioteca" desde el diseño (necesita la carpeta de trabajo)
     agregarABiblioteca: async def => {
       if (!raiz) throw new Error('primero elija la carpeta de trabajo en Inicio');

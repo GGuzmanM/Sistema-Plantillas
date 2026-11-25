@@ -87,7 +87,10 @@ export const CAMPOS_CINTA = [
   { k: 'primera', etq: 'Ancho en la primera capa', u: 'mm', min: 0.3, max: 2, paso: 0.01, def: 0.88 },
   { k: 'paredes', etq: 'Cantidad de paredes', u: '', min: 1, max: 6, paso: 1, def: 2, ayuda: 'Líneas alrededor de cada capa (la exterior y las de adentro). El perfil de ideaMaker usa 2.' },
   { k: 'relleno', etq: 'Relleno (densidad)', u: '%', min: 0, max: 100, paso: 1, def: 60, ayuda: 'Cuánto material lleva el relleno: 0 = sin relleno (solo paredes), 100 = macizo. El perfil de ideaMaker usa 60.' },
-  { k: 'pasoRelleno', etq: 'Separación de las líneas del relleno', u: 'mm', min: 0.3, max: 5, paso: 0.05, def: 0.8, ayuda: 'Más separación = relleno más abierto y más rápido.' },
+  // 2026-11-24 (módulo Impresión): giroide y cúbico como en los laminadores; concéntrico = anillos paralelos al borde
+  { k: 'tipoRelleno', etq: 'Tipo de relleno', t: 'opciones', ops: [['giroide', 'Giroide'], ['cubico', 'Cúbico'], ['concentrico', 'Concéntrico']], def: 'giroide',
+    ayuda: 'Giroide: ondas que se cruzan entre capas (resiste igual en todas las direcciones). Cúbico: tres familias de líneas rectas. Concéntrico: anillos que siguen el borde.' },
+  { k: 'pasoRelleno', etq: 'Separación del relleno concéntrico', u: 'mm', min: 0.3, max: 5, paso: 0.05, def: 0.8, ayuda: 'Solo para el relleno concéntrico. Más separación = relleno más abierto y más rápido.' },
   { g: 'Velocidades' },
   { k: 'vPrimera', etq: 'Primera capa', u: 'mm/min', min: 60, max: 9000, paso: 10, def: 600 },
   { k: 'vExterior', etq: 'Pared exterior', u: 'mm/min', min: 60, max: 9000, paso: 10, def: 1500 },
@@ -107,8 +110,24 @@ export const CAMPOS_CINTA = [
 export function opcionesCinta(c) {
   return { nombre: c.nombre, angulo: c.angulo, ancho: c.ancho, alto: c.alto, centroX: c.centroX, separacion: c.separacion, temp: c.temp, flujo: c.flujo,
     filamento: c.filamento, densidad: c.densidad, paso: c.paso, linea: c.linea, primera: c.primera, paredes: c.paredes, flujoRelleno: c.relleno / 100, pasoRelleno: c.pasoRelleno,
+    tipoRelleno: c.tipoRelleno ?? 'giroide',
     retraccion: c.retraccion, limpieza: c.limpieza,
     F: { primera: c.vPrimera, exterior: c.vExterior, interior: c.vInterior, relleno: c.vRelleno, viaje: c.vViaje, z: c.vZ, retraer: c.vRetraer, volver: c.vVolver } };
+}
+// Ajustes de una impresión (módulo Impresión y 4. Exportar, 2026-11-24): los seis que se cambian al exportar, sacados
+// del perfil. La velocidad es la del relleno en mm/s; las paredes guardan la proporción del perfil (1500 / 3000 / 1800).
+export const TIPOS_RELLENO = [['giroide', 'Giroide'], ['cubico', 'Cúbico'], ['concentrico', 'Concéntrico']];
+export function ajustesDeCinta(c) {
+  return { vel: Math.round(c.vRelleno / 60), temp: c.temp, flujo: c.flujo, relleno: c.relleno, tipo: c.tipoRelleno ?? 'giroide', paredes: c.paredes };
+}
+// límites de los seis (lo que se escribe a mano no rompe el G-code)
+export const LIMITES_AJUSTES = { vel: [5, 150], temp: [150, 310], flujo: [30, 150], relleno: [0, 100], paredes: [1, 6] };
+export function opcionesConAjustes(c, aj) {
+  const base = opcionesCinta(c), lim = (k, v) => Math.min(LIMITES_AJUSTES[k][1], Math.max(LIMITES_AJUSTES[k][0], Number.isFinite(+v) ? +v : ajustesDeCinta(c)[k]));
+  const f = lim('vel', aj.vel) * 60, r = f / (c.vRelleno || 1800);
+  return { ...base, temp: lim('temp', aj.temp), flujo: lim('flujo', aj.flujo), flujoRelleno: lim('relleno', aj.relleno) / 100, paredes: Math.round(lim('paredes', aj.paredes)),
+    tipoRelleno: TIPOS_RELLENO.some(t => t[0] === aj.tipo) ? aj.tipo : base.tipoRelleno,
+    F: { ...base.F, relleno: Math.round(f), exterior: Math.round(c.vExterior * r), interior: Math.round(c.vInterior * r) } };
 }
 const porDefecto = campos => Object.fromEntries(campos.filter(c => c.k).map(c => [c.k, c.def]));
 // las de fábrica: siempre están; si se editan, la versión editada (mismo id) va en maquinas.json
@@ -141,6 +160,7 @@ export function limpiarMaquina(m, campos) {
   for (const c of campos) if (c.k) {
     if (c.t === 'si') r[c.k] = m[c.k] == null ? c.def : !!m[c.k];
     else if (c.t === 'texto') r[c.k] = String(m[c.k] ?? c.def).slice(0, 400);
+    else if (c.t === 'opciones') r[c.k] = c.ops.some(o => o[0] === m[c.k]) ? m[c.k] : c.def;
     else { const v = parseFloat(m[c.k]); r[c.k] = Number.isFinite(v) ? Math.min(Math.max(v, c.min), c.max) : c.def; }
   }
   return r;
@@ -169,7 +189,7 @@ const TIPOS = {
   impresoras: { titulo: 'Impresoras 3D', campos: CAMPOS_IMPRESORA, fabrica: IMPRESORAS_FABRICA, nueva: 'Nueva impresora', nombre: 'Impresora nueva',
                 resumen: x => `${x.x} × ${x.y} × ${x.z} mm` },
   cintas: { titulo: 'Impresoras de cinta (beta)', campos: CAMPOS_CINTA, fabrica: CINTAS_FABRICA, nueva: 'Nueva impresora de cinta', nombre: 'Impresora de cinta nueva',
-            resumen: x => `${x.angulo}° · ${x.temp} °C · ${x.paredes} paredes · relleno ${x.relleno} %` },
+            resumen: x => `${x.angulo}° · ${x.temp} °C · ${x.paredes} paredes · relleno ${x.relleno} % ${(TIPOS_RELLENO.find(t => t[0] === x.tipoRelleno) ?? TIPOS_RELLENO[0])[1].toLowerCase()}` },
 };
 
 // ---- Pantalla Inicio → Máquinas ----
@@ -197,6 +217,7 @@ export function pintarMaquinas(cuerpo, ctx) {
           <div class="maq-grupos">${grupos(campos()).map(([titulo, cs]) => `<fieldset class="maq-grupo"><legend>${esc(titulo)}</legend>${cs.map(c => c.t === 'si'
             ? `<label class="maq-si"><input type="checkbox" name="${c.k}"${m[c.k] !== false ? ' checked' : ''}> ${esc(c.etq)}</label>`
             : c.t === 'texto' ? `<label class="maq-campo maq-texto"><span>${esc(c.etq)}</span><textarea name="${c.k}" rows="2" maxlength="400">${esc(m[c.k])}</textarea></label>`
+            : c.t === 'opciones' ? `<label class="maq-campo"${c.ayuda ? ` title="${esc(c.ayuda)}"` : ''}><span>${esc(c.etq)}${c.ayuda ? ' <i class="maq-ayuda">?</i>' : ''}</span><span class="maq-valor"><select name="${c.k}">${c.ops.map(([v, t]) => `<option value="${v}"${(m[c.k] ?? c.def) === v ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></span></label>`
             : `<label class="maq-campo"${c.ayuda ? ` title="${esc(c.ayuda)}"` : ''}><span>${esc(c.etq)}${c.ayuda ? ' <i class="maq-ayuda">?</i>' : ''}</span><span class="maq-valor"><input type="number" name="${c.k}" min="${c.min}" max="${c.max}" step="${c.paso}" value="${m[c.k]}"><em>${c.u}</em></span></label>`).join('')}</fieldset>`).join('')}</div>
           <div class="maq-botones">
             <button type="submit" class="primario">Guardar</button>

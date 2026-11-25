@@ -259,3 +259,82 @@ table.proyectos tbody tr:hover td, table.proyectos tbody tr:hover { background: 
 .maq-si { font-size: 12.5px; }
 .maq-texto textarea { font-size: 12.5px; }
 .maq-botones button { height: 30px; font-size: 13px; }
+
+/* Inicio → Impresión (beta, 2026-11-24): la propuesta B de la maqueta. Escena 3D a todo el ancho; arriba a la
+   izquierda cómo se ve, a la derecha los ajustes (a su medida) y debajo la capa actual (ocupa lo que queda); abajo la
+   cola. El alto lo pone impresion.js: hasta el fondo de la ventana. */
+.inicio-cuerpo:has(.imp-escena) { max-width: none; }
+.imp-escena { --imp-panel: 330px; --imp-cola: 92px; position: relative; min-height: 560px; margin-top: 10px; border-radius: 12px; border: 0.5px solid var(--linea);
+  background: radial-gradient(ellipse at 50% 30%, #f7f8fa, #dde1e7); overflow: hidden; color: var(--tinta); }
+.imp-escena #impC3d, .imp-escena #impRotulos { position: absolute; left: 0; top: 0; width: calc(100% - var(--imp-panel) - 20px); height: calc(100% - var(--imp-cola) - 20px); }
+.imp-escena #impC3d { cursor: grab; transition: opacity .3s; }
+.imp-escena #impC3d.imp-viejo { opacity: .35; }
+.imp-escena #impRotulos { pointer-events: none; }
+.imp-flot { position: absolute; z-index: 3; background: rgba(255, 255, 255, .96); border: 0.5px solid var(--linea-2); border-radius: 10px; box-shadow: 0 4px 18px rgba(0, 0, 0, .07); }
+.imp-nota { color: var(--suave); font-size: 12px; }
+.imp-mal { color: var(--mal, #c62828); font-size: 12.5px; }
+.imp-listo { font-size: 12.5px; background: #eef7f0; border-radius: 8px; padding: 8px 10px; color: #1f5f35; }
+.imp-chip { height: 26px; padding: 0 10px; border-radius: 99px; border: 0.5px solid var(--linea-2); background: #fff; color: var(--suave); font-size: 12px; white-space: nowrap; }
+.imp-chip.si { background: #e8f1ff; color: #0062cc; border-color: #9cc3ff; font-weight: 600; }
+.imp-chips { display: flex; gap: 4px; flex-wrap: wrap; }
+.imp-barraSup { top: 10px; left: 10px; padding: 6px 8px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; max-width: calc(100% - var(--imp-panel) - 40px); font-size: 13px; }
+.imp-barraSup > b { padding: 0 4px; }
+.imp-columna { position: absolute; z-index: 3; top: 10px; right: 10px; bottom: calc(var(--imp-cola) + 20px); width: var(--imp-panel); display: flex; flex-direction: column; gap: 10px; }
+.imp-columna .imp-flot { position: relative; }
+.imp-ajustes { padding: 10px 14px; display: flex; flex-direction: column; gap: 0; overflow: auto; flex: 0 0 auto; max-height: calc(100% - 100px); }
+.imp-ajustes h3 { margin: 0 0 4px; font-size: 14px; font-weight: 600; }
+.imp-ajustes hr { border: 0; border-top: 0.5px solid var(--linea-2); margin: 6px 0; width: 100%; }
+.imp-campo { display: grid; grid-template-columns: 1fr 112px; align-items: center; gap: 8px; margin: 1px 0; font-size: 13px; }
+.imp-campo em { font-style: normal; color: var(--suave); font-size: 11.5px; }
+.imp-campo input, .imp-campo select { width: 100%; height: 26px; padding: 0 7px; font-size: 13px; }
+.imp-resumen div { display: flex; justify-content: space-between; padding: 1px 0; font-size: 13px; }
+.imp-resumen div.imp-nota { display: block; }
+.imp-acciones { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding-top: 8px; }
+.imp-acciones button { height: 30px; font-size: 13px; }
+.imp-acciones .primario, .imp-acciones .imp-nota, .imp-acciones #impDespues { grid-column: 1 / -1; }
+.imp-archivo { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.imp-capaBox { flex: 1 1 0; min-height: 90px; overflow: hidden; }
+.imp-tit { position: absolute; left: 10px; top: 6px; font-size: 11.5px; color: var(--suave); }
+#impCapa2d { width: 100%; height: 100%; display: block; }
+.imp-barraCapa { left: 10px; right: calc(var(--imp-panel) + 30px); bottom: calc(var(--imp-cola) + 20px); display: flex; gap: 8px; align-items: center; padding: 6px 10px; font-size: 13px; }
+.imp-barraCapa input { flex: 1; min-width: 60px; }
+.imp-barraCapa button { height: 30px; font-size: 12.5px; white-space: nowrap; }
+.imp-capaTxt { min-width: 160px; white-space: nowrap; }
+.imp-leyenda { left: 10px; bottom: calc(var(--imp-cola) + 70px); font-size: 12px; padding: 6px 10px; }
+.imp-leyenda i { display: inline-block; width: 16px; height: 6px; border-radius: 3px; margin-right: 6px; vertical-align: middle; }
+.imp-cola { left: 10px; right: 10px; bottom: 10px; height: var(--imp-cola); padding: 8px; display: flex; gap: 8px; overflow-x: auto; align-items: stretch; }
+.imp-colaTit { min-width: 150px; display: flex; flex-direction: column; justify-content: center; gap: 2px; padding: 0 8px; border-right: 0.5px solid var(--linea-2); }
+.imp-colaTit label { display: flex; gap: 5px; align-items: center; cursor: pointer; }
+.imp-carta { min-width: 220px; max-width: 260px; border: 0.5px solid var(--linea-2); border-radius: 8px; padding: 6px 9px; background: #fff; cursor: pointer; user-select: none; display: flex; flex-direction: column; justify-content: space-between; }
+.imp-carta.si { border-color: #0062cc; box-shadow: 0 0 0 2px #d6e6ff; }
+.imp-carta.hecha { opacity: .55; cursor: default; }
+.imp-cartaCab { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.imp-cartaCab b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.imp-cartaCab input { pointer-events: none; }
+.imp-cartaPie { display: flex; align-items: center; gap: 6px; }
+.imp-cartaPie select { margin-left: auto; font-size: 11.5px; height: 24px; padding: 0 4px; }
+.imp-x { width: 22px; height: 22px; padding: 0; border-radius: 6px; border: none; background: transparent; color: var(--tercero); }
+.imp-x:hover { background: var(--gris-2); color: var(--tinta); }
+.imp-vacia { align-self: center; padding: 0 10px; }
+.imp-mat { font-size: 11px; font-weight: 700; border-radius: 6px; padding: 1px 6px; white-space: nowrap; }
+.imp-mat-3d { background: #e6f2ec; color: #1e7a4c; } .imp-mat-glam { background: #f6e8f3; color: #9a3a85; }
+.imp-mat-class { background: #e8eef9; color: #2b55a0; } .imp-mat-otro { background: var(--gris-2); color: var(--suave); }
+.imp-laminando { left: calc((100% - var(--imp-panel) - 20px) / 2); top: 42%; transform: translate(-50%, -50%); padding: 12px 18px; font-weight: 600; font-size: 13.5px; min-width: 260px; text-align: center; }
+.imp-barra { height: 6px; border-radius: 3px; background: #e3e6ec; margin-top: 8px; overflow: hidden; }
+.imp-barra i { display: block; height: 100%; width: 0; background: #0062cc; transition: width .3s; }
+.imp-laminando .imp-nota { font-weight: 400; margin-top: 6px; }
+
+/* Indicación del doctor (BETA, 2026-11-24): elementos que vinieron de la indicación y faltan revisar, y la ventana
+   para elegir el par cuando la indicación trae varios */
+.por-revisar { margin: 6px 0 4px; padding: 6px 8px; border-radius: 8px; background: #fff4e0; border: 1px solid #f1c46b; color: #7a4a00; font-size: 12.5px; display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.por-revisar button { height: 26px; padding: 0 10px; border-radius: 6px; border: 1px solid #d9a441; background: #fff; color: #7a4a00; font-size: 12px; cursor: pointer; }
+.ventana-par { border: 0; border-radius: 14px; padding: 18px 20px; max-width: 560px; width: calc(100% - 32px); box-shadow: 0 20px 60px rgba(0,0,0,.25); }
+.ventana-par::backdrop { background: rgba(10,16,40,.35); }
+.ventana-par h3 { margin: 0 0 4px; font-size: 17px; }
+.ventana-par p { margin: 0 0 12px; color: var(--suave); font-size: 13px; }
+.ventana-par [data-par] { display: grid; gap: 2px; width: 100%; text-align: left; padding: 10px 12px; margin-bottom: 8px; border: 1px solid var(--linea); border-radius: 10px; background: #fff; cursor: pointer; font: inherit; }
+.ventana-par [data-par]:hover { border-color: #0062cc; background: #f4f8ff; }
+.ventana-par [data-par] span { color: var(--suave); font-size: 12.5px; }
+.ventana-par-pie { display: flex; justify-content: flex-end; }
+.ventana-par-pie [data-par] { width: auto; display: inline-block; }
+.pe-caja-cuenta { margin: 2px 0 6px; font-size: 12px; color: #0a6b24; font-weight: 600; } .pe-caja-cuenta:empty { display: none; }

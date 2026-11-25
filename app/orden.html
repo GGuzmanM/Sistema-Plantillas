@@ -3,135 +3,173 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<!-- ícono de la pestaña (auditoría 2026-11-19: sin él la consola mostraba un error 404) -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%231838d9%22/%3E%3Cpath d=%22M12 6c-4 0-6 4-6 10s2 10 6 10c2 0 3-2 3-5V11c0-3-1-5-3-5zm8 0c4 0 6 4 6 10s-2 10-6 10c-2 0-3-2-3-5V11c0-3 1-5 3-5z%22 fill=%22white%22/%3E%3C/svg%3E">
-<title>Orden del doctor</title>
+<title>Indicación de plantillas</title>
+<!-- Indicación del doctor (BETA, Ernesto 2026-11-24; antes "Orden del doctor"): todo con clics — los elementos no se
+     escriben (en la ficha anagráfica se escriben con errores); solo se escribe la altura. Sale un PDF con la
+     información general y, por par, los elementos con su altura y si son bilaterales. El PDF lleva los datos adentro
+     (motor/indicacion.js): el programa lo lee y agrega los elementos al diseño "por revisar". -->
 <style>
-  :root { --tinta: #1c2430; --suave: #5d6878; --linea: #d7dde5; --fondo: #eef1f5; --acento: #1d5fbf; --acento-2: #174d9c; --naranja: #e08a2e; }
-  * { box-sizing: border-box; }
-  body { margin: 0; font: 14px/1.45 system-ui, "Segoe UI", sans-serif; color: var(--tinta); background: var(--fondo); }
-  main { max-width: 860px; margin: 0 auto; padding: 20px 16px 40px; }
-  h1 { font-size: 20px; margin: 0 0 2px; } .sub { color: var(--suave); margin: 0 0 16px; }
-  section { background: #fff; border: 1px solid var(--linea); border-radius: 10px; padding: 14px 16px; margin-bottom: 12px; }
-  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--suave); margin: 0 0 10px; }
-  .campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 14px; }
-  label { display: grid; gap: 4px; font-size: 13px; color: var(--suave); }
-  input, select, textarea { height: 34px; border: 1px solid var(--linea); border-radius: 6px; padding: 0 8px; font: inherit; color: var(--tinta); background: #fff; min-width: 0; }
-  textarea { height: 70px; padding: 6px 8px; resize: vertical; }
-  input:focus, select:focus, textarea:focus { outline: 2px solid #9cbdf0; border-color: var(--acento); }
-  table { width: 100%; border-collapse: collapse; }
-  th, td { text-align: left; padding: 6px 6px; border-bottom: 1px solid #e7ebf0; }
-  th { font-size: 12px; color: var(--suave); font-weight: 600; }
-  td input[type=number] { width: 80px; }
-  tr.lleva td:first-child { border-left: 3px solid var(--naranja); }
-  .botones { display: flex; gap: 8px; flex-wrap: wrap; }
-  button { height: 38px; border-radius: 6px; border: 1px solid var(--linea); background: #fff; color: var(--tinta); font: inherit; padding: 0 14px; cursor: pointer; }
-  button.primario { background: var(--acento); border-color: var(--acento); color: #fff; font-weight: 600; }
-  .nota { color: var(--suave); font-size: 13px; }
-  .mensaje { margin-top: 8px; font-size: 13px; color: #17753c; min-height: 18px; }
-  @media print { body { background: #fff; } .botones, .nota-pantalla { display: none; } section { border: 0; padding: 6px 0; } }
-  @media (max-width: 600px) { td input[type=number] { width: 64px; } }
-  /* identidad azul + blanco (2026-11-19) */
-  :root { --tinta: #10183a; --suave: #586189; --linea: #dfe4f7; --fondo: #f3f5fe; --acento: #1838d9; --acento-2: #0e24a6; }
-  body { background: radial-gradient(900px 400px at 100% -10%, rgba(79,104,236,.18), transparent 60%), #f3f5fe; }
-  h1 { font-family: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; font-weight: 800; color: #0e24a6; letter-spacing: -.01em; }
-  section { border-left: 4px solid var(--acento); }
-  h2 { color: var(--acento); }
-  button.primario { background: linear-gradient(135deg, #1838d9, #4f68ec); }
-  input:focus, select:focus, textarea:focus { outline-color: rgba(24,56,217,.25); }
-  @media print { body { background: #fff; } section { border: 0; } }
+  :root { --tinta:#10183a; --suave:#5d6684; --linea:#dfe4f0; --acento:#1838d9; --acento2:#e9eefe; --fondo:#f3f5fb; --rojo:#b3261e; }
+  * { box-sizing:border-box; }
+  [hidden] { display:none !important; }
+  body { margin:0; font:14px/1.4 "Segoe UI", system-ui, sans-serif; color:var(--tinta); background:radial-gradient(900px 400px at 100% -10%, rgba(79,104,236,.14), transparent 60%), var(--fondo); }
+  main { max-width:900px; margin:0 auto; padding:18px 16px 40px; }
+  h1 { margin:0; font-size:21px; color:#0e24a6; } .sub { color:var(--suave); margin:2px 0 14px; font-size:13px; }
+  .beta { font-size:11px; font-weight:700; color:#9a5b00; background:#fff1d6; border:1px solid #f1c46b; border-radius:10px; padding:1px 7px; vertical-align:middle; margin-left:6px; }
+  .panel { background:#fff; border:1px solid var(--linea); border-left:4px solid var(--acento); border-radius:12px; padding:14px 16px; margin-bottom:12px; }
+  .panel h2 { margin:0 0 10px; font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--acento); }
+  .campos { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:8px 12px; }
+  label.f { display:grid; gap:3px; font-size:12.5px; color:var(--suave); }
+  input, textarea { height:34px; border:1px solid var(--linea); border-radius:7px; padding:0 9px; font:inherit; color:var(--tinta); background:#fff; min-width:0; }
+  textarea { height:60px; padding:6px 9px; resize:vertical; }
+  input:focus, textarea:focus { outline:2px solid #9cbdf0; border-color:var(--acento); }
+  .nota { color:var(--suave); font-size:12.5px; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .chip { border:1px solid var(--linea); background:#fff; border-radius:16px; padding:5px 11px; cursor:pointer; font:inherit; font-size:13px; color:var(--tinta); }
+  .chip.si { background:var(--acento2); border-color:var(--acento); color:var(--acento); font-weight:600; }
+  .chip.mini { padding:2px 9px; font-size:12px; }
+  .par { border:1px solid var(--linea); border-radius:10px; padding:10px; margin-bottom:8px; }
+  .par .cab { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; gap:8px; }
+  .quitar { border:0; background:none; color:var(--rojo); cursor:pointer; font:inherit; font-size:12.5px; }
+  .zona { font-size:11px; font-weight:700; color:var(--suave); text-transform:uppercase; margin:10px 0 4px; }
+  .elem { padding:6px 8px; border-radius:8px; border:1px solid transparent; }
+  .elem.si { background:#f6f8ff; border-color:#cfd8fb; }
+  .elem .nom { cursor:pointer; user-select:none; display:flex; gap:8px; align-items:center; background:none; border:0; font:inherit; color:inherit; padding:0; text-align:left; }
+  .elem .nom i { width:16px; height:16px; border:1.6px solid #8a93b0; border-radius:4px; display:inline-block; flex:none; }
+  .elem.si .nom i { background:var(--acento); border-color:var(--acento); box-shadow:inset 0 0 0 2.5px #fff; }
+  .elem .ops { display:none; gap:12px; flex-wrap:wrap; padding:6px 0 2px 24px; align-items:center; }
+  .elem.si .ops { display:flex; }
+  .ops .g { display:flex; gap:4px; align-items:center; } .ops .g > span { font-size:12px; color:var(--suave); margin-right:2px; }
+  input.alt { width:66px; height:28px; text-align:right; } input.mal { border-color:var(--rojo); background:#fdecec; }
+  .botones { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  button.btn { height:40px; border-radius:8px; border:1px solid var(--linea); background:#fff; padding:0 16px; font:inherit; cursor:pointer; }
+  button.prim { background:linear-gradient(135deg,#1838d9,#4f68ec); color:#fff; border:0; font-weight:600; }
+  .mensaje { margin-top:10px; font-size:13px; min-height:18px; }
+  .mensaje.mal { color:var(--rojo); } .mensaje.bien { color:#17753c; }
 </style>
 </head>
 <body>
 <main>
-  <h1>Orden del doctor</h1>
-  <p class="sub">Borrador. Genera la receta que abre el programa de plantillas; el diseñador solo ajusta.</p>
+  <h1>Indicación de plantillas <span class="beta">BETA</span></h1>
+  <p class="sub">Los elementos se eligen con clic: solo se escribe la altura. Sale un PDF que el programa de plantillas lee y con el que arma el diseño.</p>
 
-  <section>
-    <h2>Paciente</h2>
-    <div class="campos">
-      <label>Nombre del paciente<input id="paciente" autocomplete="off"></label>
-      <label>Documento<input id="documento" autocomplete="off"></label>
-      <label>Doctor<input id="doctor" autocomplete="off"></label>
-      <label>Fecha<input id="fecha" type="date"></label>
+  <section class="panel"><h2>Paciente</h2>
+    <div class="campos" id="generales"></div>
+  </section>
+
+  <section class="panel"><h2>Pares (calzado y material)</h2>
+    <div id="pares"></div>
+    <div class="chips" id="agregarPar"></div>
+  </section>
+
+  <section class="panel"><h2>Elementos</h2>
+    <div class="nota">Clic en el elemento; después escriba la altura y elija el lado y en qué pares va.</div>
+    <div id="elementos"></div>
+  </section>
+
+  <section class="panel"><h2>Patología y nota (opcional)</h2>
+    <div class="campos" style="grid-template-columns:1fr">
+      <label class="f">Patología<textarea id="patologia"></textarea></label>
+      <label class="f">Motivo de consulta<input id="motivo"></label>
+      <label class="f">Nota para el diseñador<textarea id="nota"></textarea></label>
     </div>
-  </section>
-
-  <section>
-    <h2>Plantilla</h2>
-    <div class="campos">
-      <label>Producto<select id="producto"></select></label>
-      <label>Talla<select id="talla"></select></label>
-      <label>Copa del talón (mm)<input id="copa" type="number" step="0.5" min="4" max="25"></label>
-      <label>Espesor antepié (mm)<input id="antepie" type="number" step="0.1" min="0.8" max="6"></label>
-    </div>
-    <p class="nota">Si el paciente tiene escaneo, elija "Según escaneo": el diseñador toma el largo y el ancho del pie.</p>
-  </section>
-
-  <section>
-    <h2>Elementos (altura en mm; vacío o 0 = ese pie no lo lleva)</h2>
-    <table><thead><tr><th>Elemento</th><th>Izquierdo</th><th>Derecho</th></tr></thead><tbody id="elementos"></tbody></table>
-  </section>
-
-  <section>
-    <h2>Indicaciones</h2>
-    <textarea id="notas" placeholder="Otras indicaciones para el diseñador"></textarea>
   </section>
 
   <div class="botones">
-    <button class="primario" id="descargar">Descargar receta (.json)</button>
-    <button id="imprimir">Imprimir / guardar PDF</button>
+    <button class="btn prim" id="generar">Generar PDF</button>
+    <button class="btn" id="ver">Ver el PDF</button>
+    <button class="btn" id="limpiar">Nueva indicación</button>
   </div>
   <div class="mensaje" id="mensaje"></div>
-  <p class="nota nota-pantalla">La receta se abre en el programa con "Abrir receta…" o arrastrándola sobre el 3D.</p>
 </main>
 <script type="module">
+import { pdfIndicacion, LADOS } from '../motor/indicacion.js';
+import { listaMaquinas } from './maquinas.js';
 const $ = id => document.getElementById(id);
-const leer = async r => (await fetch(r)).json();
-const bib = await leer('../biblioteca/biblioteca.json');
-const tallas = (await leer('../biblioteca/' + bib.tallas)).tallas;
-const catalogo = (await leer('../biblioteca/elementos.json')).elementos;
-
-for (const p of bib.productos) $('producto').add(new Option(p.nombre, p.id));
-$('talla').add(new Option('Según escaneo', ''));
-for (const t of tallas) $('talla').add(new Option(`${t.talla} (${t.largo} mm)`, t.talla));
-const ponerProducto = () => { const p = bib.productos.find(x => x.id === $('producto').value); $('copa').value = p.copa; $('antepie').value = p.antepie; };
-$('producto').addEventListener('change', ponerProducto); ponerProducto();
-$('fecha').value = new Date().toISOString().slice(0, 10);
-
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-$('elementos').innerHTML = catalogo.map(e => `<tr data-id="${esc(e.id)}"><td>${esc(e.nombre)}</td>
-  <td><input type="number" min="0" max="15" step="0.5" data-pie="izq" aria-label="${esc(e.nombre)}, izquierdo" placeholder="–"></td>
-  <td><input type="number" min="0" max="15" step="0.5" data-pie="der" aria-label="${esc(e.nombre)}, derecho" placeholder="–"></td></tr>`).join('');
-$('elementos').addEventListener('input', ev => {
-  const tr = ev.target.closest('tr');
-  tr.classList.toggle('lleva', [...tr.querySelectorAll('input')].some(i => parseFloat(i.value) > 0));
+const n = v => String(v).replace('.', ',');
+const { elementos } = await (await fetch('../biblioteca/elementos.json')).json();
+const porId = new Map(elementos.map(e => [e.id, e]));
+// materiales de Máquinas (los de fábrica): EVA y de impresión 3D
+const maq = listaMaquinas(null), MATERIALES = [...maq.materiales, ...maq.resinas].map(m => ({ id: m.id, nombre: m.nombre }));
+const CALZADOS = ['Urbanas', 'Deportivas', 'Zapatos de vestir', 'Mocasines / tacos', 'Chimpunes', 'Crocs / sandalias'];
+const GENERALES = ['Apellido y nombre', 'Código paciente', 'DNI', 'Fecha de nacimiento', 'Sexo', 'Calzado n.º', 'Peso (kg)', 'Altura (cm)', 'Médico', 'Teléfono', 'Fecha de registro', 'Centro'];
+// elementos por zona; los que no estén en esta lista (propios nuevos) van al final
+const ZONAS = [['Antepié', ['barra_metatarsal', 'oliva', 'cuna_int_antepie', 'cuna_ext_antepie', 'descarga_1mtt', 'descarga_5mtt']],
+  ['Mediopié', ['arco_lateral']], ['Retropié', ['cuna_int_retropie', 'cuna_ext_retropie', 'cuna_antisupinacion', 'descarga_talon']]];
+{ const usados = new Set(ZONAS.flatMap(z => z[1])), otros = elementos.map(e => e.id).filter(id => !usados.has(id)); if (otros.length) ZONAS.push(['Otros', otros]); }
+
+let S;
+const nuevo = () => ({ pares: [{ calzado: 'Urbanas', materialId: MATERIALES[0].id }], sel: new Map() });
+$('generales').innerHTML = GENERALES.map((g, i) => `<label class="f">${esc(g)}<input data-g="${esc(g)}" autocomplete="off"${i === 0 ? ' id="paciente"' : ''}></label>`).join('');
+
+function pintar() {
+  $('pares').innerHTML = S.pares.map((p, i) => `<div class="par"><div class="cab"><b>Par ${i + 1} · ${esc(p.calzado)}</b>${S.pares.length > 1 ? `<button class="quitar" data-quitar="${i}">Quitar</button>` : ''}</div>
+    <div class="chips">${MATERIALES.map(m => `<button class="chip mini ${p.materialId === m.id ? 'si' : ''}" data-mat="${i}|${esc(m.id)}">${esc(m.nombre)}</button>`).join('')}</div></div>`).join('');
+  $('agregarPar').innerHTML = CALZADOS.filter(c => !S.pares.some(p => p.calzado === c)).map(c => `<button class="chip" data-par="${esc(c)}">+ ${esc(c)}</button>`).join('');
+  $('elementos').innerHTML = ZONAS.map(([z, ids]) => `<div class="zona">${esc(z)}</div>` + ids.map(id => {
+    const e = porId.get(id); if (!e) return ''; const s = S.sel.get(id);
+    return `<div class="elem ${s ? 'si' : ''}"><button class="nom" data-el="${esc(id)}"><i></i>${esc(e.nombre)}</button>
+      <div class="ops">
+        <span class="g"><span>Altura</span><input type="text" inputmode="decimal" class="alt" data-altura="${esc(id)}" value="${s ? n(s.altura) : ''}" aria-label="Altura de ${esc(e.nombre)} en mm"><span>mm</span></span>
+        <span class="g">${Object.entries(LADOS).map(([k, t]) => `<button class="chip mini ${s?.lado === k ? 'si' : ''}" data-lado="${esc(id)}|${k}">${t.replace('Solo izquierdo', 'Solo izq.').replace('Solo derecho', 'Solo der.')}</button>`).join('')}</span>
+        ${S.pares.length > 1 ? `<span class="g"><span>En</span><button class="chip mini ${!s?.pares ? 'si' : ''}" data-en="${esc(id)}|*">Todos</button>${S.pares.map(p => `<button class="chip mini ${s?.pares?.includes(p.calzado) ? 'si' : ''}" data-en="${esc(id)}|${esc(p.calzado)}">${esc(p.calzado)}</button>`).join('')}</span>` : ''}
+      </div></div>`;
+  }).join('')).join('');
+}
+const altura = v => { const x = parseFloat(String(v).replace(',', '.')); return x >= 0.5 && x <= 15 ? Math.round(x * 10) / 10 : null; };
+
+document.addEventListener('click', ev => {
+  const d = ev.target.closest('[data-el],[data-lado],[data-en],[data-par],[data-mat],[data-quitar]')?.dataset; if (!d) return;
+  if (d.el) { if (S.sel.has(d.el)) S.sel.delete(d.el); else S.sel.set(d.el, { altura: porId.get(d.el).altura, lado: 'bi', pares: null }); }
+  if (d.lado) { const [id, k] = d.lado.split('|'); S.sel.get(id).lado = k; }
+  if (d.en) { const [id, c] = d.en.split('|'), s = S.sel.get(id);
+    if (c === '*') s.pares = null; else { const l = new Set(s.pares ?? []); l.has(c) ? l.delete(c) : l.add(c); s.pares = l.size && l.size < S.pares.length ? [...l] : null; } }
+  if (d.par) S.pares.push({ calzado: d.par, materialId: S.pares.at(-1)?.materialId ?? MATERIALES[0].id });
+  if (d.mat) { const [i, m] = d.mat.split('|'); S.pares[+i].materialId = m; }
+  if (d.quitar) { const c = S.pares[+d.quitar].calzado; S.pares.splice(+d.quitar, 1); for (const s of S.sel.values()) if (s.pares) { s.pares = s.pares.filter(x => x !== c); if (!s.pares.length || s.pares.length >= S.pares.length) s.pares = null; } }
+  pintar(); if (d.el && S.sel.has(d.el)) document.querySelector(`[data-altura="${CSS.escape(d.el)}"]`)?.focus();
+});
+document.addEventListener('input', ev => {
+  const id = ev.target.dataset?.altura; if (!id) return;
+  const a = altura(ev.target.value); ev.target.classList.toggle('mal', a == null); if (a != null) S.sel.get(id).altura = a;
 });
 
-function receta() {
-  const elementos = [...$('elementos').querySelectorAll('tr')].map(tr => ({
-    id: tr.dataset.id, izq: parseFloat(tr.querySelector('[data-pie=izq]').value) || 0, der: parseFloat(tr.querySelector('[data-pie=der]').value) || 0,
-  })).filter(e => e.izq > 0 || e.der > 0);
-  const talla = $('talla').value ? Number($('talla').value) : null;
+function datos() {
+  const generales = [...document.querySelectorAll('[data-g]')].map(i => [i.dataset.g, i.value.trim()]).filter(([, v]) => v);
   return {
-    version: 1, paciente: $('paciente').value.trim(), producto: $('producto').value,
-    talla, largo: talla ? tallas.find(t => t.talla === talla).largo : null, ancho: null,
-    copa: parseFloat($('copa').value), antepie: parseFloat($('antepie').value), arco: null, arcoPos: null,
-    elementos,
-    orden: { doctor: $('doctor').value.trim(), documento: $('documento').value.trim(), fecha: $('fecha').value, notas: $('notas').value.trim(), segunEscaneo: !talla },
+    tipo: 'indicacion-limablue', version: 1, creado: new Date().toISOString(), paciente: $('paciente').value.trim(), generales,
+    patologia: $('patologia').value.trim(), motivo: $('motivo').value.trim(), nota: $('nota').value.trim(),
+    pares: S.pares.map(p => ({ calzado: p.calzado, materialId: p.materialId, material: MATERIALES.find(m => m.id === p.materialId)?.nombre ?? '',
+      elementos: [...S.sel].filter(([, s]) => !s.pares || s.pares.includes(p.calzado)).map(([id, s]) => ({ id, nombre: porId.get(id).nombre, altura: s.altura, lado: s.lado })) })),
   };
 }
-$('descargar').addEventListener('click', () => {
-  const r = receta();
-  if (!r.paciente) { $('mensaje').style.color = '#b3261e'; $('mensaje').textContent = 'Falta el nombre del paciente.'; $('paciente').focus(); return; }
-  const nombre = `${r.paciente.replace(/[^\p{L}\p{N} _.-]/gu, '').trim()} orden.json`;
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([JSON.stringify(r, null, 2)], { type: 'application/json' }));
-  a.download = nombre; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-  $('mensaje').style.color = ''; $('mensaje').textContent = `Receta descargada: ${nombre} (${r.elementos.length} elementos).`;
-});
-$('imprimir').addEventListener('click', () => print());
-window.orden = { receta };
+const aviso = (t, bien) => { $('mensaje').textContent = t; $('mensaje').className = 'mensaje ' + (bien ? 'bien' : 'mal'); };
+function armar() {
+  if (!$('paciente').value.trim()) { aviso('Falta el apellido y nombre del paciente.'); $('paciente').focus(); return null; }
+  const malas = [...document.querySelectorAll('input.alt.mal')];
+  if (malas.length) { aviso('Hay alturas fuera de rango (de 0,5 a 15 mm): corríjalas antes de generar el PDF.'); malas[0].focus(); return null; }
+  if (!S.sel.size) { aviso('No hay elementos elegidos. Si la plantilla no lleva elementos, igual se puede generar: elija al menos el par.'); }
+  const d = datos(); return { d, pdf: new Blob([pdfIndicacion(d)], { type: 'application/pdf' }) };
+}
+const nombreArchivo = d => `${d.paciente.replace(/[^\p{L}\p{N} _.-]/gu, '').replace(/\s+/g, ' ').trim()} indicación.pdf`;
+$('generar').onclick = () => {
+  const r = armar(); if (!r) return;
+  const a = document.createElement('a'); a.href = URL.createObjectURL(r.pdf); a.download = nombreArchivo(r.d); a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  const ne = r.d.pares.reduce((s, p) => s + p.elementos.length, 0);
+  aviso(`PDF generado: ${nombreArchivo(r.d)} (${r.d.pares.length} ${r.d.pares.length === 1 ? 'par' : 'pares'}, ${ne} ${ne === 1 ? 'elemento' : 'elementos'}). Póngalo en la carpeta del paciente o ábralo en el programa.`, true);
+};
+$('ver').onclick = () => { const r = armar(); if (r) window.open(URL.createObjectURL(r.pdf), '_blank'); };
+$('limpiar').onclick = () => { if (S.sel.size && !confirm('¿Empezar una indicación nueva? Se borra lo que está en pantalla.')) return; reiniciar(); };
+function reiniciar() { S = nuevo(); for (const i of document.querySelectorAll('input, textarea')) i.value = ''; aviso(''); pintar(); }
+reiniciar();
+// abierta desde el diseño: trae el nombre del paciente (se usa una sola vez y solo si es de hace menos de un minuto)
+try {
+  const v = JSON.parse(localStorage.getItem('plantillas.indicacionPaciente') || 'null'); localStorage.removeItem('plantillas.indicacionPaciente');
+  if (v?.paciente && Date.now() - v.cuando < 60000) $('paciente').value = String(v.paciente).slice(0, 200);
+} catch { /* sin almacenamiento */ }
+window.indicacion = { datos };   // para revisar desde la consola
 </script>
 </body>
 </html>

@@ -300,6 +300,7 @@
       <button data-inicio-vista="biblioteca">Biblioteca</button>
       <button data-inicio-vista="maquinas">Máquinas</button>
       <button data-inicio-vista="fresado">Fresado <span class="etq-beta">beta</span></button>
+      <button data-inicio-vista="impresion">Impresión <span class="etq-beta">beta</span></button>
     </nav>
     <span id="inicioCarpeta" class="inicio-carpeta"></span>
     <button id="inicioVolver" class="primario" hidden>Volver al diseño</button>
@@ -310,7 +311,7 @@
   <button id="irInicio" class="ir-inicio" title="Diseñadores y proyectos">⌂ Inicio</button>
   <h1>Plantillas Lima Blue</h1>
   <span id="proyectoActual" class="proyecto-actual sin-proyecto">Sin proyecto (no se guarda)</span>
-  <a href="orden.html" target="_blank" rel="noopener">Orden del doctor (borrador)</a>
+  <a href="orden.html" target="_blank" rel="noopener" id="irIndicacion" title="Armar la indicación con clics y generar el PDF que el programa lee">Indicación del doctor <span class="etq-beta">beta</span></a>
   <span class="estado" id="estado">Cargando…</span>
   <span class="historial">
     <button id="deshacer" title="Deshacer (Ctrl+Z)" disabled>↶ Deshacer</button>
@@ -502,6 +503,20 @@
       <h2>Revisión</h2>
       <ul class="avisos" id="avisos"></ul>
     </section>
+    <!-- 2026-11-24 (Ernesto): ajustes de la impresora de cinta al exportar (resinas); salen del perfil de Máquinas y
+         valen solo para el G-code que se exporte desde aquí. Los mismos seis que en Inicio → Impresión. -->
+    <section data-en="exportar">
+      <div id="ajustesCinta" hidden>
+        <h2>Ajustes de impresión (cinta) <span class="etq-beta">beta</span></h2>
+        <div class="fila"><label for="ajVel">Velocidad (relleno)</label><span class="campo"><input type="number" id="ajVel" min="5" max="150" step="1"><span class="unidad">mm/s</span></span></div>
+        <div class="fila"><label for="ajTemp">Temperatura</label><span class="campo"><input type="number" id="ajTemp" min="150" max="310" step="1"><span class="unidad">°C</span></span></div>
+        <div class="fila"><label for="ajFlujo">Flujo</label><span class="campo"><input type="number" id="ajFlujo" min="30" max="150" step="1"><span class="unidad">%</span></span></div>
+        <div class="fila"><label for="ajRelleno">Relleno</label><span class="campo"><input type="number" id="ajRelleno" min="0" max="100" step="5"><span class="unidad">%</span></span></div>
+        <div class="fila"><label for="ajTipo">Tipo de relleno</label><select id="ajTipo"></select></div>
+        <div class="fila"><label for="ajParedes">Paredes</label><span class="campo"><input type="number" id="ajParedes" min="1" max="6" step="1"><span class="unidad"></span></span></div>
+        <p class="nota-modulo">Salen de la impresora de cinta elegida en 3. Imprimir (Inicio → Máquinas); lo que cambie aquí vale solo para este G-code. <a href="#" id="ajPerfil">Volver al perfil</a></p>
+      </div>
+    </section>
     <section data-en="exportar">
       <h2>Archivos</h2>
       <div class="botones">
@@ -513,10 +528,12 @@
         <button id="exportarCinta" hidden title="G-code para la impresora de cinta PodoTec3D (perfil PLANTAR3D 08-OCT25): el par, una plantilla detrás de la otra. BETA: revisarlo antes de imprimir.">G-code impresora de cinta <span class="etq-beta">beta</span></button>
         <button id="exportarCintaPrueba" hidden title="Pieza chica para la primera prueba en la impresora de cinta: solo los primeros 40 mm de la punta del pie derecho (unos minutos de impresión).">Prueba chica en la cinta (40 mm) <span class="etq-beta">beta</span></button>
         <button id="enviarCola" hidden title="Manda este par a la cola de fresado (Inicio → Fresado), para fresarlo junto con otros en un mismo taco">Enviar a cola de fresado</button>
+        <!-- 2026-11-24 (Ernesto): módulo Impresión (beta): varias plantillas de resina en la cinta y un solo G-code -->
+        <button id="enviarColaImpresion" hidden title="Manda este par a la cola de impresión (Inicio → Impresión), para imprimirlo junto con otros en la impresora de cinta">Enviar a cola de impresión <span class="etq-beta">beta</span></button>
         <button id="hojaDiseno">Hoja del diseño (imprimir / PDF)</button>
         <button id="guardarReceta">Guardar receta</button>
         <button id="abrirReceta">Abrir receta…</button>
-        <input type="file" id="archivoReceta" accept=".json,application/json" hidden>
+        <input type="file" id="archivoReceta" accept=".json,application/json,.pdf,application/pdf" hidden>
       </div>
       <!-- 2026-11-19 (Ernesto): elegir la carpeta donde se guardan el STL y el G-code; la copia del proyecto se guarda igual -->
       <label class="auto"><input type="checkbox" id="elegirCarpeta" checked> Preguntar en qué carpeta guardar el STL y el G-code</label>
@@ -595,7 +612,8 @@
         <div class="modos-corte herramientas-caja" role="group" aria-label="Herramienta de la caja del elemento">
           <button data-caja-el="mover" class="activo">Mover</button><button data-caja-el="girar">Girar</button><button data-caja-el="escala1">Escala 1D</button><button data-caja-el="escala2">Escala 2D</button><button data-caja-el="lazo">Lazo</button>
         </div>
-        <p class="pe-caja-nota">Clic en un punto lo elige (Shift + clic suma o quita) · Lazo para elegir varios · arrastre los elegidos para dar forma. Arrastrar fuera de los puntos gira la vista.</p>
+        <p class="pe-caja-nota">Clic en un punto lo elige (Shift + clic suma o quita) · arrastre en el vacío para elegir con un rectángulo (o use Lazo) · arrastre un elegido para mover todos. Clic derecho + arrastrar gira la vista.</p>
+        <p class="pe-caja-cuenta" id="peCajaCuenta" aria-live="polite"></p>
         <div class="pe-botones">
           <button id="peCajaPaso" title="Deshacer el último cambio de la caja" disabled>↶ Paso</button>
           <button id="peCajaReset" title="Volver a la forma de la biblioteca">Restablecer forma</button>

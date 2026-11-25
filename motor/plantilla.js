@@ -139,11 +139,28 @@ export function prepararHorma(datos, ref, op = {}) {
   // capa de la copa queda lisa (sin lomo en el centro) y copa + arco = horma exacta. Donde el interno es más bajo que
   // el externo (talón de la Crocs) la capa del arco queda negativa: es parte de la forma y se escala con ella.
   // (Probado 2026-11-19: apagar la capa del arco en el talón dejaba una loma al 10–15 % al subir la copa.)
-  const RA = H.map(() => new Float64Array(NVG));
-  for (let i = 0; i < NT; i++) for (let c = 0; c < NVG; c++) {
-    const s = suave((c / (NVG - 1) - 0.35) / 0.3), copa = (1 - s) * H[i][c] + s * H[i][NVG - 1 - c];
-    RA[i][c] = H[i][c] - copa;
+  // 2026-11-24 (Ernesto, Chimpunes: "una protuberancia" en el arco): en la Chimpunes (y algo en la Crocs) el arco
+  // empieza a subir antes del centro del ancho, y la capa de la copa se quedaba con esa subida en el centro (un lomo
+  // en el medio pie, 1,9 mm contra 0,6 a los costados). Al escalar la copa y el arco distinto, el lomo salía como un
+  // escalón a media altura de la subida del arco. Ahora la capa de la copa de cada fila no puede subir hacia el centro
+  // (forma de cuenco: baja desde cada borde y queda pareja abajo); lo que sobra va a la capa del arco. Copa + arco
+  // sigue siendo la horma exacta, y donde la copa ya era un cuenco (la Guía, el talón) no cambia nada.
+  // Lo que se pasa al arco se suaviza a lo ancho y a lo largo, para que el recorte no deje un quiebre.
+  const RA = H.map(() => new Float64Array(NVG)), CP = H.map(() => new Float64Array(NVG)), D = H.map(() => new Float64Array(NVG));
+  const bajaI = new Float64Array(NVG), bajaD = new Float64Array(NVG);
+  for (let i = 0; i < NT; i++) {
+    const cp = CP[i];
+    for (let c = 0; c < NVG; c++) { const s = suave((c / (NVG - 1) - 0.35) / 0.3); cp[c] = (1 - s) * H[i][c] + s * H[i][NVG - 1 - c]; }
+    bajaI[0] = cp[0]; for (let c = 1; c < NVG; c++) bajaI[c] = Math.min(bajaI[c - 1], cp[c]);
+    bajaD[NVG - 1] = cp[NVG - 1]; for (let c = NVG - 2; c >= 0; c--) bajaD[c] = Math.min(bajaD[c + 1], cp[c]);
+    for (let c = 0; c < NVG; c++) D[i][c] = Math.max(cp[c] - Math.max(bajaI[c], bajaD[c]), 0);
+    D[i] = gauss(D[i], 0.04 * (NVG - 1), false);
   }
+  for (let c = 0; c < NVG; c++) {
+    const col = new Float64Array(NT); for (let i = 0; i < NT; i++) col[i] = D[i][c];
+    const s = gauss(col, 0.015 * (NT - 1), false); for (let i = 0; i < NT; i++) D[i][c] = s[i];
+  }
+  for (let i = 0; i < NT; i++) for (let c = 0; c < NVG; c++) RA[i][c] = H[i][c] - (CP[i][c] - D[i][c]);
   // medidas de cada capa: copa (promedio del borde del 5 % al 20 %, como ref.copa) y en la cima del arco
   let cC = 0, cA = 0, iS = 0, jS = 0;
   const vC = [], vA = [], vT = [], vV = [];
@@ -205,35 +222,76 @@ export function alturasPorCapas(ref, p) {
   // subía la parte de atrás de la subida y la cima se corría hasta 40 mm hacia el talón. Ahora se apaga 14 % del largo
   // antes de la cima de la horma (nunca después del 40 %); con copa 10, 14 y 18 la cima queda en su lugar.
   const N = ref.arcoPos ?? 0.4, fin = Math.min(0.40, N - 0.14), ini = Math.min(0.15, fin - 0.12);
-  const talon = t => 1 - suave((t - ini) / (fin - ini));
   const K = ref.capas, S = K.muestras, V = K.copaMuestras, rc = ref.copa - ref.antepie, Rc = p.copa - p.antepie;
   const Ra = (p.arco ?? p.antepie + (ref.arco - ref.antepie) * (Rc / rc)) - p.antepie;
   const nom = (ref.copaNominal ?? ref.copa) - (ref.antepieNominal ?? ref.antepie);
   const kn = K.copaC > 0 ? Math.max(nom - K.copaA, 0.1) / K.copaC : 1;
   // altura sobre el antepié en un punto (capa copa c, capa arco a, largo t, ancho v):
-  // forma aprobada + cambio de copa (kc) + cambio de arco (ka)
-  const pesoCopa = (t, v) => { const s = lado(v); return (1 - s) * apagaExt(t) + s * talon(t); };
-  const arcoDe = (c, a, t, v) => a + kn * c * (1 - talon(t)) * lado(v) * antepieF(t);
-  const val = (c, a, t, v, kc, ka) => kn * c + a + (kc - kn) * c * pesoCopa(t, v) + (ka - 1) * arcoDe(c, a, t, v);
-  // kc tal que la copa medida (borde del 5 % al 20 %) quede en la pedida: es lineal en kc
-  let cw = 0; for (let s = 0; s < V.c.length; s++) cw += V.c[s] * pesoCopa(V.t[s], V.v[s]); cw /= V.c.length || 1;
-  const kcDe = ka => {
-    let m = 0; for (let s = 0; s < V.c.length; s++) m += val(V.c[s], V.a[s], V.t[s], V.v[s], kn, ka); m /= V.c.length || 1;
-    return cw > 1e-6 ? kn + (Rc - m) / cw : kn;
+  // forma aprobada + cambio de copa (kc) + cambio de arco (ka). `talon` = dónde la parte de la copa del medio pie deja
+  // de seguir a la copa (kc) y pasa a seguir al arco (ka).
+  const resolver = talon => {
+    const pesoCopa = (t, v) => { const s = lado(v); return (1 - s) * apagaExt(t) + s * talon(t); };
+    const arcoDe = (c, a, t, v) => a + kn * c * (1 - talon(t)) * lado(v) * antepieF(t);
+    const val = (c, a, t, v, kc, ka) => kn * c + a + (kc - kn) * c * pesoCopa(t, v) + (ka - 1) * arcoDe(c, a, t, v);
+    // kc tal que la copa medida (borde del 5 % al 20 %) quede en la pedida: es lineal en kc
+    let cw = 0; for (let s = 0; s < V.c.length; s++) cw += V.c[s] * pesoCopa(V.t[s], V.v[s]); cw /= V.c.length || 1;
+    const kcDe = ka => {
+      let m = 0; for (let s = 0; s < V.c.length; s++) m += val(V.c[s], V.a[s], V.t[s], V.v[s], kn, ka); m /= V.c.length || 1;
+      return cw > 1e-6 ? kn + (Rc - m) / cw : kn;
+    };
+    const alto = ka => { const kc = kcDe(ka); let m = 0; for (let s = 0; s < S.c.length; s++) m = Math.max(m, val(S.c[s], S.a[s], S.t[s], S.v[s], kc, ka)); return m; };
+    // ka: la capa del arco escalada para que el punto más alto de la zona del arco quede en el arco pedido
+    let ka = 0, minimo = false;
+    if (alto(0) >= Ra) minimo = true;
+    else {
+      let lo = 0, hi = 2; while (alto(hi) < Ra && hi < 64) hi *= 2;
+      for (let it = 0; it < 40; it++) { const mid = (lo + hi) / 2; if (alto(mid) < Ra) lo = mid; else hi = mid; }
+      ka = (lo + hi) / 2;
+    }
+    return { val, kc: kcDe(ka), ka, minimo, arco: alto(ka) };
   };
-  const alto = ka => { const kc = kcDe(ka); let m = 0; for (let s = 0; s < S.c.length; s++) m = Math.max(m, val(S.c[s], S.a[s], S.t[s], S.v[s], kc, ka)); return m; };
-  // ka: la capa del arco escalada para que el punto más alto de la zona del arco quede en el arco pedido
-  let ka = 0, minimo = false;
-  if (alto(0) >= Ra) minimo = true;
-  else {
-    let lo = 0, hi = 2; while (alto(hi) < Ra && hi < 64) hi *= 2;
-    for (let it = 0; it < 40; it++) { const mid = (lo + hi) / 2; if (alto(mid) < Ra) lo = mid; else hi = mid; }
-    ka = (lo + hi) / 2;
+  let r = resolver(t => 1 - suave((t - ini) / (fin - ini)));
+  // 2026-11-24 (Ernesto, Guía de tallas delgado con arco cavo: "no se ve natural el arco"): cuando el arco sube más
+  // que la copa (ka·kn > kc), la parte de la copa del medio pie subía entre el 14 % y el 26 % y recién después subía
+  // la capa del arco: la subida salía en dos escalones (un "hombro" al 30 %). Ahora ese paso se reparte en la misma
+  // subida del arco, desde que empieza (un poco antes) hasta la cima de la horma: una sola curva. En la cima y
+  // adelante no cambia nada (la cima queda en su lugar y con el alto pedido). Si la copa sube más que el arco se deja
+  // como estaba (repartirlo ahí corría la cima hacia el talón). Con kc = ka·kn las dos formas dan lo mismo: no salta.
+  if (r.ka * kn > r.kc) {
+    // dónde empieza a subir la capa del arco por el lado interno (5 % de lo que sube hasta la cima)
+    const NB = 100, am = new Float64Array(NB);
+    for (let s = 0; s < S.t.length; s++) if (S.v[s] > 0.8) { const b = Math.min(NB - 1, Math.max(0, Math.floor(S.t[s] * NB))); am[b] = Math.max(am[b], S.a[s]); }
+    const bN = Math.min(NB - 1, Math.round(N * NB)); let a0 = Infinity;
+    for (let b = Math.round(0.08 * NB); b < bN - 5; b++) if (am[b] > 0) a0 = Math.min(a0, am[b]);
+    if (!Number.isFinite(a0)) a0 = 0;
+    let s0 = N - 0.2; for (let b = bN; b > 0; b--) if (am[b] - a0 < 0.05 * (am[bN] - a0)) { s0 = b / NB; break; }
+    const i2 = Math.min(Math.max(s0 - 0.04, 0.1), N - 0.1);
+    r = resolver(t => 1 - suave((t - i2) / (N - i2)));
   }
-  const kc = kcDe(ka);
-  const fn = (c, a, t, v) => p.antepie + val(c, a, t, v, kc, ka);
-  fn.arco = p.antepie + alto(ka);
-  fn.arcoMin = minimo ? fn.arco : null;
+  // 2026-11-24 (Ernesto: "cuando cambio de tipo de arco, la copa en una parte baja y no es recta"): con el arco bajo
+  // para la copa (copa 14 con arco 15 a 21 en la Guía), el borde interno bajaba entre el talón y la subida del arco
+  // (hasta 10,6 mm con arco 15) y después subía: un pozo. Se rellena del lado interno: el borde no baja de lo que ya
+  // tenía atrás mientras más adelante (hasta la cima de la horma) vuelve a estar igual o más alto. No pasa la copa ni
+  // la cima, no toca nada desde la cima hacia adelante y donde no hay pozo no cambia nada.
+  const NB = 120, zb = new Float64Array(NB).fill(-Infinity), relleno = new Float64Array(NB);
+  for (let s = 0; s < S.t.length; s++) if (S.v[s] > 0.9) {
+    const b = Math.min(NB - 1, Math.max(0, Math.round(S.t[s] * (NB - 1)))); zb[b] = Math.max(zb[b], r.val(S.c[s], S.a[s], S.t[s], S.v[s], r.kc, r.ka));
+  }
+  const bN = Math.min(NB - 1, Math.round(N * (NB - 1)));
+  let b0 = 0; while (b0 < bN && !Number.isFinite(zb[b0])) b0++;
+  for (let b = b0 + 1; b <= bN; b++) if (!Number.isFinite(zb[b])) zb[b] = zb[b - 1];
+  if (b0 < bN) {
+    const atras = new Float64Array(NB), adelante = new Float64Array(NB);
+    atras[b0] = zb[b0]; for (let b = b0 + 1; b <= bN; b++) atras[b] = Math.max(atras[b - 1], zb[b]);
+    adelante[bN] = zb[bN]; for (let b = bN - 1; b >= b0; b--) adelante[b] = Math.max(adelante[b + 1], zb[b]);
+    for (let b = b0; b <= bN; b++) relleno[b] = Math.max(0, Math.min(atras[b], adelante[b]) - zb[b]);
+  }
+  const rl = gauss(relleno, 1, false), hayPozo = rl.some(x => x > 0.05);
+  const pozo = t => { const q = Math.min(Math.max(t, 0), 1) * (NB - 1), i = Math.min(Math.floor(q), NB - 2), f = q - i; return rl[i] + f * (rl[i + 1] - rl[i]); };
+  const fn = hayPozo ? (c, a, t, v) => p.antepie + r.val(c, a, t, v, r.kc, r.ka) + lado(v) * pozo(t)
+    : (c, a, t, v) => p.antepie + r.val(c, a, t, v, r.kc, r.ka);
+  fn.arco = p.antepie + r.arco;
+  fn.arcoMin = r.minimo ? fn.arco : null;
   return fn;
 }
 
@@ -559,6 +617,22 @@ export function prepararElemento(def) {
   // relleno: el elemento no se suma encima de la plantilla; la sube hasta su nivel (espesor del antepié + su
   // altura) solo donde está más baja. Donde la plantilla ya es más alta (copa, arco) no la toca.
   forma.relleno = !!def.relleno;
+  // absorbeArco (cuña interna de retropié, 2026-11-25, Ernesto: "siempre el elemento tenía una bajada al llegar al
+  // arco"): donde la plantilla ya sube hacia el arco, la cuña no se suma encima de esa subida; la cara de arriba queda
+  // en lo más alto entre la plantilla y (lo más bajo que tuvo hacia atrás + la cuña). Así el borde interno pasa del
+  // talón al arco subiendo parejo, sin joroba ni bajada
+  forma.absorbeArco = !!def.absorbeArco;
+  // llenar (cuñas de retropié, Ernesto 2026-11-24, dibujado sobre el corte: "algo así debería llenar la cuña"): en
+  // cada corte, del borde de la cuña (con su altura) hasta donde termina, la cara de arriba sigue una curva llena
+  // y suave; se rellena lo que está debajo (la curva de la copa entre la pared y el piso del talón)
+  // `llenar` puede ser true o { hasta (fracción del ancho donde llega al piso), curva (exponente: 1 = recta, más =
+  // más cóncava) }; por defecto llega donde termina la cuña con curva 1,6
+  // contorno (2026-11-24, Ernesto: "me refiero a la forma, antes era así"): todo lo que suma la cuña queda dentro de
+  // una diagonal limpia, del `contorno.atras` del ancho (en la punta del talón, medido desde el borde de la cuña)
+  // hasta el borde en `contorno.largo` del largo, con `contorno.suave` de borde difuminado
+  forma.llenar = def.llenar && A?.tipo === 'cuna'
+    ? { lado: A.lado, hasta: def.llenar.hasta ?? A.hasta, curva: def.llenar.curva ?? 1.6,
+        atras: def.llenar.contorno?.atras ?? 0.6, largo: def.llenar.contorno?.largo ?? 0.42, suave: def.llenar.contorno?.suave ?? 0.4 } : null;
   // pieza con forma propia (oliva): al moverla no se adapta al ancho de la plantilla, se corre entera en mm
   // (Ernesto, 2026-11-13). Las cuñas y la barra sí siguen el borde: para eso están.
   forma.rigida = !!PZ;
@@ -663,12 +737,16 @@ export function generar(h, p) {
   // mover = [adelante, hacia interno] en mm: corre el elemento sobre la plantilla sin cambiar su forma.
   // giro = grados (positivo: el frente del elemento va hacia el lado interno); escala = [largo, ancho] (1 = igual).
   // Giro y escala son alrededor del centro del elemento.
+  // (u, v) de cada punto, para el suavizado de las cuñas que llenan (paso 3b); solo si hay alguna
+  const uvFila = (p.elementos ?? []).some(e => e.forma?.llenar) ? new Float32Array(ns * nr * 2) : null;
   const he = new Float32Array(ns * nr), elementos = (p.elementos ?? []).map(e => {
     const forma = e.forma.para ? e.forma.para(h) : e.forma, g = ((e.giro ?? 0) * Math.PI) / 180;
     const sl = Math.max(e.escala?.[0] ?? 1, 0.2), sa = Math.max(e.escala?.[1] ?? 1, 0.2), centro = forma.centro ?? [0.5, 0.5];
-    const r = { altura: e.altura, relleno: !!e.forma.relleno, descarga: !!e.forma.descarga, forma, du: (e.mover?.[0] ?? 0) / p.largo, dmm: e.mover?.[1] ?? 0,
+    const r = { altura: e.altura, relleno: !!e.forma.relleno, absorbe: !!e.forma.absorbeArco, descarga: !!e.forma.descarga, llenar: e.forma.llenar ?? null, forma, du: (e.mover?.[0] ?? 0) / p.largo, dmm: e.mover?.[1] ?? 0,
                 transf: g !== 0 || sl !== 1 || sa !== 1, cg: Math.cos(g), sg: Math.sin(g), sl, sa, centro,
                 rigida: !!e.forma.rigida, aporte: new Float32Array(ns * nr),
+                // forma completa (sin lo que se metió en el arco), para pintarla en el 3D
+                dibujo: e.forma.absorbeArco ? new Float32Array(ns * nr) : null,
                 // caja del elemento en el diseño (2026-11-19): de qué punto (u, v) del elemento viene cada punto de la malla
                 uv: e.conUV ? new Float32Array(ns * nr * 2) : null };
     if (r.rigida) {
@@ -681,6 +759,12 @@ export function generar(h, p) {
   });
   // sube de 0 a la diferencia sin quiebre (en ±1 mm alrededor de cero)
   const rampaSuave = (d, k = 1) => (d <= -k ? 0 : d >= k ? d : ((d + k) * (d + k)) / (4 * k));
+  // contorno de una cuña que llena: 1 dentro de la diagonal, 0 fuera, con el borde difuminado (dv = distancia
+  // relativa desde el borde de la cuña, u = fracción del largo)
+  const dentroContorno = (L2, u, dv) => {
+    const lim = L2.atras * Math.max(0, 1 - u / L2.largo), t = Math.min(Math.max((dv - lim) / L2.suave + 0.5, 0), 1);
+    return 1 - t * t * t * (t * (6 * t - 15) + 10);
+  };
   const rk = Array.from({ length: nr }, (_, k) => (k / (nr - 1)) ** 1.7);
   const d0 = (p.radioCanto ?? 2) / W;
   // Margen para pulir a los costados (Ernesto, 2026-11-19): p.margenLados mm de más a cada lado del antepié (interno y
@@ -791,7 +875,52 @@ export function generar(h, p) {
             uu = e.centro[0] + (dY * e.cg + dX * e.sg) / e.sl / p.largo;
             vv = e.centro[1] + (-dY * e.sg + dX * e.cg) / e.sa / anchoFila;
           }
-          const a = e.altura * e.forma(uu, vv);
+          let a = e.altura * e.forma(uu, vv);
+          // llenar: del borde de la cuña (cara de arriba sin elementos + la altura de la cuña) hasta donde termina, la
+          // cara de arriba sigue una curva llena; lo que la plantilla queda debajo se rellena, con el peso a lo largo
+          // de la cuña. 2026-11-24 (Ernesto: "que se vea más natural, no una línea" y, dibujado, hasta dónde llega):
+          // antes era una recta; ahora es (1 − t)^curva con el final redondeado hasta quedar horizontal sobre el piso.
+          // Las cuñas de retropié usan alcance 0,72 y curva 0,95 (calcado del trazo de Ernesto sobre el corte).
+          if (e.llenar && !e.rigida) {
+            const L2 = e.llenar, ext = L2.lado !== 'interno', dv = ext ? vv : 1 - vv, t = dv / L2.hasta;
+            if (t > 0 && t < 1) {
+              const vBorde = ext ? 0.03 : 0.97, vFin = ext ? L2.hasta : 1 - L2.hasta, corr = e.dmm / anchoFila;
+              // solo en el talón: entero hasta el 12 % del largo y se apaga parejo hasta el 38 % (más adelante empieza
+              // el arco interno); el paso es largo para que no quede un bulto donde termina
+              const w = Math.min(Math.max((uu - 0.12) / 0.26, 0), 1), aLo = 1 - w * w * w * (w * (6 * w - 15) + 10);
+              const peso = Math.min(1, 1.1 * e.forma(uu, vBorde)) * aLo;
+              if (peso > 0.01) {
+                const xEn = vp => xi + Math.min(Math.max(vp + corr, 0), 1) * (xd - xi);
+                const zA = alturaEn(xEn(vBorde), py) + dzA + e.altura * peso, zB = alturaEn(xEn(vFin), py) + dzA;
+                // final redondeado: en el último 45 % la curva se aplana hasta quedar horizontal sobre el piso (con
+                // curva cerca de 1 llegaba con pendiente y dejaba un quiebre)
+                const tf = Math.max(0, (t - 0.55) / 0.45), fin = 1 - tf * tf * tf * (tf * (6 * tf - 15) + 10);
+                const f = (1 - t) ** L2.curva * fin;
+                // entra suave (0 mientras la recta va por debajo y sin quiebre al empezar): ni donde la recta cruza la
+                // pared ni donde se junta con la cuña queda arista
+                const r0 = (d, k) => (d <= 0 ? 0 : d >= k ? d - k / 2 : (d * d) / (2 * k));
+                // (6 mm de transición entre el relleno y la capa de la cuña: con menos quedaban pliegues de 14–16°)
+                const rel = peso * r0(zB + (zA - zB) * f - z[q], 1.2);
+                a += r0(rel - a, 6);
+              }
+            }
+          }
+          if (e.llenar && !e.rigida) a *= dentroContorno(e.llenar, uu, e.llenar.lado === 'interno' ? 1 - vv : vv);
+          if (e.absorbe) e.dibujo[q] = a;
+          if (e.absorbe && a > 0.01) {
+            // cuánto subió la plantilla en este punto sobre lo más bajo que tuvo antes (hacia el talón, a la misma
+            // fracción del ancho): esa subida se descuenta de la cuña, con un empalme suave de 1,5 mm
+            const z0 = alturaEn(px, py);
+            let zMin = z0;
+            // (el ancho de cada fila se mide igual que `v`: con la fila del 10 % en la punta del talón)
+            for (let s = 0; s < 18; s++) {
+              const yy = 0.1 * L + (py - 0.1 * L) * (s / 18);
+              if (yy >= py) break;
+              const [ai, ad] = h.borde(Math.min(Math.max(yy, 0.1 * L), 0.9 * L));
+              zMin = Math.min(zMin, alturaEn(ai + v * (ad - ai), yy));
+            }
+            a = Math.min(a, rampaSuave(a - (z0 - zMin), 1.5));
+          }
           e.aporte[q] = a;
           if (e.uv) { e.uv[2 * q] = uu; e.uv[2 * q + 1] = vv; }
           if (e.descarga) hunde += a; else if (e.relleno) relleno += a; else suma += a;
@@ -808,7 +937,50 @@ export function generar(h, p) {
           zt = Math.max(zt, piso);
         }
         he[q] = zt - z[q]; z[q] = zt;
+        if (uvFila) { uvFila[2 * q] = u; uvFila[2 * q + 1] = v; }
       }
+    }
+  }
+  // 3b) Cuñas que llenan (2026-11-24, Ernesto: "más orgánico, como en las imágenes", dibujado a lo ancho y a lo
+  // largo): después del relleno, del lado de la cuña y en el talón, la cara de arriba se lleva hacia una versión
+  // suavizada de sí misma (gaussiana de 6 mm) donde esa versión queda más alta. Así los rincones entre la pared y el
+  // piso quedan redondeados en todas las direcciones (también de la pared de atrás del talón hacia el arco), sin
+  // levantar el centro del talón ni bajar la pared.
+  const llenadores = elementos.filter(e => e.llenar && e.altura && !e.rigida);
+  if (llenadores.length && uvFila) {
+    const s5 = t => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * t * (t * (6 * t - 15) + 10));
+    const celda = 1.5, sig = 6;   // (probado 9 y 12 mm: más pliegues, 18–23°)
+    let gx0 = Infinity, gx1 = -Infinity, gy1 = 0;
+    for (let q = 0; q < z.length; q++) if (uvFila[2 * q] < 0.6) { gx0 = Math.min(gx0, x[q]); gx1 = Math.max(gx1, x[q]); gy1 = Math.max(gy1, y[q]); }
+    const GX = Math.ceil((gx1 - gx0) / celda) + 1, GY = Math.ceil(gy1 / celda) + 1, S = new Float64Array(GX * GY), N = new Float64Array(GX * GY);
+    for (let q = 0; q < z.length; q++) if (uvFila[2 * q] < 0.6) {
+      const i = Math.round((x[q] - gx0) / celda), j = Math.round(Math.max(y[q], 0) / celda); if (j >= GY) continue;
+      S[j * GX + i] += z[q]; N[j * GX + i]++;
+    }
+    // gaussiana separable que ignora las celdas vacías (fuera de la plantilla)
+    const r = Math.ceil((2.5 * sig) / celda), w = Array.from({ length: 2 * r + 1 }, (_, k) => Math.exp(-0.5 * (((k - r) * celda) / sig) ** 2));
+    const G = new Float64Array(GX * GY).fill(NaN); for (let k = 0; k < G.length; k++) if (N[k]) G[k] = S[k] / N[k];
+    const pasada = (A, dx, dy) => { const B = new Float64Array(GX * GY).fill(NaN);
+      for (let j = 0; j < GY; j++) for (let i = 0; i < GX; i++) { if (isNaN(G[j * GX + i])) continue; let s = 0, n = 0;
+        for (let k = -r; k <= r; k++) { const ii = i + k * dx, jj = j + k * dy; if (ii < 0 || jj < 0 || ii >= GX || jj >= GY) continue; const val = A[jj * GX + ii]; if (isNaN(val)) continue; s += w[k + r] * val; n += w[k + r]; }
+        B[j * GX + i] = n ? s / n : NaN; }
+      return B; };
+    const Bz = pasada(pasada(G, 1, 0), 0, 1);
+    const leerB = (X, Y) => { const fi = (X - gx0) / celda, fj = Math.max(Y, 0) / celda, i = Math.floor(fi), j = Math.floor(fj), a = fi - i, b = fj - j;
+      let s = 0, n = 0; for (const [di, dj, pw] of [[0, 0, (1 - a) * (1 - b)], [1, 0, a * (1 - b)], [0, 1, (1 - a) * b], [1, 1, a * b]]) { const ii = i + di, jj = j + dj;
+        if (ii < 0 || jj < 0 || ii >= GX || jj >= GY) continue; const val = Bz[jj * GX + ii]; if (isNaN(val)) continue; s += pw * val; n += pw; }
+      return n > 0.01 ? s / n : NaN; };
+    for (let q = 0; q < z.length; q++) {
+      const u = uvFila[2 * q], v = uvFila[2 * q + 1]; if (u >= 0.6) continue;
+      let wMax = 0, quien = null;
+      for (const e of llenadores) {
+        const dv = e.llenar.lado === 'interno' ? 1 - v : v, ws = (1 - s5((dv - 0.5) / 0.3)) * (1 - s5((u - 0.12) / 0.26)) * dentroContorno(e.llenar, u, dv);
+        if (ws > wMax) { wMax = ws; quien = e; }
+      }
+      if (wMax < 1e-3) continue;
+      const B = leerB(x[q], y[q]); if (!(B > z[q])) continue;
+      const d = B - z[q], add = wMax * (d < 0.5 ? (d * d) : d - 0.25);   // entra suave desde 0
+      z[q] += add; he[q] += add; quien.aporte[q] += add;
     }
   }
   // 4) Margen para pulir (Ernesto, 2026-11-19): p.margenPunta mm de más en la punta, para pulir al armar (muestras en
@@ -883,20 +1055,45 @@ export function generar(h, p) {
   if (mL || mT || mP) {
     margen = new Float32Array(y.length);
     const S = sinMargen, nS = S.length;
+    // auditoría 2026-11-24: antes cada punto se medía contra todo el contorno (≈ 15 millones de cuentas: ~1 s por pie y
+    // cada cambio en EVA, que trae margen, tardaba ~2 s). Un punto se corre a lo sumo unos mm con el margen, así que
+    // solo los que quedan a menos de R del contorno necesitan la cuenta exacta; esos se buscan en una grilla de celdas
+    // de R mm con los tramos que la tocan. Los de más adentro quedan en −R (solo se usa dónde pasa por 0).
+    const R = 2 * Math.max(mL, mT, mP) + 3, R2 = R * R;
+    let gx0 = Infinity, gy0 = Infinity, gx1 = -Infinity, gy1 = -Infinity;
+    for (const [a, b] of S) { gx0 = Math.min(gx0, a); gx1 = Math.max(gx1, a); gy0 = Math.min(gy0, b); gy1 = Math.max(gy1, b); }
+    gx0 -= R; gy0 -= R;
+    const GX = Math.ceil((gx1 + R - gx0) / R) + 1, GY = Math.ceil((gy1 + R - gy0) / R) + 1, celdas = Array.from({ length: GX * GY }, () => []);
+    const filas = Array.from({ length: GY }, () => []);   // tramos de cada franja de Y: para contar cruces solo con esos
+    for (let i = 0, j = nS - 1; i < nS; j = i++) {
+      const [ax, ay] = S[j], [bx, by] = S[i];
+      for (let cy = Math.floor((Math.min(ay, by) - gy0) / R); cy <= Math.floor((Math.max(ay, by) - gy0) / R); cy++) {
+        filas[cy].push(j);
+        for (let cx = Math.floor((Math.min(ax, bx) - gx0) / R); cx <= Math.floor((Math.max(ax, bx) - gx0) / R); cx++) celdas[cy * GX + cx].push(j);
+      }
+    }
+    const tramo = (j, X, Y) => {
+      const [ax, ay] = S[j], [bx, by] = S[(j + 1) % nS], ux = bx - ax, uy = by - ay, l2 = ux * ux + uy * uy || 1;
+      const t = Math.min(Math.max(((X - ax) * ux + (Y - ay) * uy) / l2, 0), 1), dx = X - ax - t * ux, dy = Y - ay - t * uy;
+      return dx * dx + dy * dy;
+    };
     for (let q = 0; q < y.length; q++) {
-      const X = x[q], Y = y[q]; let d2 = Infinity, dentro = false;
-      for (let i = 0, j = nS - 1; i < nS; j = i++) {
-        const [ax, ay] = S[j], [bx, by] = S[i];
+      const X = x[q], Y = y[q], cx = Math.floor((X - gx0) / R), cy = Math.floor((Y - gy0) / R);
+      let d2 = Infinity;
+      for (let b = Math.max(cy - 1, 0); b <= Math.min(cy + 1, GY - 1); b++)
+        for (let a = Math.max(cx - 1, 0); a <= Math.min(cx + 1, GX - 1); a++) for (const j of celdas[b * GX + a]) d2 = Math.min(d2, tramo(j, X, Y));
+      if (d2 > R2) { margen[q] = -R; continue; }   // lejos del borde: adentro
+      // cerca del borde: adentro o afuera, contando cruces de una línea horizontal (solo la cruzan tramos de su franja)
+      let dentro = false;
+      for (const j of filas[cy] ?? []) {
+        const [ax, ay] = S[j], [bx, by] = S[(j + 1) % nS];
         if ((ay > Y) !== (by > Y) && X < ax + ((Y - ay) * (bx - ax)) / (by - ay)) dentro = !dentro;
-        const ux = bx - ax, uy = by - ay, l2 = ux * ux + uy * uy || 1;
-        const t = Math.min(Math.max(((X - ax) * ux + (Y - ay) * uy) / l2, 0), 1), dx = X - ax - t * ux, dy = Y - ay - t * uy;
-        d2 = Math.min(d2, dx * dx + dy * dy);
       }
       margen[q] = dentro ? -Math.sqrt(d2) : Math.sqrt(d2);
     }
   }
   // aportes: cuánto sube cada elemento en cada punto (en el orden de p.elementos), para saber cuál se toca con el ratón
-  return { ns, nr, x, y, z, zb, he, rk, margen, distZonas, aportes: elementos.map(e => e.aporte), uvs: elementos.map(e => e.uv), p: { ...p, arco: f.arco, arcoMin: f.arcoMin ?? null, copaLado: h.ref.copaLado } };
+  return { ns, nr, x, y, z, zb, he, rk, margen, distZonas, aportes: elementos.map(e => e.aporte), dibujos: elementos.map(e => e.dibujo ?? e.aporte), uvs: elementos.map(e => e.uv), p: { ...p, arco: f.arco, arcoMin: f.arcoMin ?? null, copaLado: h.ref.copaLado } };
 }
 
 // Contacto total en el arco (como el "Full Contact" de LutraCAD). c = { altura(x, y) → z de la planta del pie o null,

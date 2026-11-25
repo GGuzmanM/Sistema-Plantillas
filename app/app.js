@@ -4,9 +4,10 @@ import { crearVisor, crearCubo } from './visor.js';
 import { leerSTL, ladoPorNombre, orientar, medirEscaneo, mallaEscaneo } from '../motor/escaneo.js';
 import { escalaPNG, analizarMuestra, contornoParaReceta, contornoProlijo } from '../motor/muestra.js';
 import { imagenDePDF } from '../motor/pdf.js';
+import { leerIndicacion, LADOS as LADOS_IND } from '../motor/indicacion.js';
 import { crearInicio } from './inicio.js';
 import { gcodeEVA } from '../motor/fresado.js';
-import { listaMaquinas, opcionesGcode, opcionesCinta } from './maquinas.js';
+import { listaMaquinas, opcionesGcode, opcionesConAjustes, ajustesDeCinta, TIPOS_RELLENO } from './maquinas.js';
 
 const $ = id => document.getElementById(id);
 // texto seguro dentro de HTML (auditoría 2026-11-18: nombres de archivos, de elementos y recetas que vienen de otras PC)
@@ -787,6 +788,7 @@ function pintarElementos() {
   $('listaElementos').innerHTML = elegidos.map((e, i) => `
     <div class="elemento${i === activo ? ' activo' : ''}${esDescargaId(e.id) ? ' descarga' : ''}" data-tarjeta="${i}">
       <div class="cab"><span>${esc(nombreElemento(e.id))}</span><button class="quitar" data-quitar="${i}" title="Quitar (Supr)" aria-label="Quitar ${esc(nombreElemento(e.id))}">×</button></div>
+      ${e.revisar ? `<div class="por-revisar">De la indicación: revise su ubicación (arrástrelo en el 3D) <button data-revisado="${i}">Ubicación revisada</button></div>` : ''}
       <div class="alturas">
         <label for="el-izq-${i}">Izq</label><input type="number" id="el-izq-${i}" data-i="${i}" data-pie="izq" min="0" max="15" step="0.5" value="${+e.izq || 0}">
         <label for="el-der-${i}">Der</label><input type="number" id="el-der-${i}" data-i="${i}" data-pie="der" min="0" max="15" step="0.5" value="${+e.der || 0}">
@@ -848,6 +850,8 @@ $('listaElementos').addEventListener('input', ev => {
 $('listaElementos').addEventListener('click', ev => {
   const b = ev.target.closest('[data-quitar]');
   if (b) { elegidos.splice(+b.dataset.quitar, 1); activo = -1; abiertos.clear(); pintarElementos(); pedir(); return; }
+  const rv = ev.target.closest('[data-revisado]');
+  if (rv) { const e = elegidos[+rv.dataset.revisado]; if (e) { delete e.revisar; pintarElementos(); pedir(); } return; }
   const c = ev.target.closest('[data-centrar]');
   if (c) {
     const i = +c.dataset.centrar, e = elegidos[i];
@@ -1092,8 +1096,16 @@ function malla(g, ox, al) {
     const quien = new Int16Array(n).fill(-1);
     for (let q = 0; q < n; q++) {
       let mejor = 0;
-      g.p.elementos.forEach((el, k) => { const a = g.aportes[k][q]; if (a > mejor) { mejor = a; quien[q] = k; } });
-      marca[q] = mejor / (2 * ELEM_BORDE);
+      // cuñas que llenan (2026-11-24, Ernesto: "¿por qué se ve así?"): su relleno se apaga muy de a poco y una franja
+      // de décimas de mm salía pintada como un cuerno; se pintan desde el 15 % de su altura (la forma que se ve)
+      let umbral = ELEM_BORDE;
+      g.p.elementos.forEach((el, k) => {
+        // cuña interna que se mete en el arco (2026-11-25, Ernesto: "arriba se debe ver como antes"): se pinta su forma
+        // completa, no lo que queda sumado después de meterse en el arco
+        const u = el.forma?.llenar ? Math.max(ELEM_BORDE, 0.15 * (el.altura || 0)) : ELEM_BORDE, a = (g.dibujos?.[k] ?? g.aportes[k])[q];
+        if (a / u > mejor / umbral) { mejor = a; umbral = u; quien[q] = k; }
+      });
+      marca[q] = mejor / (2 * umbral);
     }
     // descargas en naranja (hunden), elementos en turquesa (suben); el elegido en verde y su par en rojo
     const colorDe = k => (g.p.elementos[k].ref !== activo ? (g.p.elementos[k].forma?.descarga ? COLOR_DESCARGA : COLOR_ELEMENTO)
@@ -1253,7 +1265,8 @@ function actualizar() {
   catch (err) { estado.textContent = 'No se pudo generar'; estado.title = err.message; mensaje('No se pudo generar la plantilla: ' + err.message, false); return; }
   if ($('anchoAuto').checked) $('ancho').value = (r.h.ancho * d.largo / r.h.largo).toFixed(1);
   // G-code de la fresadora solo para EVA (sin acabado de resina: base plana)
-  { const eva = !producto().acabado; $('exportarGcode').hidden = !eva; $('enviarCola').hidden = !eva; $('exportarCinta').hidden = eva; $('exportarCintaPrueba').hidden = eva; pintarModuloProduccion(); }
+  { const eva = !producto().acabado; $('exportarGcode').hidden = !eva; $('enviarCola').hidden = !eva; $('exportarCinta').hidden = eva; $('exportarCintaPrueba').hidden = eva;
+    $('enviarColaImpresion').hidden = eva; $('ajustesCinta').hidden = eva; pintarModuloProduccion(); }
   // arco pedido más bajo de lo que da la horma sin su capa de arco (2026-11-19): se avisa al lado del alto de arco
   { const min = r.izq.p.arcoMin, av = $('avisoArcoSube'), sube = min != null && d.arco != null && min > d.arco + 0.05;
     av.hidden = !sube; if (sube) av.textContent = `Con esta horma y copa ${String(d.copa).replace('.', ',')} el arco no baja de ${f1(min)} mm: queda sin subida propia del arco.`; }
@@ -1329,6 +1342,7 @@ function actualizar() {
     } catch (err) { if (!(err instanceof ReferenceError)) throw err; /* al cargar, antes de la lista de máquinas */ }
   }
   if (!d.paciente) avisos.push('Falta el nombre del paciente (se usa en el nombre de los archivos).');
+  { const n = d.elementos.filter(e => e.revisar).length; if (n) avisos.push(`${n} ${n === 1 ? 'elemento' : 'elementos'} de la indicación del doctor sin revisar la ubicación (no se exporta hasta revisarlos).`); }
   resumenSeccion('Revisión', avisos.length ? `${avisos.length} aviso${avisos.length > 1 ? 's' : ''}` : 'sin observaciones');
   $('avisos').innerHTML = avisos.length ? avisos.map(a => `<li>${esc(a)}</li>`).join('') : '<li class="sinavisos" style="background:none;border:0;padding:0">Sin observaciones.</li>';
 
@@ -1572,7 +1586,12 @@ async function abrirCarpeta(archivos) {
   mensaje(`Abriendo la carpeta de ${$('paciente').value}…`);
   const stl = directos.filter(f => /\.stl$/i.test(f.name) && ladoPorNombre(f.name));
   if (stl.length) await cargarEscaneos(stl, true); else { pintarEscaneo(); pedir(); }
-  const cand = directos.filter(f => /\.(pdf|png)$/i.test(f.name) && !NO_ES_MUESTRA.test(f.name) && f.size < 8e6);
+  // indicación del doctor en la carpeta (2026-11-24): se lee primero y no se toma como muestra
+  let indicacion = null;
+  for (const f of directos.filter(f => /\.pdf$/i.test(f.name) && f.size < 2e6)) {
+    try { const ind = leerIndicacion(await f.arrayBuffer()); if (ind) { indicacion = f; break; } } catch { /* PDF dañado: sigue como posible muestra */ }
+  }
+  const cand = directos.filter(f => f !== indicacion && /\.(pdf|png)$/i.test(f.name) && !NO_ES_MUESTRA.test(f.name) && f.size < 8e6);
   for (const f of cand) { try { muestrasCarpeta.push(await leerMuestra(f)); } catch { /* no es una muestra escaneada */ } }
   if (muestrasCarpeta.length) ponerMuestra(muestrasCarpeta[0]);
   pintarListaMuestras();
@@ -1580,6 +1599,11 @@ async function abrirCarpeta(archivos) {
     stl.length ? `escaneo ${stl.map(f => f.name).join(' y ')}` : 'sin escaneo del Podoscan',
     muestrasCarpeta.length ? `${muestrasCarpeta.length} muestra${muestrasCarpeta.length > 1 ? 's' : ''} (${muestrasCarpeta.map(m => m.nombre).join(', ')})` : 'sin muestras escaneadas'];
   mensaje(partes.join(' · ') + '.' + (muestrasCarpeta.length > 1 ? ' Elija la muestra en "Escaneo y muestra".' : ''), true);
+  // con indicación: si el diseño todavía no tiene elementos, se ofrece aplicarla (si ya tiene, se avisa nomás)
+  if (indicacion) {
+    if (!elegidos.length) await probarIndicacion(indicacion);
+    else mensaje(partes.join(' · ') + `. Hay una indicación del doctor (${indicacion.name}); el diseño ya tiene elementos: para usarla, ábrala con "Abrir receta…".`, true);
+  }
 }
 // ---- Carpeta del paciente recordada por proyecto (Ernesto, 2026-11-19: al cerrar o recargar y volver a abrir el
 // proyecto desaparecían el escaneo y la muestra) ----
@@ -1909,14 +1933,18 @@ function dibujarCorte() {
     const yTit = 34 + c.measureText(titulo).width + 110 > ancho - 240 ? 44 : 16;
     const m = { l: 34, r: 12, t: yTit + 10, b: 22 }, gw = ancho - m.l - m.r, gh = H - m.t - m.b;
     const s0 = datos[0].s, s1 = datos[datos.length - 1].s, zMax = Math.max(...datos.map(d => Math.max(d.z, d.pie ?? 0))) + 1;
-    const pxmm = gw / (s1 - s0), k = Math.max(1, Math.min(8, Math.floor(gh / (zMax * pxmm))));
-    const X = s => x0 + m.l + (s - s0) * pxmm, Y = z => m.t + gh - z * pxmm * k;
+    // 2026-11-24 (Ernesto: "no puedo ver por completo esa vista"): en proporción real, con el ancho entero, una copa
+    // alta con cuña no entraba de alto y se cortaba arriba. Si no entra, el gráfico se achica de ancho (sigue en
+    // proporción real) y queda centrado.
+    const pxmm = Math.min(gw / (s1 - s0), gh / zMax), k = Math.max(1, Math.min(8, Math.floor(gh / (zMax * pxmm))));
+    const dx = (gw - (s1 - s0) * pxmm) / 2;
+    const X = s => x0 + m.l + dx + (s - s0) * pxmm, Y = z => m.t + gh - z * pxmm * k;
     c.font = '600 12px system-ui, sans-serif'; c.fillStyle = '#1c2430'; c.fillText(titulo, x0 + m.l, yTit);
     const finTitulo = x0 + m.l + c.measureText(titulo).width;
     c.font = '11px system-ui, sans-serif'; c.fillStyle = '#5d6878'; c.fillText(k > 1 ? `· alto ×${k}` : '· proporción real', finTitulo + 8, yTit);
     // rejilla de alturas cada 5 mm
     c.strokeStyle = '#e3e7ec'; c.lineWidth = 1;
-    for (let z = 0; z <= zMax; z += 5) { c.beginPath(); c.moveTo(X(s0), Y(z)); c.lineTo(X(s1), Y(z)); c.stroke(); c.fillText(`${z}`, x0 + 8, Y(z) + 4); }
+    for (let z = 0; z <= zMax; z += 5) { c.beginPath(); c.moveTo(X(s0), Y(z)); c.lineTo(X(s1), Y(z)); c.stroke(); c.fillText(`${z}`, X(s0) - 26, Y(z) + 4); }
     // plantilla
     c.beginPath(); datos.forEach((d, i) => (i ? c.lineTo(X(d.s), Y(d.z)) : c.moveTo(X(d.s), Y(d.z))));
     for (let i = datos.length - 1; i >= 0; i--) c.lineTo(X(datos[i].s), Y(datos[i].zb));
@@ -2649,6 +2677,7 @@ function agarrarElemento(px, py, ev) {
         // de medio en medio milímetro, como en la biblioteca
         const r = val => Math.max(-80, Math.min(80, Math.round(val * 2) / 2));
         e.mov[pie] = [r(inicio[0] + (Y - toque.y)), r(inicio[1] + signo * (X - toque.x))];
+        if (e.revisar) { delete e.revisar; pintarElementos(); }   // moverlo a mano = ubicación revisada
         if (e.juntos !== false) e.mov[otro] = [...e.mov[pie]];
       }
       refrescarPosiciones(); pedir();
@@ -2676,6 +2705,7 @@ function pintarPanelElemento() {
     document.querySelectorAll('[data-caja-el]').forEach(b => b.classList.toggle('activo', b.dataset.cajaEl === cajaEl.herr));
     $('peCajaPaso').disabled = !cajaEl.hist.length;
   }
+  pintarCuentaCaja();
   $('peCaja').textContent = e.caja?.[activoPie] ? 'Caja: editar la forma (cambiada)' : 'Caja: editar la forma';
   const p = activoPie, def = catalogo.find(x => x.id === e.id);
   $('peNombre').textContent = def?.nombre ?? e.id;
@@ -2829,11 +2859,29 @@ function agarrarCajaEl(px, py, ev) {
       },
     };
   }
-  let hit = -1, dmin = 10;
+  let hit = -1, dmin = 14;   // 14 px: más fácil de agarrar (con 10 un clic apenas al lado soltaba la selección)
   S.forEach((s, i) => { if (!s) return; const d = Math.hypot(s.x - px, s.y - py); if (d < dmin) { dmin = d; hit = i; } });
-  if (hit < 0) return null;   // fuera de los puntos: arrastrar mueve la vista
-  if (ev?.shiftKey) { sel.has(hit) ? sel.delete(hit) : sel.add(hit); visor.pedir(); return { mover() {}, soltar() {} }; }
+  // fuera de los puntos (2026-11-24, Ernesto: "como en LutraCAD"): arrastrar dibuja un rectángulo que elige los puntos
+  // de adentro (con Mayús se suman a los que ya estaban); un clic sin arrastrar suelta la selección. La vista se
+  // sigue girando con el botón derecho y acercando con la rueda.
+  if (hit < 0) {
+    const previos = new Set(sel), suma = !!ev?.shiftKey;
+    cajaEl.rect = null;
+    return {
+      mover(x, y) {
+        if (!cajaEl.rect && Math.hypot(x - px, y - py) < 4) return;
+        cajaEl.rect = [px, py, x, y];
+        const [x0, x1] = [Math.min(px, x), Math.max(px, x)], [y0, y1] = [Math.min(py, y), Math.max(py, y)];
+        sel.clear(); if (suma) for (const i of previos) sel.add(i);
+        S.forEach((s, i) => { if (s && s.x >= x0 && s.x <= x1 && s.y >= y0 && s.y <= y1) sel.add(i); });
+        pintarCuentaCaja(); visor.pedir();
+      },
+      soltar() { if (!cajaEl.rect && !suma) sel.clear(); cajaEl.rect = null; pintarCuentaCaja(); visor.pedir(); },
+    };
+  }
+  if (ev?.shiftKey) { sel.has(hit) ? sel.delete(hit) : sel.add(hit); pintarCuentaCaja(); visor.pedir(); return { mover() {}, soltar() {} }; }
   if (!sel.has(hit)) { sel.clear(); sel.add(hit); }
+  pintarCuentaCaja();
   // el ratón se lleva a un plano horizontal a la altura del punto tocado
   const z0 = W[hit][2];
   const enPlano = (x, y) => { const { o, d } = visor.rayo(x, y); if (Math.abs(d[2]) < 1e-9) return null; const t = (z0 - o[2]) / d[2]; return [o[0] + t * d[0] - m.ox, o[1] + t * d[1]]; };
@@ -2886,6 +2934,18 @@ function dibujarCajaEl(c) {
     c.save(); c.setLineDash([4, 3]); c.strokeStyle = '#e0661b'; c.lineWidth = 1.5; c.beginPath();
     cajaEl.lazo.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y))); c.closePath(); c.stroke(); c.restore();
   }
+  // rectángulo de selección
+  if (cajaEl.rect) {
+    const [a, b, x, y] = cajaEl.rect;
+    c.save(); c.fillStyle = 'rgba(18,179,60,.08)'; c.fillRect(Math.min(a, x), Math.min(b, y), Math.abs(x - a), Math.abs(y - b));
+    c.setLineDash([4, 3]); c.strokeStyle = '#12b33c'; c.lineWidth = 1.2; c.strokeRect(Math.min(a, x), Math.min(b, y), Math.abs(x - a), Math.abs(y - b)); c.restore();
+  }
+}
+// cuántos puntos de la caja están elegidos (en el panel del elemento)
+function pintarCuentaCaja() {
+  const el = $('peCajaCuenta'); if (!el) return;
+  const n = cajaEl?.sel.size ?? 0;
+  el.textContent = !cajaEl ? '' : n ? `${n} ${n === 1 ? 'punto elegido' : 'puntos elegidos'}: arrastre uno para moverlos juntos · Esc suelta` : 'Ningún punto elegido: arrastre en el vacío para elegir con un rectángulo · Ctrl+A todos';
 }
 $('peCaja').addEventListener('click', () => (cajaEl ? cerrarCajaEl() : abrirCajaEl()));
 $('peCajaListo').addEventListener('click', cerrarCajaEl);
@@ -3286,6 +3346,9 @@ function hayFueraDeRango() {
     if (!(m.anchoAntepie >= 40 && m.anchoAntepie <= 140)) f.push(`Ancho antepié de la plantilla ${pie} (${f1(m.anchoAntepie)} mm; de 40 a 140)`);
     if (!(m.anchoTalon >= 30 && m.anchoTalon <= 110)) f.push(`Ancho talón de la plantilla ${pie} (${f1(m.anchoTalon)} mm; de 30 a 110)`);
   }
+  // elementos de la indicación del doctor sin revisar (2026-11-24): no se exporta hasta confirmar su ubicación
+  const sinRevisar = elegidos.filter(e => e.revisar).map(e => nombreElemento(e.id));
+  if (sinRevisar.length) f.push(`la ubicación de ${sinRevisar.join(', ')} (vino de la indicación: arrástrelo o use "Ubicación revisada")`);
   if (f.length) mensaje("No se exportó: revise " + f.join(", ") + ".", false); return f.length > 0; }
 const dondeSeGuarda = () => inicio?.carpetaProyecto() ?? '';
 
@@ -3348,7 +3411,8 @@ function pintarMaquinasDiseno() {
 }
 const cintaElegida = () => maquinas.cintas.find(m => m.id === $('cintaElegida').value) ?? maquinas.cintas[0];
 $('cintaElegida').addEventListener('change', () => { delete $('cintaElegida').dataset.pedida; pintarMaquinasDiseno(); pedir(); });
-function aplicarMaquinas(datos) { maquinas = listaMaquinas(datos); pintarMaquinasDiseno(); pedir(); }
+// al llegar o cambiar las máquinas de la carpeta, los ajustes de la cinta de 4. Exportar vuelven a los del perfil
+function aplicarMaquinas(datos) { maquinas = listaMaquinas(datos); pintarMaquinasDiseno(); ponerAjustesCinta(true); pedir(); }
 $('mesaElegida').addEventListener('change', () => {
   delete $('mesaElegida').dataset.pedida;
   $('altoBloque').value = mesaElegida().alto;   // el alto por defecto de esa mesa (se puede cambiar)
@@ -3392,7 +3456,7 @@ async function exportarCinta(prueba) {
     mensaje('Laminando para la impresora de cinta (beta)… puede tardar unos segundos.');
     await new Promise(r => setTimeout(r, 30));
     const { gcodeCinta } = await import('../motor/cinta.js');
-    const perfil = opcionesCinta(cintaElegida());
+    const perfil = opcionesConAjustes(cintaElegida(), ajustesExportar());
     const r = prueba ? gcodeCinta([{ g: actual.der, nombre: base + ' derecho (prueba 40 mm)' }], { ...perfil, hastaMm: 40 })
       : gcodeCinta([{ g: actual.der, nombre: base + ' derecho' }, { g: actual.izq, nombre: base + ' izquierdo' }], perfil);
     if (r.avisos.length) { mensaje('No se generó el G-code de la cinta: ' + r.avisos.join(' '), false); return; }
@@ -3402,6 +3466,21 @@ async function exportarCinta(prueba) {
     mensaje(`BETA — guardado "${nombre}" en ${destino ? `la carpeta "${destino.name}" (y copia en ${dondeSeGuarda()})` : dondeSeGuarda()}: ${r.numCapas} capas, ≈ ${h} h ${min} min, ${(r.filamento / 1000).toFixed(1).replace('.', ',')} m de filamento (≈ ${Math.round(r.gramos)} g) con "${cintaElegida().nombre}". Antes de imprimir: revíselo (vista previa de la impresora o de ideaMaker) y la primera vez imprima una pieza chica, mirando la máquina.`);
   } catch (e) { mensaje('No se generó el G-code de la cinta: ' + e.message, false); }
 }
+// ajustes de esta impresión (2026-11-24): los seis del bloque "Ajustes de impresión (cinta)" de 4. Exportar; salen
+// del perfil de la impresora de cinta elegida y se vuelven a poner al cambiarla (no se guardan con el diseño)
+const AJ_CAMPOS = { vel: 'ajVel', temp: 'ajTemp', flujo: 'ajFlujo', relleno: 'ajRelleno', paredes: 'ajParedes' };
+$('ajTipo').innerHTML = TIPOS_RELLENO.map(([v, t]) => `<option value="${v}">${t}</option>`).join('');
+let ajustesDeCintaId = null;
+function ponerAjustesCinta(forzar) {
+  const c = cintaElegida(); if (!forzar && ajustesDeCintaId === c.id) return;
+  ajustesDeCintaId = c.id; const a = ajustesDeCinta(c);
+  for (const [k, id] of Object.entries(AJ_CAMPOS)) $(id).value = a[k];
+  $('ajTipo').value = a.tipo;
+}
+const ajustesExportar = () => { ponerAjustesCinta(false); return { ...Object.fromEntries(Object.entries(AJ_CAMPOS).map(([k, id]) => [k, parseFloat($(id).value)])), tipo: $('ajTipo').value }; };
+$('ajPerfil').addEventListener('click', ev => { ev.preventDefault(); ponerAjustesCinta(true); });
+$('cintaElegida').addEventListener('change', () => ponerAjustesCinta(false));
+ponerAjustesCinta(true);
 $('exportarCinta').addEventListener('click', () => exportarCinta(false));
 $('exportarCintaPrueba').addEventListener('click', () => exportarCinta(true));
 
@@ -3418,6 +3497,18 @@ $('enviarCola').addEventListener('click', async () => {
       material: { id: mat.id, nombre: mat.nombre }, izq: formaCola(actual.izq), der: formaCola(actual.der) });
     mensaje(`${r.reemplazo ? 'Actualizado en' : 'Enviado a'} la cola de fresado (${mat.nombre}): ${r.total} ${r.total === 1 ? 'diseño espera' : 'diseños esperan'}. Se arma el taco en Inicio → Fresado.`);
   } catch (e) { mensaje('No se envió a la cola: ' + e.message, false); }
+});
+// ---- Enviar a la cola de impresión (módulo Impresión, beta; Ernesto 2026-11-24) ----
+// Igual que la de fresado, con el material de resina elegido en 3. Imprimir. En Inicio → Impresión se juntan varias
+// en la impresora de cinta.
+$('enviarColaImpresion').addEventListener('click', async () => {
+  if (!actual || hayFueraDeRango()) return;
+  try {
+    const d = actual.d, mat = maquinas.resinas.find(m => m.id === $('materialResina').value) ?? maquinas.resinas[0];
+    const r = await inicio.enviarAColaImpresion({ paciente: d.paciente || 'sin nombre', talla: tallaCorta(d), largo: actual.m.largo,
+      material: { id: mat.id, nombre: mat.nombre }, izq: formaCola(actual.izq), der: formaCola(actual.der) });
+    mensaje(`${r.reemplazo ? 'Actualizado en' : 'Enviado a'} la cola de impresión (${mat.nombre}): ${r.total} ${r.total === 1 ? 'diseño espera' : 'diseños esperan'}. Se imprime en Inicio → Impresión.`);
+  } catch (e) { mensaje('No se envió a la cola de impresión: ' + e.message, false); }
 });
 
 // ---- Hoja del diseño ----
@@ -3503,13 +3594,94 @@ $('guardarReceta').addEventListener('click', async () => {
 $('abrirReceta').addEventListener('click', () => $('archivoReceta').click());
 $('archivoReceta').addEventListener('change', async e => {
   const f = e.target.files[0]; if (!f) return;
+  // la indicación del doctor en PDF también se abre desde aquí (2026-11-24)
+  if (/\.pdf$/i.test(f.name)) { e.target.value = ''; if (!(await probarIndicacion(f))) mensaje(`${f.name}: no es una indicación del programa (para una muestra escaneada use "Abrir muestra").`, false); return; }
   try {
-    const r = JSON.parse(await f.text()), desconocidos = aplicarReceta(r);
-    mensaje(`Receta abierta: ${f.name}` + (desconocidos.length ? `. Elementos que no existen y se omitieron: ${desconocidos.join(', ')}` : '') +
+    const r = JSON.parse(await f.text());
+    // auditoría 2026-11-24: con un paciente abierto, la receta de otro paciente se usa como base pero el diseño sigue
+    // siendo de este paciente (antes tomaba el nombre de la receta y los STL y G-code salían con el nombre del otro,
+    // guardados en la carpeta de este)
+    const proy = inicio?.proyecto?.(), delPaciente = proy ? String($('paciente').value.trim() || proy.datos?.paciente || '').trim() : '';
+    const otro = delPaciente && typeof r?.paciente === 'string' && r.paciente.trim() && r.paciente.trim() !== delPaciente ? r.paciente.trim() : null;
+    const desconocidos = aplicarReceta(delPaciente && r && typeof r === 'object' && !Array.isArray(r) ? { ...r, paciente: delPaciente } : r);
+    mensaje(`Receta abierta: ${f.name}` + (otro ? ` (era de ${otro}; el diseño sigue siendo de ${delPaciente})` : '') + (desconocidos.length ? `. Elementos que no existen y se omitieron: ${desconocidos.join(', ')}` : '') +
       (r.escaneo ? `. Escaneo usado: ${[r.escaneo.izq, r.escaneo.der].filter(Boolean).join(' y ')} (ábralo de la carpeta del paciente).` : ''), !desconocidos.length);
   } catch (err) { mensaje('No se pudo abrir la receta: ' + err.message, false); }
   e.target.value = '';
 });
+
+// ---- Indicación del doctor en PDF (BETA, Ernesto 2026-11-24) ----
+// La genera app/orden.html (motor/indicacion.js) con los datos adentro. Al abrirla (botón "Abrir receta…", soltarla
+// sobre el 3D o en la carpeta del paciente) se elige el par si hay varios y sus elementos se agregan con la altura y el
+// lado indicados, en su lugar de la biblioteca y marcados "por revisar": no se exporta hasta que el diseñador revisa
+// la ubicación de cada uno (arrastrándolo o con "Ubicación revisada"). También se pone el material del par.
+// Devuelve true si el archivo era una indicación (aplicada o no), false si no lo era.
+// al abrir la página de la indicación desde el diseño, llega con el nombre del paciente ya escrito (por el
+// almacenamiento del navegador, no por la dirección)
+$('irIndicacion')?.addEventListener('click', () => {
+  try { localStorage.setItem('plantillas.indicacionPaciente', JSON.stringify({ paciente: $('paciente').value.trim(), cuando: Date.now() })); } catch { /* sin almacenamiento */ }
+});
+async function probarIndicacion(f) {
+  let ind;
+  try { ind = leerIndicacion(await f.arrayBuffer()); }
+  catch (e) { mensaje(`${f.name}: ${e.message}.`, false); return true; }
+  if (!ind) return false;
+  const par = await elegirParIndicacion(ind, f.name);
+  if (par) aplicarIndicacion(ind, par, f.name);
+  return true;
+}
+function elegirParIndicacion(ind, nombre) {
+  if (!ind.pares.length) { mensaje(`${nombre}: la indicación no trae pares.`, false); return Promise.resolve(null); }
+  if (ind.pares.length === 1) return Promise.resolve(ind.pares[0]);
+  // varios pares: se elige cuál es este diseño (el que tenga el material del diseño va primero)
+  let dlg = $('ventanaPar');
+  if (!dlg) { dlg = document.createElement('dialog'); dlg.id = 'ventanaPar'; dlg.className = 'ventana-par'; document.body.append(dlg); }
+  const actualMat = materialDiseno || '';
+  const orden = [...ind.pares.keys()].sort((a, b) => (ind.pares[b].materialId === actualMat) - (ind.pares[a].materialId === actualMat));
+  dlg.innerHTML = `<h3>¿Qué par es este diseño?</h3><p>La indicación de ${esc(ind.paciente || 'este paciente')} trae ${ind.pares.length} pares. Cada par es un diseño; elija el que está armando ahora.</p>
+    ${orden.map(i => { const p = ind.pares[i]; return `<button data-par="${i}"><b>Par ${i + 1} · ${esc(p.calzado || 'sin calzado')}</b><span>${esc(p.material || 'sin material')} · ${p.elementos.length ? p.elementos.map(e => `${esc(e.nombre)} ${String(e.altura).replace('.', ',')} mm (${esc(LADOS_IND[e.lado].toLowerCase())})`).join(', ') : 'sin elementos'}</span></button>`; }).join('')}
+    <div class="ventana-par-pie"><button data-par="-1">Cancelar</button></div>`;
+  return new Promise(ok => {
+    dlg.onclick = ev => { const b = ev.target.closest('[data-par]'); if (!b) { if (ev.target === dlg) { dlg.close(); ok(null); } return; } dlg.close(); ok(+b.dataset.par < 0 ? null : ind.pares[+b.dataset.par]); };
+    dlg.oncancel = () => ok(null);
+    dlg.showModal();
+  });
+}
+function aplicarIndicacion(ind, par, nombre) {
+  const agregados = [], actualizados = [], faltan = [];
+  for (const it of par.elementos) {
+    const def = catalogo.find(e => e.id === it.id);
+    if (!def) { faltan.push(it.nombre || it.id); continue; }
+    const izq = it.lado === 'der' ? 0 : it.altura, der = it.lado === 'izq' ? 0 : it.altura;
+    const ya = elegidos.find(e => e.id === it.id);
+    if (ya) { ya.izq = izq; ya.der = der; ya.revisar = true; actualizados.push(def.nombre); continue; }
+    const ini = def.inicial;
+    elegidos.push(normalizarElemento(ini ? { id: it.id, izq, der, mov: { izq: ini.mov, der: ini.mov }, giro: { izq: ini.giro, der: ini.giro }, tam: { izq: ini.tam, der: ini.tam }, revisar: true }
+                                         : { id: it.id, izq, der, revisar: true }));
+    agregados.push(def.nombre);
+  }
+  // material del par: EVA → fresado; de impresión → resina (si el método de producción no coincide, se cambia)
+  let cambioProducto = '';
+  if (par.materialId) {
+    const eva = maquinas.materiales.some(m => m.id === par.materialId), res = maquinas.resinas.some(m => m.id === par.materialId);
+    if (eva || res) {
+      const prodOk = bib.productos.find(p => !p.acabado === eva);
+      if (prodOk && esEVA() !== eva) { $('producto').value = prodOk.id; $('producto').dispatchEvent(new Event('change')); cambioProducto = ` Se cambió el método de producción a "${prodOk.nombre}" por el material.`; }
+      const sel = $(eva ? 'materialEva' : 'materialResina'); delete sel.dataset.pedida; sel.value = par.materialId; materialDiseno = par.materialId; pintarMaquinasDiseno();
+    }
+  }
+  // paciente: sin proyecto y sin nombre se toma el de la indicación; con paciente abierto queda el suyo
+  if (!$('paciente').value.trim() && ind.paciente) $('paciente').value = ind.paciente;
+  // la indicación queda como orden del doctor del diseño (se ve en Base y viaja en la receta)
+  const med = ind.generales.find(([k]) => k === 'Médico')?.[1] ?? '';
+  ordenActual = { doctor: med, fecha: ind.creado ? ind.creado.slice(0, 10) : '', indicacion: nombre,
+    notas: [`Par: ${par.calzado || 'sin calzado'}${par.material ? ' · ' + par.material : ''}`, ind.patologia && 'Patología: ' + ind.patologia, ind.motivo && 'Motivo: ' + ind.motivo, ind.nota && 'Nota: ' + ind.nota].filter(Boolean).join(' · ') };
+  pintarOrden();
+  activo = -1; pintarElementos(); pedir();
+  const otro = inicio?.proyecto?.() && ind.paciente && $('paciente').value.trim() && ind.paciente.trim().toLowerCase() !== $('paciente').value.trim().toLowerCase() ? ` Ojo: la indicación es de ${ind.paciente}.` : '';
+  mensaje(`Indicación ${nombre} (par ${par.calzado}): ${agregados.length ? 'se agregaron ' + agregados.join(', ') : 'sin elementos nuevos'}${actualizados.length ? '; se actualizó la altura de ' + actualizados.join(', ') : ''}. ` +
+    `Revise la ubicación de cada uno (arrástrelo en el 3D o use "Ubicación revisada").${faltan.length ? ' No están en la biblioteca: ' + faltan.join(', ') + '.' : ''}${cambioProducto}${otro}`, !faltan.length && !otro);
+}
 
 // Auditoría 2026-11-16: una receta dañada (a mano, de otra versión o cortada) dejaba la pantalla a medio cargar
 // (largo y copa en blanco) o el programa trabado (línea de corte rota). Ahora se limpia antes de usarla: lo que no
@@ -3661,6 +3833,8 @@ function normalizarElemento(e) {
            tam: { izq: parLim(par(e.tam?.izq, 100), 40, 250), der: parLim(par(e.tam?.der, 100), 40, 250) },
            // mover igual en los dos pies, por elemento (Ernesto, 2026-11-19); por defecto sí
            juntos: e.juntos !== false,
+           // agregado desde la indicación del doctor y todavía sin revisar su ubicación (2026-11-24)
+           ...(e.revisar === true ? { revisar: true } : {}),
            // caja propia de este diseño, por pie (2026-11-19); sin caja el elemento usa la forma de la biblioteca
            ...((c => (c.izq || c.der ? { caja: c } : {}))({ izq: cajaValida(e.caja?.izq), der: cajaValida(e.caja?.der) })) };
 }
@@ -3749,6 +3923,9 @@ function pintarHistorial() {
   $('rehacer').disabled = historial.pos >= historial.pila.length - 1;
 }
 function moverHistorial(paso) {
+  // auditoría 2026-11-24: un cambio de hace menos de 0,4 s (o que todavía se estaba generando) se descartaba y
+  // Deshacer volvía dos pasos atrás. Primero se anota lo pendiente; así Deshacer quita justo ese cambio.
+  volcarHistorial();
   const n = historial.pos + paso; if (n < 0 || n >= historial.pila.length) return;
   clearTimeout(tHistorial);
   historial.pos = n; aplicarReceta(JSON.parse(historial.pila[n])); pintarHistorial();
@@ -3792,7 +3969,9 @@ zonaVisor.addEventListener('drop', async ev => {
   }
   const archivos = [...ev.dataTransfer.files];
   const stl = archivos.filter(f => /\.stl$/i.test(f.name)), json = archivos.filter(f => /\.json$/i.test(f.name));
-  const png = archivos.filter(f => /\.(png|pdf)$/i.test(f.name));
+  let png = archivos.filter(f => /\.(png|pdf)$/i.test(f.name));
+  // un PDF de indicación del doctor no es una muestra (2026-11-24)
+  for (const f of png.filter(f => /\.pdf$/i.test(f.name))) if (await probarIndicacion(f)) png = png.filter(x => x !== f);
   if (png.length) await cargarMuestra(png[0]);
   const otros = archivos.filter(f => !stl.includes(f) && !json.includes(f) && !png.includes(f));
   let recetaConMedidas = false;
@@ -3831,7 +4010,9 @@ document.addEventListener('keydown', ev => {
   if (objElegido && !enCampo && ev.key === 'Escape') { ev.preventDefault(); elegirObjeto(null); return; }
   // caja del elemento abierta: Esc la termina, Ctrl+Z deshace un paso de la caja
   if (cajaEl && !enCampo) {
-    if (ev.key === 'Escape') { ev.preventDefault(); cerrarCajaEl(); return; }
+    // Esc primero suelta los puntos elegidos; con ninguno elegido, cierra la caja. Ctrl+A elige todos.
+    if (ev.key === 'Escape') { ev.preventDefault(); if (cajaEl.sel.size) { cajaEl.sel.clear(); pintarCuentaCaja(); visor?.pedir(); } else cerrarCajaEl(); return; }
+    if ((ev.ctrlKey || ev.metaKey) && k === 'a') { ev.preventDefault(); const n = elegidos[cajaEl.i]?.caja?.[cajaEl.pie]?.d?.length ?? CAJA_EL_N * CAJA_EL_N; for (let i = 0; i < n; i++) cajaEl.sel.add(i); pintarCuentaCaja(); visor?.pedir(); return; }
     if ((ev.ctrlKey || ev.metaKey) && k === 'z' && !ev.shiftKey && cajaEl.hist.length) { ev.preventDefault(); pasoCajaEl(); return; }
   }
   if ((ev.ctrlKey || ev.metaKey) && !ev.altKey) {

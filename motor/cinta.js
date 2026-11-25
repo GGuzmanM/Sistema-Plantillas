@@ -23,7 +23,11 @@ export const CINTA_FABRICA = {
   nombre: 'PodoTec3D Model 1 (perfil PLANTAR3D 08-OCT25)',
   angulo: 30, ancho: 210, alto: 180, centroX: 105, separacion: 10,
   paso: 0.9,               // avance de cinta por capa (espesor 0,45 mm); la primera capa avanza 1,8
-  linea: 0.8, primera: 0.88, flujoRelleno: 0.6, pasoRelleno: 0.8, paredes: 2,
+  linea: 0.8, primera: 0.88, flujoRelleno: 0.6, pasoRelleno: 0.8, paredes: 2,   // boquilla de 0,8 (Ernesto)
+  // relleno (2026-11-24): 'concentrico' (el de siempre: líneas cada pasoRelleno con flujo = flujoRelleno),
+  // 'giroide' o 'cubico' (líneas a flujo completo, separadas para que llenen flujoRelleno del interior). De fábrica
+  // giroide desde el módulo Impresión (2026-11-24), igual que el perfil de Máquinas.
+  tipoRelleno: 'giroide',
   temp: 250, flujo: 70, filamento: 1.75,
   F: { primera: 600, exterior: 1500, interior: 3000, relleno: 1800, viaje: 6000, z: 1200, retraer: 1800, volver: 1500, limpiar: 3600 },
   retraccion: 0.8, limpieza: 1,
@@ -143,6 +147,55 @@ function lazos(D, nx, ny, nivel) {
   }
   return out;
 }
+// Curvas de nivel abiertas (relleno giroide o cúbico): las celdas con alguna esquina NaN (fuera del interior) no se
+// trazan, así las líneas terminan en el borde de las paredes. Devuelve trazos [[x, y], …] en celdas.
+const CASOS = [[], [3, 0], [0, 1], [3, 1], [1, 2], [3, 0, 1, 2], [0, 2], [3, 2], [2, 3], [0, 2], [0, 1, 2, 3], [1, 2], [1, 3], [0, 1], [3, 0], []];
+function trazos(V, nx, ny, nivel) {
+  const punto = new Map(), vec = new Map();
+  const unir = (p, q) => { (vec.get(p) ?? vec.set(p, []).get(p)).push(q); (vec.get(q) ?? vec.set(q, []).get(q)).push(p); };
+  for (let j = 0; j < ny - 1; j++) for (let i = 0; i < nx - 1; i++) {
+    const a = V[j * nx + i] - nivel, b = V[j * nx + i + 1] - nivel, c = V[(j + 1) * nx + i + 1] - nivel, d = V[(j + 1) * nx + i] - nivel;
+    if (Number.isNaN(a + b + c + d)) continue;
+    const L = CASOS[(a > 0) | ((b > 0) << 1) | ((c > 0) << 2) | ((d > 0) << 3)];
+    if (!L.length) continue;
+    const arista = q => {
+      const k = q === 0 ? `h${j},${i}` : q === 2 ? `h${j + 1},${i}` : q === 3 ? `v${j},${i}` : `v${j},${i + 1}`;
+      if (!punto.has(k)) punto.set(k, q === 0 ? [i + a / (a - b), j] : q === 2 ? [i + d / (d - c), j + 1] : q === 3 ? [i, j + a / (a - d)] : [i + 1, j + b / (b - c)]);
+      return k;
+    };
+    for (let q = 0; q < L.length; q += 2) unir(arista(L[q]), arista(L[q + 1]));
+  }
+  const usado = new Set(), out = [];
+  const seguir = p0 => {
+    const L = [p0]; usado.add(p0); let act = p0;
+    while (true) { const sig = vec.get(act).find(q => !usado.has(q)); if (!sig) break; L.push(sig); usado.add(sig); act = sig; }
+    return L.map(k => punto.get(k));
+  };
+  for (const [p, v] of vec) if (v.length === 1 && !usado.has(p)) out.push(seguir(p));   // primero los abiertos, desde una punta
+  for (const [p] of vec) if (!usado.has(p)) { const L = seguir(p); L.push(L[0]); out.push(L); }   // después los cerrados
+  return out.filter(L => L.length >= 2);
+}
+// Campo del relleno en un punto de la plantilla (X a lo ancho, u a lo largo de la cinta, h alto); su curva 0 son las
+// líneas. Giroide: la superficie de siempre; cúbico: tres familias de planos (sale un cubo apoyado en una punta).
+const CUB = [[0.8165, 0, 0.5774], [-0.4082, 0.7071, 0.5774], [-0.4082, -0.7071, 0.5774]];
+function campoRelleno(tipo, fam, per, X, u, h) {
+  if (tipo === 'giroide') { const q = (2 * Math.PI) / per; return Math.sin(q * X) * Math.cos(q * u) + Math.sin(q * u) * Math.cos(q * h) + Math.sin(q * h) * Math.cos(q * X); }
+  const n = CUB[fam]; return Math.sin((Math.PI * (n[0] * X + n[1] * u + n[2] * h)) / per);
+}
+// simplificación (Douglas-Peucker) de un trazo abierto en mm
+function simple(P, tol = 0.02) {
+  if (P.length < 3) return P;
+  const keep = new Uint8Array(P.length); keep[0] = keep[P.length - 1] = 1;
+  const dp = (i0, i1) => {
+    let dmax = 0, im = -1; const [ax, ay] = P[i0], [bx, by] = P[i1], ex = bx - ax, ey = by - ay, l = Math.hypot(ex, ey) || 1e-9;
+    for (let i = i0 + 1; i < i1; i++) { const d = Math.abs((P[i][0] - ax) * ey - (P[i][1] - ay) * ex) / l; if (d > dmax) { dmax = d; im = i; } }
+    if (dmax > tol) { keep[im] = 1; dp(i0, im); dp(im, i1); }
+  };
+  dp(0, P.length - 1);
+  return P.filter((_, i) => keep[i]);
+}
+const largoTrazo = P => P.reduce((s, p, i) => (i ? s + Math.hypot(p[0] - P[i - 1][0], p[1] - P[i - 1][1]) : 0), 0);
+
 // suavizado leve y simplificación (Douglas-Peucker) de un lazo cerrado en mm
 function prolijo(P, tol = 0.02) {
   const n = P.length; if (n < 4) return P;
@@ -204,6 +257,7 @@ export function gcodeCinta(piezas, op = {}) {
   // hastaMm: solo los primeros mm de cinta (pieza chica de prueba: la punta de la primera plantilla)
   for (; zk <= zFin && zk <= (op.hastaMm ?? Infinity) && k < (op.hastaCapa ?? Infinity); k++, zk += C.paso) {
     // primera = la primera capa que lleva plástico (si las de antes salen vacías, la punta todavía no llegó a la cinta)
+    if (op.progreso && k % 25 === 0) op.progreso(Math.min(1, zk / Math.min(zFin, op.hastaMm ?? Infinity)));
     const primera = nCapa === 0, paso = k === 0 ? 2 * C.paso : C.paso, esp = paso * sn, zm = zk - paso / 2;
     // piezas que toca este plano y franja de Y
     const act = P.filter(p => zm >= p.b0 && zm - (p.m.hmax / sn + 1) * cs <= p.b0 + p.m.largo);
@@ -234,7 +288,21 @@ export function gcodeCinta(piezas, op = {}) {
     for (let w = nParedes - 1; w >= 1; w--) niveles.push([(anchoL / 2 + w * anchoL) / c, 'WALL-INNER', anchoL, 1]);
     niveles.push([(anchoL / 2) / c, 'WALL-OUTER', anchoL, 1]);
     // relleno concéntrico: su flujo y su separación también se eligen (flujo 0 = sin relleno)
-    if (C.flujoRelleno > 0) for (let d = nParedes * anchoL + C.pasoRelleno / 2; d < 200; d += C.pasoRelleno) niveles.push([d / c, 'FILL', C.pasoRelleno, C.flujoRelleno]);
+    const patron = C.tipoRelleno === 'giroide' || C.tipoRelleno === 'cubico';
+    if (C.flujoRelleno > 0 && !patron) for (let d = nParedes * anchoL + C.pasoRelleno / 2; d < 200; d += C.pasoRelleno) niveles.push([d / c, 'FILL', C.pasoRelleno, C.flujoRelleno]);
+    // giroide / cúbico (2026-11-24): curvas 0 de un campo fijo a la plantilla (u = lugar en la cinta), solo donde hay
+    // interior (las líneas pisan un 15 % la última pared, para que se peguen)
+    const rellenoPatron = [];
+    if (C.flujoRelleno > 0 && patron) {
+      // separación medida para que el relleno lleve el mismo plástico que el concéntrico con igual % (plantilla de 240 mm)
+      const borde = (nParedes - 0.15) * anchoL / c, per = (C.tipoRelleno === 'giroide' ? 2.4 : 2.3) * anchoL / C.flujoRelleno;
+      for (let fam = 0; fam < (C.tipoRelleno === 'giroide' ? 1 : 3); fam++) {
+        const V = new Float32Array(nx * ny);
+        for (let j = 0; j < ny; j++) { const s = Sc(j), h = s * sn, u = zm - s * cs;
+          for (let i = 0; i < nx; i++) { const k2 = j * nx + i; V[k2] = D[k2] >= borde ? campoRelleno(C.tipoRelleno, fam, per, Xc(i), u, h) : NaN; } }
+        for (const T of trazos(V, nx, ny, 0)) { const P = simple(T.map(aMm)); if (largoTrazo(P) > 1) rellenoPatron.push(P); }
+      }
+    }
     let maxD = 0; for (const v of D) if (v > maxD) maxD = v;
     // cabecera de la capa
     const t0 = t, Lc = [], recorridos = [];
@@ -274,6 +342,27 @@ export function gcodeCinta(piezas, op = {}) {
         }
       }
     }
+    // relleno giroide / cúbico: trazos abiertos, el más cercano primero (por la punta que quede más cerca); viajes
+    // cortos (hasta 3 mm, por adentro) sin retraer
+    if (rellenoPatron.length && hubo) {
+      Lc.push(';TYPE:FILL', `;WIDTH:${anchoL.toFixed(3)}`, ';FLOW:100.0');
+      const F = primera ? C.F.primera : C.F.relleno, Ls = rellenoPatron;
+      while (Ls.length) {
+        let mejor = 0, alReves = false, dm = Infinity;
+        Ls.forEach((Q, qi) => { const a = Math.hypot(Q[0][0] - x, Q[0][1] - y), b = Math.hypot(Q[Q.length - 1][0] - x, Q[Q.length - 1][1] - y);
+          if (a < dm) { dm = a; mejor = qi; alReves = false; } if (b < dm) { dm = b; mejor = qi; alReves = true; } });
+        const R = Ls.splice(mejor, 1)[0]; if (alReves) R.reverse();
+        if (!retraido && dm > 3) { Lc.push(`G1 F${C.F.retraer} E${f4(e - C.retraccion)}`); retraido = true; }
+        Lc.push(`G0 F${C.F.viaje} X${f3(R[0][0])} Y${f3(R[0][1])}`); mover(R[0][0], R[0][1], C.F.viaje);
+        if (retraido) { Lc.push(`G1 F${C.F.volver} E${f4(e)}`); retraido = false; }
+        for (let q = 1; q < R.length; q++) {
+          const [px, py] = R[q], l = Math.hypot(px - x, py - y); if (l < 1e-4) continue;
+          e += (anchoL * esp * l) / A; largoTotal += l;
+          Lc.push(`G1${q === 1 ? ` F${F}` : ''} X${f3(px)} Y${f3(py)} E${f4(e)}`); mover(px, py, F);
+        }
+        if (op.capas) recorridos.push({ tipo: 'FILL', pts: R });
+      }
+    }
     if (!hubo) { nCapa--; t = t0; continue; }   // capa sin nada que imprimir: no se escribe
     // ventilador: capas cortas, más aire (30 % a 60 %, como el perfil)
     const dur = t - t0, fan = Math.round(dur <= 8 ? 153 : dur >= 40 ? 77 : 153 - ((dur - 8) / 32) * 76);
@@ -293,6 +382,6 @@ export function gcodeCinta(piezas, op = {}) {
       const m2 = l.match(/^G0 F\d+ Z([\d.]+)/); if (m2) zz = Math.max(zz, +m2[1]); }
     const i = L.indexOf(';Bounding Box: @CAJA@'); if (i >= 0) L[i] = `;Bounding Box: ${f3(a)} ${f3(b2)} ${f3(Math.max(0, c2 - C.linea / 2))} ${f3(d2)} 0.000 ${f3(zz)}`; }
   const texto = L.join('\n') + '\n';
-  return { texto, avisos, capas: op.capas ? capas : null, numCapas: nCapa,
+  return { texto, avisos, capas: op.capas ? capas : null, numCapas: nCapa, piezas: P.map(p => ({ nombre: p.nombre, b0: p.b0, largo: p.m.largo, ancho: p.m.ancho, alto: p.m.hmax })),
     segundos: t, filamento: (e * C.flujo) / 100, gramos: ((e * C.flujo) / 100) * A * (C.densidad ?? 710) / 1e6, largoCinta: z, lineas: L.length };   // filamento en mm, con el flujo del 70 % (como ideaMaker)
 }

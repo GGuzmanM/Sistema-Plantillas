@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maqueta · Orden del doctor con clics</title>
+<!-- Maqueta (2026-11-24, Ernesto): el doctor arma la indicación con clics (sin escribir los elementos, que hoy en la
+     ficha anagráfica se escriben con errores) y sale un PDF limpio: por par, solo los elementos con su altura y si son
+     bilaterales. El PDF lleva los datos adentro para que el programa los lea y agregue los elementos al diseño
+     ("por revisar"). Pacientes de muestra. -->
+<style>
+  :root { --tinta:#10183a; --suave:#5d6684; --linea:#dfe4f0; --acento:#1838d9; --acento2:#e9eefe; --fondo:#f3f5fb; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.4 "Segoe UI", system-ui, sans-serif; color:var(--tinta); background:var(--fondo); }
+  header { padding:10px 18px; background:#fff; border-bottom:1px solid var(--linea); display:flex; gap:14px; align-items:baseline; flex-wrap:wrap; }
+  header h1 { margin:0; font-size:17px; } .nota { color:var(--suave); font-size:12.5px; }
+  .beta { font-size:11px; font-weight:700; color:#9a5b00; background:#fff1d6; border:1px solid #f1c46b; border-radius:10px; padding:1px 7px; }
+  .grid { display:grid; grid-template-columns:minmax(420px, 1fr) 210mm; gap:18px; padding:16px; align-items:start; }
+  @media (max-width:1300px) { .grid { grid-template-columns:1fr; } }
+  .panel { background:#fff; border:1px solid var(--linea); border-radius:12px; padding:14px 16px; margin-bottom:12px; }
+  .panel h2 { margin:0 0 10px; font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--acento); }
+  .campos { display:grid; grid-template-columns:1fr 1fr; gap:8px 12px; }
+  label.f { display:grid; gap:3px; font-size:12.5px; color:var(--suave); }
+  input { height:32px; border:1px solid var(--linea); border-radius:7px; padding:0 9px; font:inherit; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .chip { border:1px solid var(--linea); background:#fff; border-radius:16px; padding:5px 11px; cursor:pointer; font:inherit; font-size:13px; }
+  .chip.si { background:var(--acento2); border-color:var(--acento); color:var(--acento); font-weight:600; }
+  .chip.mini { padding:2px 9px; font-size:12px; }
+  .par { border:1px solid var(--linea); border-radius:10px; padding:10px; margin-bottom:8px; }
+  .par .cab { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+  .par b { font-size:14px; }
+  .quitar { border:0; background:none; color:#b3261e; cursor:pointer; font-size:12.5px; }
+  .zona { font-size:11px; font-weight:700; color:var(--suave); text-transform:uppercase; margin:8px 0 4px; }
+  .elem { display:grid; grid-template-columns:1fr auto; gap:6px; align-items:center; padding:6px 8px; border-radius:8px; border:1px solid transparent; }
+  .elem.si { background:#f6f8ff; border-color:#cfd8fb; }
+  .elem .nom { cursor:pointer; user-select:none; display:flex; gap:8px; align-items:center; }
+  .elem .nom i { width:16px; height:16px; border:1.6px solid #8a93b0; border-radius:4px; display:inline-block; flex:none; }
+  .elem.si .nom i { background:var(--acento); border-color:var(--acento); box-shadow:inset 0 0 0 2.5px #fff; }
+  .elem .ops { grid-column:1 / -1; display:none; gap:10px; flex-wrap:wrap; padding:4px 0 2px 24px; }
+  .elem.si .ops { display:flex; }
+  .ops .g { display:flex; gap:4px; align-items:center; } .ops .g span { font-size:12px; color:var(--suave); margin-right:2px; }
+  input.alt { width:64px; height:28px; text-align:right; } input.alt.mal { border-color:#c62828; background:#fdecec; }
+  .btns { display:flex; gap:8px; flex-wrap:wrap; }
+  .btn { height:38px; border-radius:8px; border:1px solid var(--linea); background:#fff; padding:0 14px; font:inherit; cursor:pointer; }
+  .btn.prim { background:linear-gradient(135deg,#1838d9,#4f68ec); color:#fff; border:0; font-weight:600; }
+  /* PDF final */
+  .hoja { width:210mm; min-height:297mm; background:#fff; box-shadow:0 4px 24px rgba(0,0,0,.14); padding:16mm 16mm; font-family:Arial, Helvetica, sans-serif; color:#111; position:sticky; top:12px; }
+  .hoja .t { display:flex; justify-content:space-between; align-items:flex-end; border-bottom:2px solid #1838d9; padding-bottom:3mm; }
+  .hoja h3 { margin:0; font-size:15pt; } .hoja .lb { color:#1838d9; font-weight:700; font-size:10pt; }
+  .hoja .dat { display:grid; grid-template-columns:auto 1fr auto 1fr; gap:1.5mm 5mm; font-size:10pt; margin:5mm 0; }
+  .hoja .dat b { font-weight:700; }
+  .hoja h4 { margin:6mm 0 2mm; font-size:11pt; background:#eef1fb; padding:1.5mm 3mm; border-left:3px solid #1838d9; }
+  .hoja table { width:100%; border-collapse:collapse; font-size:10.5pt; }
+  .hoja th { text-align:left; font-size:8.5pt; color:#555; border-bottom:1px solid #999; padding:1.5mm; }
+  .hoja td { padding:2mm 1.5mm; border-bottom:1px solid #ddd; }
+  .hoja .vacio { color:#888; font-style:italic; font-size:10pt; }
+  .hoja .pie { margin-top:10mm; font-size:8pt; color:#777; border-top:1px solid #ddd; padding-top:2mm; }
+  .lado { font-weight:700; } .lado.b { color:#1a7a43; }
+</style>
+</head>
+<body>
+<header><h1>Indicación de plantillas</h1><span class="beta">MAQUETA</span>
+  <span class="nota">Izquierda: lo que ve el doctor (todo con clics). Derecha: el PDF que sale, igual que se imprime. El programa lee ese PDF y agrega los elementos.</span></header>
+<div class="grid">
+  <div>
+    <div class="panel"><h2>Paciente</h2>
+      <div class="campos" id="generales">
+        <label class="f">Apellido y nombre<input data-g="Apellido y nombre" value="Paciente de muestra"></label>
+        <label class="f">Código paciente<input data-g="Código paciente" value="00000001"></label>
+        <label class="f">DNI<input data-g="DNI" value="00000000"></label>
+        <label class="f">Fecha de nacimiento<input data-g="Fecha de nacimiento" value="01/01/1990"></label>
+        <label class="f">Sexo<input data-g="Sexo" value="Femenino"></label>
+        <label class="f">Calzado n.º<input data-g="Calzado n.º" value="38"></label>
+        <label class="f">Peso (kg)<input data-g="Peso" value=""></label>
+        <label class="f">Altura (cm)<input data-g="Altura" value=""></label>
+        <label class="f">Médico<input data-g="Médico" value="CS"></label>
+        <label class="f">Teléfono<input data-g="Teléfono" value=""></label>
+        <label class="f">Fecha de registro<input data-g="Fecha de registro" value=""></label>
+        <label class="f">Centro<input data-g="Centro" value=""></label>
+      </div>
+      <div class="nota" style="margin-top:6px">Cuando la indicación se arma desde el programa, estos datos ya vienen llenos.</div>
+    </div>
+    <div class="panel"><h2>Pares (calzado y material)</h2>
+      <div id="pares"></div>
+      <div class="chips" id="agregarPar"></div>
+    </div>
+    <div class="panel"><h2>Elementos</h2>
+      <div class="nota" style="margin-bottom:6px">Clic en el elemento; después altura, lado y en qué pares va.</div>
+      <div id="elems"></div>
+    </div>
+    <div class="panel"><h2>Patología y nota (opcional)</h2>
+      <label class="f">Patología<input id="pat" value="Pie plano grado I bilateral"></label>
+      <label class="f" style="margin-top:8px">Motivo de consulta<input id="mot" value="Dolor en planta y talón"></label>
+      <label class="f" style="margin-top:8px">Nota<input id="notaD" value=""></label>
+    </div>
+    <div class="btns"><button class="btn prim">Generar PDF</button><button class="btn">Imprimir</button></div>
+  </div>
+  <div class="hoja" id="hoja"></div>
+</div>
+
+<script type="module">
+const $ = id => document.getElementById(id);
+const leer = r => fetch(r).then(x => x.json());
+const { elementos } = await leer('../biblioteca/elementos.json');
+const CALZADOS = ['Urbanas', 'Deportivas', 'Mocasines / tacos', 'Chimpunes', 'Crocs / sandalias'];
+const MATERIALES = ['Relax S20', 'Protection S40', 'Dynamic S50', 'Class TPU', 'Glam TPU', '3D'];
+const ZONAS = [['Antepié', ['barra_metatarsal', 'oliva', 'cuna_int_antepie', 'cuna_ext_antepie', 'descarga_1mtt', 'descarga_5mtt']],
+  ['Mediopié', ['arco_lateral']], ['Retropié', ['cuna_int_retropie', 'cuna_ext_retropie', 'cuna_antisupinacion', 'descarga_talon']]];
+const altDe = e => e.descarga || /descarga/.test(e.id) ? [1, 1.5, 2, 3] : [2, 3, 4, 5, 6];
+const n = v => String(v).replace('.', ',');
+// estado de muestra (parecido a una indicación real, con datos inventados)
+const S = {
+  pares: [{ calzado: 'Urbanas', material: 'Protection S40' }, { calzado: 'Deportivas', material: 'Dynamic S50' }],
+  sel: new Map([['cuna_ext_retropie', { alt: 5, lado: 'bi', pares: null }], ['barra_metatarsal', { alt: 4, lado: 'bi', pares: ['Urbanas'] }], ['descarga_talon', { alt: 2, lado: 'bi', pares: null }]]),
+};
+const porId = new Map(elementos.map(e => [e.id, e]));
+const LADOS = [['bi', 'Bilateral'], ['izq', 'Solo izq.'], ['der', 'Solo der.']];
+
+function pintar() {
+  // pares
+  $('pares').innerHTML = S.pares.map((p, i) => `<div class="par"><div class="cab"><b>Par ${i + 1} · ${p.calzado}</b><button class="quitar" data-quitar="${i}">Quitar</button></div>
+    <div class="chips">${MATERIALES.map(m => `<button class="chip mini ${p.material === m ? 'si' : ''}" data-mat="${i}|${m}">${m}</button>`).join('')}</div></div>`).join('');
+  $('agregarPar').innerHTML = CALZADOS.filter(c => !S.pares.some(p => p.calzado === c)).map(c => `<button class="chip" data-par="${c}">+ ${c}</button>`).join('');
+  // elementos
+  $('elems').innerHTML = ZONAS.map(([z, ids]) => `<div class="zona">${z}</div>` + ids.map(id => { const e = porId.get(id); if (!e) return ''; const s = S.sel.get(id);
+    return `<div class="elem ${s ? 'si' : ''}"><span class="nom" data-el="${id}"><i></i>${e.nombre}</span><span></span>
+      <div class="ops">
+        <span class="g"><span>Altura</span><input type="number" class="alt" data-altura="${id}" min="0.5" max="15" step="0.5" value="${s?.alt ?? e.altura}" aria-label="Altura de ${e.nombre} en mm"><span>mm</span></span>
+        <span class="g">${LADOS.map(([k, t]) => `<button class="chip mini ${s?.lado === k ? 'si' : ''}" data-lado="${id}|${k}">${t}</button>`).join('')}</span>
+        ${S.pares.length > 1 ? `<span class="g"><span>En</span><button class="chip mini ${!s?.pares ? 'si' : ''}" data-en="${id}|*">Todos</button>${S.pares.map(p => `<button class="chip mini ${s?.pares?.includes(p.calzado) ? 'si' : ''}" data-en="${id}|${p.calzado}">${p.calzado}</button>`).join('')}</span>` : ''}
+      </div></div>`; }).join('')).join('');
+  hoja();
+}
+function hoja() {
+  const fecha = new Date().toLocaleDateString('es-PE'), e = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  // información general: todos los datos del paciente que estén llenos, en dos columnas
+  const g = [...document.querySelectorAll('[data-g]')].filter(i => i.value.trim()).map(i => [i.dataset.g, i.value.trim()]);
+  if (!g.some(([k]) => k === 'Fecha de registro')) g.push(['Fecha de indicación', fecha]);
+  const nombre = g.find(([k]) => k === 'Apellido y nombre')?.[1] ?? '';
+  let h = `<div class="t"><h3>Indicación de plantillas</h3><span class="lb">Lima Blue</span></div>
+    <div style="font-size:14pt;font-weight:700;margin:4mm 0 1mm">${e(nombre)}</div>
+    <h4 style="margin-top:3mm">Información general</h4>
+    <div class="dat">${g.filter(([k]) => k !== 'Apellido y nombre').map(([k, v]) => `<b>${e(k)}</b><span>${e(v)}</span>`).join('')}</div>
+    ${$('pat').value || $('mot').value ? `<div class="dat" style="grid-template-columns:auto 1fr;margin-top:0">${$('pat').value ? `<b>Patología</b><span>${e($('pat').value)}</span>` : ''}${$('mot').value ? `<b>Motivo de consulta</b><span>${e($('mot').value)}</span>` : ''}</div>` : ''}`;
+  S.pares.forEach((p, i) => {
+    const els = [...S.sel].filter(([, s]) => !s.pares || s.pares.includes(p.calzado));
+    h += `<h4>Par ${i + 1} · ${p.calzado} · ${p.material}</h4>` + (els.length ? `<table><thead><tr><th>Elemento</th><th>Altura</th><th>Lado</th></tr></thead><tbody>` +
+      els.map(([id, s]) => `<tr><td>${porId.get(id).nombre}</td><td>${n(s.alt)} mm</td><td class="lado ${s.lado === 'bi' ? 'b' : ''}">${LADOS.find(l => l[0] === s.lado)[1].replace('Solo izq.', 'Solo izquierdo').replace('Solo der.', 'Solo derecho')}</td></tr>`).join('') + '</tbody></table>'
+      : '<div class="vacio">Sin elementos</div>');
+  });
+  if ($('notaD').value.trim()) h += `<h4>Nota</h4><div style="font-size:10.5pt">${e($('notaD').value)}</div>`;
+  h += `<div class="pie">Generado con la indicación de Lima Blue. Este PDF lleva los datos para que el diseño se arme solo; el diseñador revisa la ubicación de cada elemento.</div>`;
+  $('hoja').innerHTML = h;
+}
+document.addEventListener('click', ev => {
+  const d = ev.target.closest('[data-el],[data-alt],[data-lado],[data-en],[data-par],[data-mat],[data-quitar]')?.dataset; if (!d) return;
+  if (d.el) { S.sel.has(d.el) ? S.sel.delete(d.el) : S.sel.set(d.el, { alt: porId.get(d.el).altura, lado: 'bi', pares: null }); }
+  if (d.lado) { const [id, k] = d.lado.split('|'); S.sel.get(id).lado = k; }
+  if (d.en) { const [id, c] = d.en.split('|'), s = S.sel.get(id); if (c === '*') s.pares = null; else { const l = new Set(s.pares ?? []); l.has(c) ? l.delete(c) : l.add(c); s.pares = l.size && l.size < S.pares.length ? [...l] : null; } }
+  if (d.par) S.pares.push({ calzado: d.par, material: MATERIALES[1] });
+  if (d.mat) { const [i, m] = d.mat.split('|'); S.pares[+i].material = m; }
+  if (d.quitar) S.pares.splice(+d.quitar, 1);
+  pintar();
+});
+// altura escrita: se usa si es un número entre 0,5 y 15 mm (si no, el casillero queda en rojo y el PDF no cambia)
+document.addEventListener('input', ev => {
+  const id = ev.target.dataset?.altura;
+  if (id) { const v = parseFloat(String(ev.target.value).replace(',', '.')), ok = v >= 0.5 && v <= 15; ev.target.classList.toggle('mal', !ok); if (ok) S.sel.get(id).alt = v; }
+  hoja();
+});
+pintar();
+</script>
+</body>
+</html>

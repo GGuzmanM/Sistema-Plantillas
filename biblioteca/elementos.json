@@ -1,26 +1,26 @@
 {
-  "nota": "Elementos que se suman a la cara de arriba. Posiciones como fracción: a lo largo, 0 = punta del talón y 1 = punta de los dedos; a lo ancho, 0 = borde externo y 1 = borde interno. 'altura' = valor por defecto en mm, el diseñador lo cambia por pie. 'suavizado' = mm con que se difumina el elemento sobre la plantilla (más = más orgánico). 'pieza' (oliva) = forma con contorno propio: 'frente' y 'largo' en fracción del largo, 'ancho' en fracción del ancho, 'centro' a lo ancho, 'anchoMax' y 'pico' = dónde es más ancha y más alta (0 atrás, 1 adelante), 'cola' y 'caida' = curvatura de la subida desde atrás y de la caída al frente, 'boveda' = qué tan llena es a lo ancho (más = más plana arriba), 'giro' en grados. Formas tomadas de las capturas de la biblioteca de EasyCAD (2026-11-11) y suavizadas a pedido del área.",
+  "nota": "Elementos que se suman a la cara de arriba. Posiciones como fracción: a lo largo, 0 = punta del talón y 1 = punta de los dedos; a lo ancho, 0 = borde externo y 1 = borde interno. 'altura' = valor por defecto en mm, el diseñador lo cambia por pie. 'suavizado' = mm con que se difumina el elemento sobre la plantilla (más = más orgánico). 'pieza' (oliva) = forma con contorno propio: 'frente' y 'largo' en fracción del largo, 'ancho' en fracción del ancho, 'centro' a lo ancho, 'anchoMax' y 'pico' = dónde es más ancha y más alta (0 atrás, 1 adelante), 'cola' y 'caida' = curvatura de la subida desde atrás y de la caída al frente, 'boveda' = qué tan llena es a lo ancho (más = más plana arriba), 'giro' en grados. Formas tomadas de las capturas de la biblioteca de EasyCAD (2026-11-11) y suavizadas a pedido del área. Cuñas (2026-11-24): las de retropié se probaron rellenando la copa ('llenar' en el motor) y Ernesto pidió volver a como estaban; las de antepié empiezan a subir al 45 % con una rampa de 20 % del largo (antes 57 % y 6 %, unos 15 mm).",
   "elementos": [
     {
       "id": "cuna_ext_antepie", "categoria": "Cuñas", "nombre": "Cuña externa de antepié", "altura": 3, "suavizado": 6, "relleno": true,
-      "largo": { "tipo": "frente", "desde": 0.57, "rampa": 0.06, "diagonal": 0.14 },
+      "largo": { "tipo": "frente", "desde": 0.45, "rampa": 0.2, "diagonal": 0.12 },
       "ancho": { "tipo": "cuna", "lado": "externo", "hasta": 1, "perfil": "degradado", "finSuave": 0.08 },
       "puente": { "desde": 0.3, "rampa": 0.12, "hasta": 0.74, "ancho": 0.3 }
     },
     {
       "id": "cuna_int_antepie", "categoria": "Cuñas", "nombre": "Cuña interna de antepié", "altura": 3, "suavizado": 6, "relleno": true,
-      "largo": { "tipo": "frente", "desde": 0.57, "rampa": 0.06, "diagonal": 0.14 },
+      "largo": { "tipo": "frente", "desde": 0.45, "rampa": 0.2, "diagonal": 0.12 },
       "ancho": { "tipo": "cuna", "lado": "interno", "hasta": 1, "perfil": "degradado", "finSuave": 0.08 }
     },
     {
       "id": "cuna_ext_retropie", "categoria": "Cuñas", "nombre": "Cuña externa de retropié", "altura": 4, "suavizado": 6,
-      "largo": { "tipo": "talon", "hasta": 0.37, "rampa": 0.17, "diagonal": 0.1 },
-      "ancho": { "tipo": "cuna", "lado": "externo", "hasta": 0.95 }
+      "largo": { "tipo": "talon", "hasta": 0.41, "rampa": 0.1, "diagonal": 0.08 },
+      "ancho": { "tipo": "cuna", "lado": "externo", "hasta": 0.6, "perfil": "degradado", "finSuave": 0.15 }
     },
     {
-      "id": "cuna_int_retropie", "categoria": "Cuñas", "nombre": "Cuña interna de retropié", "altura": 4, "suavizado": 6,
-      "largo": { "tipo": "talon", "hasta": 0.37, "rampa": 0.17, "diagonal": 0.1 },
-      "ancho": { "tipo": "cuna", "lado": "interno", "hasta": 0.95 }
+      "id": "cuna_int_retropie", "categoria": "Cuñas", "nombre": "Cuña interna de retropié", "altura": 4, "suavizado": 6, "absorbeArco": true,
+      "largo": { "tipo": "talon", "hasta": 0.47, "rampa": 0.12, "diagonal": 0.08 },
+      "ancho": { "tipo": "cuna", "lado": "interno", "hasta": 0.6, "perfil": "degradado", "finSuave": 0.15 }
     },
     {
       "id": "cuna_antisupinacion", "categoria": "Cuñas", "nombre": "Cuña antisupinación", "altura": 3, "suavizado": 6,
