@@ -1788,9 +1788,16 @@ function puntoRegla(px, py, recta) {
   [px, py] = rectaRegla(px, py, recta);
   const p = puntoDelClic(px, py);
   if (p) return [p.x + enVista.find(e => e.pie === p.pie).ox, p.y, p.z];
-  // fuera de la plantilla: el punto del piso (z = 0)
-  const { o, d } = visor.rayo(px, py); if (Math.abs(d[2]) < 1e-9) return null;
-  const t = -o[2] / d[2]; return t > 0 ? [o[0] + t * d[0], o[1] + t * d[1], 0] : null;
+  // fuera de la plantilla: mirando desde arriba, el punto del piso (z = 0, donde está la muestra); mirando de costado
+  // (2026-11-25, Ernesto: "¿por qué desaparece la regla cuando apunto al vacío?") el rayo casi no baja y no toca el
+  // piso: ahí el punto va en el plano de la pantalla que pasa por el primer punto (o por el centro, si es el primero)
+  const { o, d } = visor.rayo(px, py), ld = Math.hypot(...d) || 1;
+  if (Math.abs(d[2]) / ld > 0.5) {
+    const t = -o[2] / d[2]; if (t > 0) return [o[0] + t * d[0], o[1] + t * d[1], 0];
+  }
+  const ult = reglas[reglas.length - 1], M = ult && !ult.b ? ult.a : [0, 0, 0];
+  const t = ((M[0] - o[0]) * d[0] + (M[1] - o[1]) * d[1] + (M[2] - o[2]) * d[2]) / (ld * ld);
+  return o.map((v, i) => v + t * d[i]);
 }
 
 // Punto de la cara de arriba en (x, y) de un pie: altura, base y lo que suman los elementos.
