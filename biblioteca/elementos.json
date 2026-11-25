@@ -23,9 +23,9 @@
       "ancho": { "tipo": "cuna", "lado": "interno", "hasta": 0.6, "perfil": "degradado", "finSuave": 0.15 }
     },
     {
-      "id": "cuna_antisupinacion", "categoria": "Cuñas", "nombre": "Cuña antisupinación", "altura": 3, "suavizado": 6,
-      "largo": { "tipo": "lente", "desde": 0.02, "hasta": 0.76, "meseta": 0.4 },
-      "ancho": { "tipo": "cuna", "lado": "externo", "hasta": 0.55 }
+      "id": "cuna_antisupinacion", "categoria": "Cuñas", "nombre": "Cuña antisupinación", "altura": 4, "suavizado": 6,
+      "largo": { "tipo": "rampa", "desde": -0.25, "pico": 0.47, "hasta": 0.66 },
+      "ancho": { "tipo": "cuna", "lado": "externo", "hasta": 0.45, "perfil": "degradado", "finSuave": 0.15 }
     },
     {
       "id": "barra_metatarsal", "categoria": "Barras y olivas", "nombre": "Barra metatarsal", "altura": 3, "suavizado": 3,
